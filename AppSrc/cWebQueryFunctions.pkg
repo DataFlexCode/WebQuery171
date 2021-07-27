@@ -1,0 +1,1906 @@
+Use UI
+Use seq_chnl.pkg
+
+// Strure's packages:
+Use StringFunctions.pkg
+Use StructFunctions.pkg
+Use cExpressionParser.pkg
+Use TableQueryFunctions.pkg
+Use XmlBuilder.pkg
+
+Use wqSelectionOperators.wo
+Use cWqExprParser.pkg
+
+Struct wqDir
+    Boolean bDir
+    String  sName
+End_Struct
+
+Struct wqTableInfo
+    Integer iNum
+    String  sDispName
+    String  sDFName
+    String  sRootName
+End_Struct
+
+Global_Variable Handle ghoWebQry
+Global_Variable Handle ghoWQF
+
+Enum_List
+    Define C_wqAppendRow for 0
+    Define C_wqInsertRow
+    Define C_wqDeleteRow
+    Define C_wqAddExpression
+    Define C_wqInsertExpression 
+    Define C_wqEditExpression
+    Define C_wqSelectExpr
+    Define C_wqAssembleSave
+    Define C_wqAssembleRun
+    Define C_wqMoveRowUp
+    Define C_wqMoveRowDown
+    Define C_wqNoOp
+    Define C_wqSaveData
+    Define C_wqGetIndexInfo
+End_Enum_List
+
+Enum_List
+    Define C_wqModalWin for 0
+    Define C_wqNewTab
+    Define C_wqNewWin
+    Define C_wqDownload
+End_Enum_List
+
+Enum_List
+    Define C_wqViewOutput
+    Define C_wqDownloadOutput
+End_Enum_List
+
+Enum_List
+    Define C_wqOutputHtml
+    Define C_wqOutputText
+    Define C_wqOutputCSV
+    Define C_wqOutputXML
+End_Enum_List
+
+Struct wqPrintField
+    Boolean bCalc
+    Integer iTable
+    Integer iColumn
+    String  sUserName
+    Boolean bSum
+    Boolean bCR
+    String  sExpression
+    String  sLongLabel
+    Integer iWidth
+    Integer iType
+    Integer iDecimals
+End_Struct
+
+Struct wqTableDetail
+    Integer  iTabNum
+    String   sName
+    String[] asFieldNames
+End_Struct
+
+Struct wqSelections
+    Integer iTable
+    Integer iColumn
+    String  sUserName
+    String  sType
+    String  sValue
+    Integer iType
+End_Struct
+
+Struct wqSelsForTQ
+    wqSelections Selection
+    Boolean  bUseTQ
+    Boolean  bInList
+    String   sStartR
+    String   sEndR
+    String[] aList
+End_Struct
+
+Struct wqIndexSeg
+    Integer iTable
+    Integer iField
+    Boolean bBreak
+    Boolean bUC
+    Boolean bDesc
+    String  sName
+End_Struct
+
+Struct wqWebQuery
+    String  sTitle
+    Handle  hMainTable
+    String  sSelectExpression
+    wqPrintField[] aPrintFields
+    wqSelections[] aSelections
+    wqIndexSeg[]   aSegments
+    Integer iIndex
+    Integer iSearchOrd
+    String  sTextBefore
+    String  sTextAfter
+    String  sTypeface
+    String  sFontSize
+    String  sTextColour
+    String  sBGColour
+    Boolean bHighlightAlt
+    String  sHighlightColour
+    Boolean bPrintSels
+    Boolean bTotalsOnly
+    Boolean bPrintCount
+    Integer iDestination
+    Integer iOutputFormat
+    Boolean bColHeads
+    Boolean bGeneratedLine
+    Boolean bUseSQL
+End_Struct
+
+Struct wqColour
+    Integer iRed
+    Integer iGreen
+    Integer iBlue
+End_Struct
+
+Struct wqBreakpoint
+    Integer iTable
+    Integer iColumn
+    String  sName
+    String  sPrevValue
+End_Struct
+
+Struct wqPrintColumn
+    String   sName
+    Integer  iTable
+    Integer  iColumn
+    Integer  iType
+    Integer  iWidth
+    Integer  iDecimals
+    Integer  iPrintWidth
+    String   sExpr
+    Boolean  bCR
+    Boolean  bCalc
+    String   sCurVal
+    Boolean  bSum
+    Number[] anSum
+End_Struct
+
+Struct wqPrintRowPart
+    wqPrintColumn[] aColumns
+End_Struct
+
+Struct wqPrintRowLayout
+    wqPrintRowPart[] aParts
+    Integer iMaxCols
+    Integer iCount
+End_Struct
+
+Struct wqTableField
+    Handle  hTable
+    Integer iField
+End_Struct
+
+Define C_wqValidXmlChars   for "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_"
+Define C_wqInvalidDirChars for '/\?%*:|"<>'
+Define C_wqPublicDir       for "\Public"
+
+Register_Function phLoggedInFunc   Returns Boolean
+Register_Function phUserNameFunc   Returns String
+Register_Function pbAllowRawOutput Returns Boolean
+
+Object oWqExprPar is a cWqExprParser
+End_Object
+
+Object oWqXml is a cXmlBuilder
+End_Object
+
+Class cWebQueryFunctions is a cObject
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        
+        Property Handle[]       pahExcludedTables
+        Property wqTableField[] patExcludedFields
+        Property Integer        piChannel
+    End_Procedure
+    
+    Function StrAddQuotes String sVal Returns String
+        Function_Return ('"' + Trim(sVal) + '"')
+    End_Function
+    
+    Function StrDelQuotes String sVal Returns String
+        If (Left(sVal, 1) = '"')  Move (Right(sVal, (Length(sVal) - 1)))    to sVal
+        If (Right(sVal, 1) = '"') Move  (Left(sVal,  (Length(sVal) - 1)))   to sVal
+        Function_Return sVal
+    End_Function
+    
+    Function XmlTag String sName Returns String
+        Integer i iLen
+        
+        Move (Trim(sName))   to sName
+        Move (Length(sName)) to iLen
+        
+        For i from 1 to iLen
+            If not (C_wqValidXmlChars contains Uppercase(Mid(sName, 1, i))) Move (Overstrike("_", sName, i)) to sName 
+        Loop
+        
+        Function_Return sName
+    End_Function
+    
+    Function UpperChar String sData Integer iChar Returns String
+        Function_Return (Overstrike(Uppercase(Mid(sData, 1, iChar)), sData, iChar))
+    End_Function
+    
+    Function NiceFieldName Handle hTab Integer iCol Returns String
+        String  sName
+        Integer i
+        
+        Open hTab
+        Get_Attribute DF_FIELD_NAME of hTab iCol    to sName
+        Move (Replaces("_", sName, " "))            to sName
+        Move (Lowercase(sName))                     to sName
+        
+        For i from 1 to (Length(sName))
+            If ((i = 1) or (Mid(sName, 1, (i - 1)) = " ")) Move (UpperChar(Self, sName, i)) to sName
+        Loop
+        
+        Function_Return sName        
+    End_Function
+    
+    Function TableLoaded tWebRow[] ByRef aRows Handle hTab Returns Boolean
+        Integer i
+        
+        For i from 0 to (SizeOfArray(aRows) - 1)
+            If (aRows[i].aValues[0] = hTab) Function_Return True
+        Loop
+        
+        Function_Return False
+    End_Function
+    
+    Function TableMissing Handle hTab Returns Boolean
+        Handle hNext
+        
+        Get_Attribute DF_FILE_NEXT_EMPTY of (hTab - 1) to hNext
+        Function_Return (hNext = hTab)
+    End_Function
+    
+    Function ExcludedTable Handle hTable Returns Boolean
+        Handle[] ahExcluded
+        Integer  i
+        
+        Get pahExcludedTables to ahExcluded
+        
+        For i from 0 to (SizeOfArray(ahExcluded) - 1)
+            If (hTable = ahExcluded[i]) Function_Return True
+        Loop
+        
+        Function_Return False
+    End_Function
+    
+    Function ExcludedField Handle hTable Integer iField Returns Boolean
+        wqTableField[] atExcluded
+        Integer i
+        
+        Get patExcludedFields to atExcluded
+        
+        For i from 0 to (SizeOfArray(atExcluded) - 1)
+            If ((hTable = atExcluded[i].hTable) and ;
+                (iField = atExcluded[i].iField)) Function_Return True
+        Loop
+        
+        Function_Return False
+    End_Function
+    
+    Procedure RelatedFiles tWebRow[] ByRef aRows Handle hTab
+        Integer iFlds iFld iNext
+        Handle  hRel
+        
+        If (hTab = 0)                 Procedure_Return
+        If (TableMissing(Self, hTab)) Procedure_Return
+        
+        Move (SizeOfArray(aRows)) to iNext
+    
+        Open hTab
+        Get_Attribute DF_FILE_NUMBER_FIELDS of hTab to iFlds
+        Move hTab                                   to aRows[iNext].aValues[0]
+        Get_Attribute DF_FILE_DISPLAY_NAME  of hTab to aRows[iNext].aValues[1]
+        
+        For iFld from 1 to iFlds
+            Get_Attribute DF_FIELD_RELATED_FILE of hTab iFld to hRel
+            If (hRel and not(TableLoaded(Self, &aRows, hRel)) and ;
+                         not(ExcludedTable(Self, hRel))) Send RelatedFiles (&aRows) hRel
+        Loop
+    
+    End_Procedure
+    
+    Function TableOpened Handle hTab wqTableDetail[] ByRef ahOpened Returns Boolean
+        Integer i
+        
+        For i from 0 to (SizeOfArray(ahOpened) - 1)
+            If (ahOpened[i].iTabNum = hTab) Function_Return True
+        Loop
+        
+        Function_Return False
+    End_Function
+    
+    Procedure CollectColumns tWebRow[] ByRef aRows Handle hTab
+        Integer iCols iCol iType iIdx
+        String  sName
+        
+        If not hTab Procedure_Return
+        
+        Open hTab
+        Get_Attribute DF_FILE_NUMBER_FIELDS of hTab to iCols
+        Move 0 to iIdx
+        
+        For iCol from 1 to iCols
+            Get_Attribute DF_FIELD_NAME of hTab iCol to sName
+            Get_Attribute DF_FIELD_TYPE of hTab iCol to iType
+            
+            If ((Left(sName, 1) <> "@") and (iType <> DF_OVERLAP) and ;
+                (iType <> DF_BINARY) and not(ExcludedField(Self, hTab, iCol))) Begin
+                Move iCol                               to aRows[iIdx].aValues[0]
+                Move (NiceFieldName(Self, hTab, iCol))  to aRows[iIdx].aValues[1]
+                Increment iIdx
+            End
+            
+        Loop
+        
+    End_Procedure
+    
+    Function WebDataType Integer iType Returns Integer
+        If (iType = DF_BCD)         Function_Return typeNumber
+        If (iType = DF_DATE)        Function_Return typeDate
+        If (iType = DF_DATETIME)    Function_Return typeDateTime
+        Function_Return                             typeASCII
+    End_Function
+    
+    Function StorePath Returns String
+        String  sPath
+        
+        Get psStoreDirectory of ghoWebQry to sPath
+                
+        Function_Return sPath
+    End_Function
+    
+    Function PublicPath Returns String
+        Function_Return (StorePath(Self) + C_wqPublicDir)
+    End_Function
+    
+    Function PrivatePath Returns String
+        String  sUser
+        Boolean bLoggedIn
+        Handle  hoSess hLoggedInFunc hUserNameFunc
+        
+        Get phoSessionObj of ghoWebQry to hoSess
+        
+        If hoSess Begin
+            Get phLoggedInFunc of ghoWebQry to hLoggedInFunc
+            Get phUserNameFunc of ghoWebQry to hUserNameFunc
+            
+            If (hLoggedInFunc and hUserNameFunc) Begin
+                Get hLoggedInFunc of hoSess to bLoggedIn
+                
+                If bLoggedIn Begin
+                    Get hUserNameFunc of hoSess to sUser
+                    Move (Trim(sUser)) to sUser
+                    Function_Return (StorePath(Self) + "\" + sUser)
+                End
+                
+            End
+            
+        End
+        
+        Function_Return ""
+    End_Function
+    
+    Procedure MakeDirectories
+        Integer iChn
+        String  sPrivPath
+        
+        Get Seq_New_Channel to iChn
+        
+        Direct_Input channel iChn  ("dir:" + StorePath(Self))
+        
+        If (SeqEof) Begin
+            Make_Directory (StorePath(Self))
+            Make_Directory (PublicPath(Self))
+        End
+        
+        Close_Input channel iChn
+        
+        Get PrivatePath to sPrivPath
+        
+        If (sPrivPath <> "") Begin
+            Direct_Input channel iChn ("dir:" + PrivatePath(Self))
+        
+            If (SeqEof) Make_Directory (PrivatePath(Self))
+        
+            Close_Input channel iChn
+        End
+        
+        Send Seq_Release_Channel iChn
+    End_Procedure
+    
+    Function FileMatch String sFile String sFilter Returns Boolean
+        Integer iPos
+        String  sName sExt sNSpec sESpec
+        
+        Move (Pos(".", sFile)) to iPos
+        
+        If iPos Begin
+            Move (Left(sFile, (iPos - 1)))              to sName
+            Move (Right(sFile, (Length(sFile) - iPos))) to sExt
+        End
+        Else Begin
+            Move sFile to sName
+            Move ""    to sExt 
+        End
+        
+        Move (Pos(".", sFilter)) to iPos
+        
+        If iPos Begin
+            Move (Left(sFilter, (iPos - 1)))                to sNSpec
+            Move (Right(sFilter, (Length(sFilter) - iPos))) to sESpec
+        End
+        Else Begin
+            Move sFilter to sNSpec
+            Move ""      to sESpec
+        End
+        
+        Function_Return ((sName matches sNSpec) and ((sExt matches sESpec) or (sESpec = ""))) 
+    End_Function
+    
+    Function DirectoryContents String sPath String sFilter Returns wqDir[]
+        Integer iChn i
+        String  sVal
+        Boolean bDir bMatch
+        wqDir[] aContents
+        
+        Get Seq_New_Channel to iChn
+        
+        Move 0 to i
+        Direct_Input channel iChn ("dir:" + sPath)
+        
+        While not (SeqEof)
+            Readln sVal
+            
+            If (not(SeqEof) and (sVal <> "[.]") and (sVal <> "[..]")) Begin
+                Move (Left(sVal, 1) = "[")    to bDir
+                Move (Replace("[", sVal, "")) to sVal
+                Move (Replace("]", sVal, "")) to sVal
+                
+                If not bDir Move (FileMatch(Self, sVal, sFilter)) to bMatch
+                
+                If (bDir or bMatch) Begin
+                    Move bDir to aContents[i].bDir
+                    Move sVal to aContents[i].sName
+                    Increment i
+                End
+                
+            End
+            
+        Loop
+        
+        Close_Input
+        Send Seq_Release_Channel iChn
+        
+        Function_Return aContents
+    End_Function
+    
+    Function FilenameFromPath String sValue Returns String
+        Integer iPos
+        
+        Repeat
+            Move (Pos("\", sValue)) to iPos
+            If iPos Move (Right(sValue, (Length(sValue) - iPos))) to sValue
+        Until (iPos <= 0)
+                
+        Function_Return sValue        
+    End_Function
+    
+    Function TableInfo Returns wqTableInfo[]
+        Handle  hTab
+        Integer i
+        String  sDisp
+        wqTableInfo[] tTabs
+        
+        Move 0 to hTab
+        Move 0 to i
+        
+        Repeat
+            Get_Attribute DF_FILE_NEXT_USED of hTab to hTab
+            
+            If hTab Begin
+                Get_Attribute DF_FILE_DISPLAY_NAME of hTab to sDisp
+                
+                If ((Left(sDisp, 1) <> "@") and not(ExcludedTable(Self, hTab))) Begin
+                    Move hTab                                   to tTabs[i].iNum
+                    Move sDisp                                  to tTabs[i].sDispName
+                    Get_Attribute DF_FILE_LOGICAL_NAME of hTab  to tTabs[i].sDFName
+                    Get_Attribute DF_FILE_ROOT_NAME    of hTab  to tTabs[i].sRootName
+                    Increment i
+                End
+                
+            End
+            
+        Until not hTab
+        
+        Function_Return tTabs
+    End_Function
+    
+    Function SerializeField wqPrintField tField Returns String
+        String  sField
+        
+        Get VariantToString of oStructFunctions tField to sField
+        Function_Return sField
+    End_Function
+    
+    Function DeSerializeField String sField Returns wqPrintField
+        tValueTree tVT
+        wqPrintField tField
+        
+        Get StringToValueTree of oStructFunctions sField to tVT
+        ValueTreeDeserializeParameter tVT to tField
+        Function_Return tField
+    End_Function
+    
+    Function DeserializeFields String sData Returns wqPrintField[]
+        wqPrintField[] aFields
+        tValueTree tVT
+        
+        Get StringToValueTree of oStructFunctions sData to tVT
+        ValueTreeDeserializeParameter tVT to aFields
+        
+        Function_Return aFields                
+    End_Function
+    
+    Procedure TableDetails Handle hTab wqTableDetail[] ByRef atTabDets
+        Integer iFlds iFld iIdx
+        Handle  hRel
+        
+        If (hTab = 0)                 Procedure_Return
+        If (TableMissing(Self, hTab)) Procedure_Return
+
+        Move (SizeOFArray(atTabDets)) to iIdx
+        
+        Open hTab
+        Move hTab                                  to atTabDets[iIdx].iTabNum
+        Get_Attribute DF_FILE_LOGICAL_NAME of hTab to atTabDets[iIdx].sName
+        Get_Attribute DF_FILE_NUMBER_FIELDS of hTab to iFlds
+        
+        For iFld from 1 to iFlds
+            Get_Attribute DF_FIELD_NAME         of hTab iFld to atTabDets[iIdx].asFieldNames[iFld]
+            Get_Attribute DF_FIELD_RELATED_FILE of hTab iFld to hRel
+            If (hRel and not (TableOpened(Self, hRel, &atTabDets))) Send TableDetails hRel (&atTabDets)
+        Loop
+        
+    End_Procedure
+    
+    Function TableIdx String sTab wqTableDetail[] ByRef atTabDets Returns Integer
+        Integer i
+        
+        For i from 0 to (SizeOFArray(atTabDets) - 1)
+            If (Uppercase(sTab) = Uppercase(atTabDets[i].sName)) Function_Return i
+        Loop
+        
+        Function_Return -1
+    End_Function
+
+    Function FieldIdx Integer iTab String sCol wqTableDetail[] ByRef atTabDets Returns Integer
+        Integer i
+        
+        For i from 0 to (SizeOFArray(atTabDets[iTab].asFieldNames) - 1)
+            If (Uppercase(sCol) = Uppercase(atTabDets[iTab].asFieldNames[i])) Function_Return i
+        Loop
+      
+        Function_Return -1
+    End_Function
+    
+    Function MilDate2Date String sDate Returns String
+        Integer iFmt iLen iSep
+        String  sRes sSep
+        
+        Get_Attribute DF_DATE_FORMAT    to iFmt
+        Get_Attribute DF_DATE_SEPARATOR to iSep
+        Move (Character(iSep))          to sSep
+        Move (Trim(sDate))              to sDate
+        Move (Length(sDate))            to iLen
+        
+        // Just not a valid length - return the input unchanged
+        If not ((iLen = 8) or (iLen = 10)) Function_Return sDate
+        
+        // If the format is military, just return the input
+        If (iFmt = DF_DATE_MILITARY) Function_Return sDate
+        
+        If (iFmt = DF_DATE_EUROPEAN) Begin
+            If (iLen = 10) Move (Right(sDate, 2) + sSep + Mid(sDate, 2, 6) + sSep + Left(sDate, 4)) to sRes
+            Else           Move (Right(sDate, 2) + sSep + Mid(sDate, 2, 4) + sSep + Left(sDate, 2)) to sRes
+        End
+        Else If (iFmt = DF_DATE_USA) Begin
+            If (iLen = 10) Move (Mid(sDate, 2, 6) + sSep + Right(sDate, 2) + sSep + Left(sDate, 4)) to sRes
+            Else           Move (Mid(sDate, 2, 4) + sSep + Right(sDate, 2) + sSep + Left(sDate, 2)) to sRes
+        End
+        
+        Function_Return sRes
+    End_Function
+    
+    Function Date2MilDate String sDate Returns String
+        Integer iFmt iLen
+        String  sRes sSep
+        
+        Get_Attribute DF_DATE_FORMAT    to iFmt
+        Move "-"                        to sSep
+        Move (Trim(sDate))              to sDate
+        Move (Length(sDate))            to iLen
+        
+        // Just not a valid length - return the input unchanged
+        If not ((iLen = 8) or (iLen = 10)) Function_Return sDate
+        
+        // If the format is military, just return the input
+        If (iFmt = DF_DATE_MILITARY) Function_Return sDate
+        
+        If (iFmt = DF_DATE_EUROPEAN) Begin
+            If (iLen = 10) Move (Right(sDate, 4) + sSep + Mid(sDate, 2, 4) + sSep + Left(sDate, 2)) to sRes
+            Else           Move (Right(sDate, 2) + sSep + Mid(sDate, 2, 4) + sSep + Left(sDate, 2)) to sRes
+        End
+        Else If (iFmt = DF_DATE_USA) Begin
+            If (iLen = 10) Move (Right(sDate, 4) + sSep + Left(sDate, 2) + sSep + Mid(sDate, 2, 4)) to sRes
+            Else           Move (Right(sDate, 2) + sSep + Left(sDate, 2) + sSep + Mid(sDate, 2, 4)) to sRes
+        End
+        
+        Function_Return sRes
+    End_Function
+        
+    Function NameToColour String sName Returns wqColour
+        wqColour tCol
+        
+        Move (Lowercase(sName)) to sName
+        
+        If (sName = "white") Begin
+            Move 255 to tCol.iRed
+            Move 255 to tCol.iGreen
+            Move 255 to tCol.iBlue
+        End
+        Else If (sName = "silver") Begin
+            Move 192 to tCol.iRed
+            Move 192 to tCol.iGreen
+            Move 192 to tCol.iBlue
+        End
+        Else If (sName = "gray") Begin
+            Move 128 to tCol.iRed
+            Move 128 to tCol.iGreen
+            Move 128 to tCol.iBlue
+        End
+        Else If (sName = "red") Begin
+            Move 255 to tCol.iRed
+            Move   0 to tCol.iGreen
+            Move   0 to tCol.iBlue
+        End
+        Else If (sName = "maroon") Begin
+            Move 128 to tCol.iRed
+            Move   0 to tCol.iGreen
+            Move   0 to tCol.iBlue
+        End
+        Else If (sName = "yellow") Begin
+            Move 255 to tCol.iRed
+            Move 255 to tCol.iGreen
+            Move   0 to tCol.iBlue
+        End
+        Else If (sName = "olive") Begin
+            Move 128 to tCol.iRed
+            Move 128 to tCol.iGreen
+            Move   0 to tCol.iBlue
+        End
+        Else If (sName = "lime") Begin
+            Move   0 to tCol.iRed
+            Move 255 to tCol.iGreen
+            Move   0 to tCol.iBlue
+        End
+        Else If (sName = "green") Begin
+            Move   0 to tCol.iRed
+            Move 128 to tCol.iGreen
+            Move   0 to tCol.iBlue
+        End
+        Else If (sName = "aqua") Begin
+            Move   0 to tCol.iRed
+            Move 255 to tCol.iGreen
+            Move 255 to tCol.iBlue
+        End
+        Else If (sName = "teal") Begin
+            Move   0 to tCol.iRed
+            Move 128 to tCol.iGreen
+            Move 128 to tCol.iBlue
+        End
+        Else If (sName = "blue") Begin
+            Move   0 to tCol.iRed
+            Move   0 to tCol.iGreen
+            Move 255 to tCol.iBlue
+        End
+        Else If (sName = "navy") Begin
+            Move   0 to tCol.iRed
+            Move   0 to tCol.iGreen
+            Move 128 to tCol.iBlue
+        End
+        Else If (sName = "fushia") Begin
+            Move 255 to tCol.iRed
+            Move   0 to tCol.iGreen
+            Move 255 to tCol.iBlue
+        End
+        Else If (sName = "purple") Begin
+            Move 128 to tCol.iRed
+            Move   0 to tCol.iGreen
+            Move 128 to tCol.iBlue
+        End
+        Else Begin
+            Move   0 to tCol.iRed
+            Move   0 to tCol.iGreen
+            Move   0 to tCol.iBlue
+        End
+        
+        Function_Return tCol
+    End_Function
+    
+//==============================================================================    
+// Report output methods
+//==============================================================================    
+    
+    Function OpenOutput Integer iDest Integer iFormat String ByRef sPath String ByRef sFile Returns Integer
+        Integer iChn
+        String  sDir
+        
+        Get Seq_New_Channel                                         to iChn
+        Get RandomHexUUID                                           to sFile
+        If      (iFormat = C_wqOutputHtml) Move (sFile + ".html")   to sFile
+        Else If (iFormat = C_wqOutputText) Move (sFile + ".txt")    to sFile
+        Else If (iFormat = C_wqOutputCSV)  Move (sFile + ".csv")    to sFile
+        Else If (iFormat = C_wqOutputXML)  Move (sFile + ".xml")    to sFile
+        
+        If (iDest = C_wqDownload) Begin
+            Get psDownloadDirectory of ghoWebQry                to sPath
+        End
+        Else Begin
+            Get psAppHtmlPath of (phoWorkspace(oApplication))   to sPath
+            Get psOutputDirectory of ghoWebQry                  to sDir
+//        Get psHome of (phoWorkspace(oApplication))                  to sPath
+//        Get psOutputDirectory of ghoWebQry                          to sPath
+            Move (sPath + "/" + sDir)                           to sPath
+        End
+        
+        Direct_Input channel iChn ("dir:" + sPath)
+        If (SeqEOF) Make_Directory sPath
+        Close_Input channel iChn
+        
+        Direct_Output channel iChn (sPath + "\" + sFile)
+        Set piChannel to iChn
+        
+        Function_Return iChn
+    End_Function
+    
+    Procedure CreateLayout wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay wqBreakpoint[] ByRef aBreaks
+        Integer i iFld iRow iCol iLen
+        
+        Move 0 to tLay.iMaxCols
+        Move 0 to tLay.iCount
+        Move 0 to iRow
+        Move 0 to iCol
+        
+        For iFld from 0 to (SizeOfArray(tQuery.aPrintFields) - 1)
+            
+            If (tQuery.aPrintFields[iFld].bCR) Begin
+                Move 0 to iCol
+                Increment iRow
+            End
+            
+            Move tQuery.aPrintFields[iFld].iTable       to tLay.aParts[iRow].aColumns[iCol].iTable
+            Move tQuery.aPrintFields[iFld].iColumn      to tLay.aParts[iRow].aColumns[iCol].iColumn
+            Move tQuery.aPrintFields[iFld].sUserName    to tLay.aParts[iRow].aColumns[iCol].sName
+            Move tQuery.aPrintFields[iFld].bCR          to tLay.aParts[iRow].aColumns[iCol].bCR
+            Move tQuery.aPrintFields[iFld].bSum         to tLay.aParts[iRow].aColumns[iCol].bSum
+            Move tQuery.aPrintFields[iFld].sExpression  to tLay.aParts[iRow].aColumns[iCol].sExpr
+            Move tQuery.aPrintFields[iFld].iType        to tLay.aParts[iRow].aColumns[iCol].iType
+            Move tQuery.aPrintFields[iFld].iWidth       to tLay.aParts[iRow].aColumns[iCol].iWidth
+            Move tQuery.aPrintFields[iFld].iDecimals    to tLay.aParts[iRow].aColumns[iCol].iDecimals
+            Move tQuery.aPrintFields[iFld].bCalc        to tLay.aParts[iRow].aColumns[iCol].bCalc
+            
+            If (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD) Begin
+                Move (tLay.aParts[iRow].aColumns[iCol].iWidth * 2)                      to iLen         // digits
+                If (tLay.aParts[iRow].aColumns[iCol].iDecimals > 0)                     Increment iLen  // point
+                Move (iLen + Integer(((tLay.aParts[iRow].aColumns[iCol].iWidth * 2) - ;
+                                      tLay.aParts[iRow].aColumns[iCol].iDecimals) / 3)) to iLen         // commas
+            End
+            Else If (tLay.aParts[iRow].aColumns[iCol].iType = DF_DATE) Begin
+                Move 10 to iLen                                                                         // dates are 10 wide
+            End
+            Else If (tLay.aParts[iRow].aColumns[iCol].iType = DF_TEXT) Begin
+                Move (tLay.aParts[iRow].aColumns[iCol].iWidth - 2) to iLen                              // Text is 2 bytes less than size
+            End
+            Else Begin
+                Move tLay.aParts[iRow].aColumns[iCol].iWidth to iLen
+            End
+            
+            Move (iLen max Length(tLay.aParts[iRow].aColumns[iCol].sName)) to tLay.aParts[iRow].aColumns[iCol].iPrintWidth
+            
+            For i from 0 to (SizeOfArray(aBreaks))  // Note: NOT -1, because 0 is the overall total
+                Move 0                                  to tLay.aParts[iRow].aColumns[iCol].anSum[i]
+            Loop
+            
+            Increment iCol
+            Move (tLay.iMaxCols max (iCol + 1)) to tLay.iMaxCols
+        Loop
+        
+    End_Procedure
+    
+    Procedure AddTqRelations tTableQuery ByRef tTQ Handle hTab Handle[] ByRef ahTabs
+        Integer i iFields
+        Handle  hRel
+        
+        If not hTab                   Procedure_Return
+        If (TableMissing(Self, hTab)) Procedure_Return
+        
+        // Is this table already in the list?  If so, skip it
+        For i from 0 to (SizeOfArray(ahTabs) - 1)
+            If (hTab = ahTabs[i]) Procedure_Return
+        Loop
+        
+        // Now put it in the list
+        Move hTab to ahTabs[(SizeOfArray(ahTabs))]
+        
+        Open hTab
+        Send AddResultTable of oTQ (&tTQ) hTab                          // Put it here instead of in the loop (see below)
+        Get_Attribute DF_FILE_NUMBER_FIELDS of hTab to iFields
+        
+        For i from 1 to iFields
+            Get_Attribute DF_FIELD_RELATED_FILE of hTab i to hRel
+            
+            If hRel Begin
+                Send AddTableRelationAuto of oTQ (&tTQ) hTab hRel
+//                Send AddResultTable of oTQ (&tTQ) hTab                // Remove from loop a put in body of procedure so that this is done for the main table as well
+                Send AddTqRelations              (&tTQ) hRel (&ahTabs)
+            End
+            
+        Loop
+        
+    End_Procedure  // AddTqRelations
+    
+    Function WqOpToTqOp String sWqOp Returns Integer
+        If (sWqOp = "<")  Function_Return tqLT
+        If (sWqOp = "<=") Function_Return tqLE
+        If (sWqOp = "=")  Function_Return tqEQ
+        If (sWqOp = ">=") Function_Return tqGE
+        If (sWqOp = ">")  Function_Return tqGT
+        If (sWqOp = "<>") Function_Return tqNE
+//        If (sWqOp = "IN") Function_Return tqIN
+        Function_Return -1
+    End_Function
+    
+    Procedure AddSelections wqWebQuery ByRef tQuery tTableQuery ByRef tTQ  wqSelsForTQ[] ByRef aTQSels
+        Integer i j iOp iPos
+        String  sList sRange
+        
+        // First move the selections to a different array, so that we can set
+        // a flag on it to see if (a) it is a filter that TableQuery will handle
+        // and (b) if there is more than one filter on the same field (which TQ
+        // does not allow.
+        //
+        // (Also, until Sture fixes it, if there is an "in list" filter on a
+        // related-to table rather than the main table.)
+        
+        For i from 0 to (SizeOfArray(tQuery.aSelections) - 1)
+            Move tQuery.aSelections[i] to aTQSels[i].Selection
+            Move True to aTQSels[i].bUseTQ
+            Get WqOpToTqOp aTQSels[i].Selection.sType to iOp
+            If (iOp = -1) Move False to aTQSels[i].bUseTQ  // Not handled by TQ
+            
+            For j from 0 to (i - 1)
+                If ((aTQSels[j].Selection.iTable  = aTQSels[i].Selection.iTable) and ;
+                    (aTQSels[j].Selection.iColumn = aTQSels[i].Selection.iColumn)) ;
+                    Move False to aTQSels[i].bUseTQ  // Only one filter per column in TQ
+            Loop
+            
+// Sture says this should work - wonder what I'm doing wrong?
+//            If ((aTQSels[i].Selection.sType = "in list") and (aTQSels[i].Selection.iTable <> hMain)) ;
+//                    Move False to aTQSels[i].bUseTQ
+
+            Move (aTQSels[i].Selection.sType = "in list") to aTQSels[i].bInList
+            
+            If ((aTQSels[i].Selection.sType = "x-y") or ;
+                (aTQSels[i].Selection.sType = "CBT")) Begin
+                Move (Trim(Replace(" (both incl)", aTQSels[i].Selection.sValue, ""))) to sRange
+                Move (Pos(" - ", sRange))                           to iPos
+                Move (Left(sRange, (iPos - 1)))                     to aTQSels[i].sStartR
+                Move (Right(sRange, (Length(sRange) - iPos) - 2))   to aTQSels[i].sEndR
+            End
+            
+            If (aTQSels[i].bInList) Begin
+                Move True to aTQSels[i].bUseTQ
+                Move 0 to j
+                Move aTQSels[i].Selection.sValue to sList
+                
+                Repeat
+                    Move (Trim(sList)) to sList
+                    If (sList = "") Break
+                    
+                    Move (Pos(";", sList)) to iPos
+                    
+                    If (iPos > 0) Begin
+                        Move (Left(sList, (iPos - 1))) to aTQSels[i].aList[j]
+                        Move (Right(sList, (Length(sList) - iPos))) to sList
+                    End
+                    Else If (sList <> "") Move sList to aTQSels[i].aList[j]
+                    
+                    Increment j
+                Until not iPos
+                    
+            End
+            
+        Loop
+        
+        // Add TQ Filters
+        For i from 0 to (SizeOfArray(aTQSels) - 1)
+        
+            If (aTQSels[i].bUseTQ) Begin
+
+                If (aTQSels[i].bInList) Begin
+                    Send AddFilterOrList of oTQ (&tTQ) aTQSels[i].Selection.iTable ;
+                                                       aTQSels[i].Selection.iColumn ;
+                                                       aTQSels[i].aList
+                End
+                Else Begin
+                    Send AddFilter of oTQ (&tTQ) aTQSels[i].Selection.iTable ;
+                                                 aTQSels[i].Selection.iColumn iOp ;
+                           (StrDelQuotes(Self, aTQSels[i].Selection.sValue))
+                End
+                
+            End
+            
+        Loop
+    End_Procedure
+    
+    Procedure SetupBreaks wqWebQuery ByRef tQuery wqBreakpoint[] ByRef aBreaks
+        Integer i j k
+        
+        Move 0 to j
+        
+        For i from 0 to (SizeOfArray(tQuery.aSegments) - 1)
+            
+            If (tQuery.aSegments[i].bBreak) Begin
+                Move tQuery.aSegments[i].iTable to aBreaks[j].iTable
+                Move tQuery.aSegments[i].iField to aBreaks[j].iColumn
+                Move tQuery.aSegments[i].sName  to aBreaks[j].sName
+                Move ""                         to aBreaks[j].sPrevValue
+                Increment j
+            End
+            
+        Loop
+        
+    End_Procedure
+    
+    Procedure AddOrdering wqIndexSeg[] ByRef atSegments tTableQuery ByRef tTQ
+        Integer i
+        
+        For i from 0 to (SizeOfArray(atSegments) - 1)
+            Send AddOrderBy of oTQ (&tTQ) atSegments[i].iTable ;
+                                          atSegments[i].iField ;
+                                          atSegments[i].bDesc ;
+                                          atSegments[i].bUC
+        Loop
+        
+    End_Procedure
+    
+    Procedure WriteHtmlStart wqWebQuery ByRef tQuery Integer iChn
+        String  sTitle
+        
+        If (tQuery.sTitle = "") Get_Attribute DF_FILE_DISPLAY_NAME of tQuery.hMainTable to sTitle
+        Else Move tQuery.sTitle                                                         to sTitle
+        
+        WriteLn channel iChn "<" (Character(33)) "DOCTYPE HTML>"
+        Send XmlToChannel of oWqXml iChn
+        Send AddOpenElement of oWqXml "html"
+        Send AddOpenElement of oWqXml "head"
+        Send AddElement of oWqXml "title" sTitle
+        Send CloseElement of oWqXml  // head
+        Send AddOpenElement of oWqXml "body"
+        Send AddAttribute of oWqXml "style" ("font-family:" * tQuery.sTypeface + ";" * ;
+                                             "font-size:" * tQuery.sFontSize + ";" * ;
+                                             "color:" * tQuery.sTextColour + ";" * ;
+                                             "background-color:" * tQuery.sBGColour + ";")
+        
+        If (tQuery.sTextBefore <> "") Send Stream of oWqXml ;
+                (Replaces(Character(10), tQuery.sTextBefore, "<br>"))
+        
+        Send AddElement of oWqXml "h1" sTitle
+        Send AddAttribute of oWqXml "align" "left"
+    End_Procedure
+    
+    Procedure WriteCSVStart wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        Integer i
+        
+        If (tQuery.bColHeads) Begin
+            
+            For i from 0 to (SizeOfArray(tQuery.aPrintFields) - 1)
+                If (i > 0) Write ","
+                Write '"' (Replaces('"', tQuery.aPrintFields[i].sUserName, "'")) '"'
+            Loop
+            
+            WriteLn
+        End
+        
+    End_Procedure
+    
+    Procedure WriteTextStart wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        String  sTitle
+        Integer iRow iCol iLen
+        
+        If (tQuery.sTextBefore <> "") Begin
+            WriteLn channel iChn tQuery.sTextBefore
+            WriteLn
+        End
+        
+        Move tQuery.sTitle to sTitle
+        
+        If (sTitle = "") Begin
+            Get_Attribute DF_FILE_DISPLAY_NAME of tQuery.hMainTable to sTitle
+        End
+        
+        WriteLn sTitle
+        WriteLn (Repeat("=", Length(sTitle)))
+        WriteLn
+        
+        For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+            Write (Repeat("   ", iRow))
+        
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                If (iCol > 0) Write "  "
+                
+                If (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD) Begin
+                    Write (Repeat(" ", (tLay.aParts[iRow].aColumns[iCol].iPrintWidth - Length(tLay.aParts[iRow].aColumns[iCol].sName))))
+                    Write tLay.aParts[iRow].aColumns[iCol].sName
+                End
+                Else Begin
+                    Write (Pad(tLay.aParts[iRow].aColumns[iCol].sName, tLay.aParts[iRow].aColumns[iCol].iPrintWidth))
+                End
+                
+            Loop
+            
+            WriteLn
+            
+            Write (Repeat("   ", iRow))
+        
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                If (iCol > 0) Write "  "
+                
+                If (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD) Begin
+                    Write (Repeat(" ", (tLay.aParts[iRow].aColumns[iCol].iPrintWidth - Length(tLay.aParts[iRow].aColumns[iCol].sName))))
+                    Write (Repeat("=", Length(tLay.aParts[iRow].aColumns[iCol].sName)))
+                End
+                Else Begin
+                    Write (Pad(Repeat("=", Length(tLay.aParts[iRow].aColumns[iCol].sName)), tLay.aParts[iRow].aColumns[iCol].iPrintWidth))
+                End
+                
+            Loop
+            
+            WriteLn
+        Loop
+        
+    End_Procedure
+    
+    Procedure WriteXmlStart wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        String  sTitle
+        
+        
+        If (tQuery.sTitle = "") Get_Attribute DF_FILE_DISPLAY_NAME of tQuery.hMainTable to sTitle
+        Else Move tQuery.sTitle                                                         to sTitle
+        
+        Move (XmlTag(Self, sTitle)) to sTitle
+        
+        Write channel iChn '<?xml version="1.0" encoding="iso-8859-1"?>'
+        Send XmlToChannel of oWqXml iChn
+        Send AddOpenElement of oWqXml sTitle
+    End_Procedure
+    
+    Procedure WriteRemoveScript String sFile Integer iChn
+        Send Stream of oWqXml ""
+        WriteLn channel iChn
+        WriteLn '<script id="delRep">'
+        WriteLn 'var xmlHttpRequestFactory = null;'
+        WriteLn 'function createXMLHTTPObject() {'
+        WriteLn '   var xmlHttp = false;'
+        WriteLn '   if (! xmlHttpRequestFactory) {'
+        WriteLn '      var factories = ['
+        WriteLn '         function () {return new XMLHttpRequest(); },'
+        WriteLn '         function () {return new ActiveXObject("Msxml2.XMLHTTP"); },'
+        WriteLn '         function () {return new ActiveXObject("Msxml3.XMLHTTP"); },'
+        WriteLn '         function () {return new ActiveXObject("Microsoft.XMLHTTP"); }'
+        WriteLn '      ];'
+        WriteLn '      for (var i = 0; i < factories.length; i++) {'
+        WriteLn '         try {'
+        WriteLn '            xmlHttp = factories[i]();'
+        WriteLn '         }'
+        WriteLn '         catch (e) {'
+        WriteLn '            continue;'
+        WriteLn '         }'
+        WriteLn '         if (xmlHttp) {'
+        WriteLn '            xmlHttpRequestFactory = factories[i];'
+        WriteLn '         }'
+        WriteLn '         break;'
+        WriteLn '      }'
+        WriteLn '   }'
+        WriteLn '   return (xmlHttpRequestFactory) ? xmlHttpRequestFactory() : null;'
+        WriteLn '}'
+        WriteLn
+        WriteLn 'function removeFile() {'
+        WriteLn '   var arr = [], req;'
+        WriteLn '   arr.push("{\"ActionRequest\":{\"Header\":");'
+        WriteLn '   arr.push("{\"sSessionKey\": \"' (Trim(WebAppSession.SessionKey)) '\",");'
+        WriteLn '   arr.push("\"sFocus\": \"\",");'
+        WriteLn '   arr.push("\"aDDODefs\":[],");'
+        WriteLn '   arr.push("\"aSyncProps\":[]");'
+        WriteLn '   arr.push("},");'
+        WriteLn '   arr.push("\"aActions\":[{");'
+        WriteLn '   arr.push("\"sTarget\": \"oWebQuery\",");'
+        WriteLn '   arr.push("\"sAction\": \"RemoveReport\",");'
+        WriteLn '   arr.push("\"aParams\": [\"' sFile '\"],");'
+        WriteLn '   arr.push("\"aData\":[]}]");'
+        WriteLn '   arr.push("}");'
+        WriteLn '   arr.push("}");'
+        WriteLn '   req = createXMLHTTPObject();'
+        WriteLn '   req.open("POST", "../WebServiceDispatcher.wso/CallAction/JSON", true);'
+        WriteLn '   req.setRequestHeader("Content-Type", "application/json");'
+        WriteLn '   req.send(arr.join(""));'
+        WriteLn '   document.body.removeChild(document.getElementById("delRep"));'
+        WriteLn '}'
+        WriteLn 'window.onload=removeFile;'
+        WriteLn '</script>'
+        WriteLn
+    End_Procedure
+    
+    Procedure WriteStartTable wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        Integer iRow iCol iPad
+        
+        Send AddOpenElement of oWqXml "table"
+        Send AddAttribute of oWqXml "style" ("width: 100%; border: none; font-size:" * tQuery.sFontSize)
+
+        For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+            Send AddOpenElement of oWqXml "tr"
+            Send AddAttribute of oWqXml "style" "font-weight: bold"
+            
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                Send AddElement of oWqXml "td" tLay.aParts[iRow].aColumns[iCol].sName
+                If      (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD)  Send AddAttribute of oWqXml "style" "text-align: right"
+                Else If (tLay.aParts[iRow].aColumns[iCol].iType = DF_DATE) Send AddAttribute of oWqXml "style" "text-align: center"
+            Loop
+            
+            Move (tLay.iMaxCols - SizeOfArray(tLay.aParts[iRow].aColumns) - 1) to iPad
+            
+            If iPad Begin
+                Send AddElement of oWqXml "td" ""  // possibly "&nbsp;" is more correct, but also more HTML
+                Send AddAttribute of oWqXml "colspan" iPad
+            End
+            
+            Send CloseElement of oWqXml  // tr        
+        Loop
+        
+    End_Procedure
+    
+    Procedure WriteEndTable wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        Integer iRow iCol iPad
+        Boolean bTots
+        String  sTot
+        
+        // Write Totals if present
+        Move False to bTots
+        
+        For iRow from 0 to (SizeOfArray(tQuery.aPrintFields) - 1)
+            If (tQuery.aPrintFields[iRow].bSum) Move True to bTots
+            If bTots Break
+        Loop
+        
+        If bTots Begin
+            
+            For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+                Send AddOpenElement of oWqXml "tr" ""
+                
+                For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                    
+                    If (tLay.aParts[iRow].aColumns[iCol].bSum) Begin
+                        Move (NumberToString(oStringFunctions, ;
+                                             tLay.aParts[iRow].aColumns[iCol].anSum[0], ;
+                                             tLay.aParts[iRow].aColumns[iCol].iDecimals)) to sTot
+                        Send AddOpenElement of oWqXml "td"
+                        Send AddAttribute   of oWqXml "style" "text-align: right;"
+                        Send AddElement     of oWqXml "hr" ""
+                        Send AddElement     of oWqXml "b"  sTot
+                        Send CloseElement   of oWqXml  // b
+                    End
+                    Else Send AddElement of oWqXml "td" ""
+                    
+                Loop
+                
+                Move (tLay.iMaxCols - SizeOfArray(tLay.aParts[iRow].aColumns) - 1) to iPad
+                
+                If iPad Begin
+                    Send AddElement of oWqXml "td" ""
+                    Send AddAttribute of oWqXml "colspan" iPad
+                End
+                
+                Send CloseElement of oWqXml  // tr
+            Loop
+            
+        End
+        
+        // Write end of table
+        Send CloseElement of oWqXml  // table
+    End_Procedure
+    
+    Procedure WriteTextTotals wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        Integer iRow iCol iPad
+        Boolean bTots
+        String  sTot
+        
+        // Write Totals if present
+        Move False to bTots
+        
+        For iRow from 0 to (SizeOfArray(tQuery.aPrintFields) - 1)
+            If (tQuery.aPrintFields[iRow].bSum) Move True to bTots
+            If bTots Break
+        Loop
+        
+        If bTots Begin
+            
+            For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+                Write channel iChn (Repeat("   ", iRow))
+                
+                For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                    If (iCol > 0) Write channel iChn "  "
+
+                    If (tLay.aParts[iRow].aColumns[iCol].bSum) Begin
+                        Write channel iChn (Repeat("=", tLay.aParts[iRow].aColumns[iCol].iPrintWidth))
+                    End
+                    Else Write channel iChn (Repeat(" ", tLay.aParts[iRow].aColumns[iCol].iPrintWidth))
+                    
+                Loop
+                
+                WriteLn channel iChn
+//            Loop
+//
+//            For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+                Write channel iChn (Repeat("   ", iRow))
+                
+                For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                    If (iCol > 0) Write channel iChn "  "
+
+                    If (tLay.aParts[iRow].aColumns[iCol].bSum) Begin
+                        Move (NumberToStringRTS(oStringFunctions, ;
+                                             tLay.aParts[iRow].aColumns[iCol].anSum[0], ;
+                                             tLay.aParts[iRow].aColumns[iCol].iDecimals, ;
+                                             tLay.aParts[iRow].aColumns[iCol].iPrintWidth)) to sTot
+                        Write channel iChn (Repeat(" ", (tLay.aParts[iRow].aColumns[iCol].iPrintWidth - Length(sTot))))
+                        Write channel iChn sTot
+                    End
+                    Else Write channel iChn (Repeat(" ", (tLay.aParts[iRow].aColumns[iCol].iPrintWidth)))
+                    
+                Loop
+                
+                WriteLn channel iChn
+            Loop
+            
+        End
+        
+    End_Procedure
+    
+    Procedure WriteHtmlEnd wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        Integer i
+        
+        Send Stream of oWqXml ""
+        
+        If (tQuery.bPrintSels) Begin
+            
+            If ((SizeOFArray(tQuery.aSelections) = 0) and ;
+                (tQuery.sSelectExpression = "")) Begin
+                WriteLn "No selection criteria applied <br>"
+            End
+            Else Begin
+                WriteLn channel iChn "<br>Selection criteria:<br>"
+                
+                For i from 0 to (SizeOfArray(tQuery.aSelections) - 1)
+                    Write (tQuery.aSelections[i].sUserName + ", ")
+                    Write (Lowercase(SelDescFromType(oWqSelectionTypes, tQuery.aSelections[i].sType)))
+                    WriteLn (": " + tQuery.aSelections[i].sValue + "<br>")
+                Loop
+                
+                If (tQuery.sSelectExpression <> "") WriteLn tQuery.sSelectExpression "<br>"
+            End
+            
+        End
+        
+        If (tQuery.bPrintCount) ;
+            WriteLn channel iChn ("<br>Records:" *  NumberToString(oStringFunctions, tLay.iCount, 0) + "<br>")
+                
+        If (tQuery.sTextAfter <> "") WriteLn channel iChn  ("<br>" + Replaces(Character(10), tQuery.sTextAfter, "<br>"))
+        
+        If (tQuery.bGeneratedLine) Begin
+            Send AddElement of oWqXml "p" ("Generated on:" * String(SystemDate(oDateFunctions)) + "," * SystemTimeString(oDateFunctions))
+            Send AddAttribute of oWqXml "style" "text-align: center; font-size: small"
+        End
+        
+        Send CloseElement of oWqXml  // body
+        Send CloseElement of oWqXml  // html
+        Send EndXml       of oWqXml
+    End_Procedure
+    
+    Procedure WriteTextEnd wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        Integer i
+        
+        If (tQuery.bPrintSels) Begin
+            WriteLn channel iChn
+            
+            If ((SizeOFArray(tQuery.aSelections) = 0) and ;
+                (tQuery.sSelectExpression = "")) Begin
+                WriteLn channel iChn "No selection criteria applied"
+            End
+            Else Begin
+                WriteLn channel iChn "Selection criteria:"
+                
+                For i from 0 to (SizeOfArray(tQuery.aSelections) - 1)
+                    Write channel iChn (tQuery.aSelections[i].sUserName + ", ")
+                    Write channel iChn (Lowercase(SelDescFromType(oWqSelectionTypes, tQuery.aSelections[i].sType)))
+                    WriteLn channel iChn (": " + tQuery.aSelections[i].sValue)
+                Loop
+                
+                If (tQuery.sSelectExpression <> "") WriteLn channel iChn tQuery.sSelectExpression
+            End
+            
+        End
+        
+        If (tQuery.bPrintCount) Begin
+            WriteLn channel iChn 
+            WriteLn channel iChn ("Records:" *  NumberToString(oStringFunctions, tLay.iCount, 0))
+        End
+        
+        If (tQuery.sTextAfter <> "") Begin
+            WriteLn channel iChn 
+            WriteLn channel iChn tQuery.sTextAfter
+        End
+        
+        If (tQuery.bGeneratedLine) Begin
+            WriteLn channel iChn 
+            WriteLn channel iChn ("Generated on:" * String(SystemDate(oDateFunctions)) + "," * SystemTimeString(oDateFunctions))
+        End
+        
+    End_Procedure
+    
+    Procedure WriteXmlEnd
+        Send CloseElement of oWqXml  // root
+        Send EndXml       of oWqXml
+    End_Procedure
+    
+    Procedure StartOutput wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn
+        
+        If (tQuery.iOutputFormat = C_wqOutputHtml) Begin
+            Send WriteHtmlStart (&tQuery) iChn
+            Send WriteStartTable (&tQuery) (&tLay) 
+        End
+        Else If (tQuery.iOutputFormat = C_wqOutputCSV) Begin
+            Send WriteCSVStart (&tQuery) (&tLay) iChn
+        End
+        Else If (tQuery.iOutputFormat = C_wqOutputText) Begin
+            Send WriteTextStart (&tQuery) (&tLay) iChn
+        End
+        Else If (tQuery.iOutputFormat = C_wqOutputXML) Begin
+            Send WriteXmlStart (&tQuery) (&tLay) iChn
+        End
+        
+    End_Procedure
+    
+    Function BreakLevel wqBreakpoint[] ByRef aBreaks Returns Integer
+        Integer i
+        String  sVal
+        
+        For i from 0 to (SizeOfArray(aBreaks) - 1)
+            Get_Field_Value aBreaks[i].iTable aBreaks[i].iColumn to sVal
+            If (sVal <> aBreaks[i].sPrevValue) Function_Return i
+        Loop
+        
+        Function_Return -1
+    End_Function
+    
+    Procedure HtmlBreak wqPrintRowLayout ByRef tLay String sOutput Integer iLevel
+        Send AddOpenElement of oWqXml "tr"
+        Send AddOpenElement of oWqXml "td"
+        Send AddAttribute   of oWqXml "colspan" tLay.iMaxCols
+        Send AddElement     of oWqXml ("h" + String(iLevel + 2)) sOutput
+        Send CloseElement   of oWqXml  // td
+        Send CloseElement   of oWqXml  // tr
+    End_Procedure
+    
+    Procedure TextBreak wqPrintRowLayout ByRef tLay String sOutput Integer iLevel
+        Integer iChn
+        
+        Get piChannel to iChn
+        Move (Trim(sOutput)) to sOutput
+        WriteLn
+        Write channel iChn (Repeat("   ", iLevel))
+        WriteLn channel iChn sOutput
+        Write channel iChn (Repeat("   ", iLevel))
+        WriteLn channel iChn (Repeat("=", Length(sOutput)))
+    End_Procedure
+    
+    Procedure DoBreaks wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay wqBreakpoint[] ByRef aBreaks Integer iLevel
+        Integer i j iPrev
+        String  sVal sName sOutput
+        Boolean bAddIn
+        wqBreakpoint tThisBreak tPrevBreak
+        
+        For i from iLevel to (SizeOfArray(aBreaks) - 1)
+            
+            If (i > 0) Begin
+                Move aBreaks[i]     to tThisBreak
+                Move aBreaks[i - 1] to tPrevBreak
+                Move False          to bAddIn
+                Move ""             to sOutput
+                
+                For j from 0 to (SizeOfArray(tQuery.aSegments) - 1)
+                    If (tQuery.aSegments[j].bBreak and ;
+                        (tQuery.aSegments[j].iTable = tThisBreak.iTable) and ;
+                        (tQuery.aSegments[j].iField = tThisBreak.iColumn)) Break
+                    
+                    If bAddIn Begin
+                        Get_Field_Value tQuery.aSegments[j].iTable tQuery.aSegments[j].iField to sVal
+                        If (sOutput <> "") Move (sOUtput + ", ") to sOutput
+                        Move (sOutput + tQuery.aSegments[j].sName * sVal) to sOutput
+                    End
+                    
+                    If (tQuery.aSegments[j].bBreak and ;
+                        (tQuery.aSegments[j].iTable = tPrevBreak.iTable) and ;
+                        (tQuery.aSegments[j].iField = tPrevBreak.iColumn)) Move True to bAddIn
+                    
+                Loop
+                
+            End
+            
+            Get_Field_Value aBreaks[i].iTable aBreaks[i].iColumn to sVal
+            If (sOutput <> "") Move (sOutput + ", ") to sOutput
+            Move (sOutput + aBreaks[i].sName * sVal) to sOutput
+            
+            If (tQuery.iOutputFormat = C_wqOutputHtml) Begin
+                Send HtmlBreak (&tLay) sOutput i
+            End
+            Else If (tQuery.iOutputFormat = C_wqOutputText) Begin
+                Send TextBreak (&tLay) sOutput i
+            End
+            
+            Move sVal to aBreaks[i].sPrevValue
+        Loop
+        
+    End_Procedure
+    
+    Procedure HtmlSubTotal wqPrintRowPart ByRef tRow Integer iLev
+        String  sTot
+        Integer iCol
+        
+        Send AddOpenElement of oWqXml "tr" ""
+            
+        For iCol from 0 to (SizeOfArray(tRow.aColumns) - 1)
+            
+            If (tRow.aColumns[iCol].bSum) Begin
+                Move (NumberToString(oStringFunctions, ;
+                                     tRow.aColumns[iCol].anSum[iLev], ;
+                                     tRow.aColumns[iCol].iDecimals)) to sTot
+                Send AddOpenElement of oWqXml "td"
+                Send AddAttribute   of oWqXml "style" "text-align: right;"
+                Send AddElement     of oWqXml "hr" ""
+                Send AddElement     of oWqXml "b"  sTot
+                Move 0 to tRow.aColumns[iCol].anSum[iLev]
+                Send CloseElement   of oWqXml  // td
+            End
+            Else Send AddElement of oWqXml "td" ""
+            
+        Loop
+        
+        Send CloseElement of oWqXml  // tr
+    End_Procedure
+    
+    Procedure TextSubTotal wqPrintRowPart ByRef tRow Integer iLev Integer iRow
+        String  sTot
+        Integer iCol iChn
+        
+        Get piChannel to iChn
+        
+        Write Channel iChn (Repeat("   ", iRow))
+        
+        For iCol from 0 to (SizeOfArray(tRow.aColumns) - 1)
+            
+            If (tRow.aColumns[iCol].bSum) Begin
+                Write channel iChn (Repeat("-", tRow.aColumns[iCol].iPrintWidth))
+            End
+            Else Begin
+               Write channel iChn (Repeat(" ", (tRow.aColumns[iCol].iPrintWidth + 2)))
+            End
+            
+        Loop
+        
+        WriteLn channel iChn
+        Write Channel iChn (Repeat("   ", iRow))
+        
+        For iCol from 0 to (SizeOfArray(tRow.aColumns) - 1)
+            
+            If (tRow.aColumns[iCol].bSum) Begin
+                Move (NumberToStringRTS(oStringFunctions, ;
+                                     tRow.aColumns[iCol].anSum[iLev], ;
+                                     tRow.aColumns[iCol].iDecimals, ;
+                                     tRow.aColumns[iCol].iPrintWidth)) to sTot
+                Write channel iChn (Repeat(" ", (tRow.aColumns[iCol].iPrintWidth - Length(sTot)))) sTot
+                Move 0 to tRow.aColumns[iCol].anSum[iLev]
+            End
+            Else Begin 
+               Write channel iChn (Repeat(" ", (tRow.aColumns[iCol].iPrintWidth + 2)))
+            End
+            
+        Loop
+        
+        WriteLn channel iChn
+    End_Procedure
+
+    Procedure DoSubtotals wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay wqBreakpoint[] ByRef aBreaks Integer iLevel
+        Integer i iLast iLev iRow iCol
+        String  sTot
+        
+        Move (SizeOfArray(aBreaks) - 1) to iLast
+        
+        For i from 0 to (iLast - iLevel)
+            Move (iLast - i + 1) to iLev
+            
+            For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+                
+                If (tQuery.iOutputFormat = C_wqOutputHtml) Begin
+                    Send AddOpenElement of oWqXml "tr" ""
+                    Send HtmlSubTotal (&tLay.aParts[iRow]) iLev
+                    Send CloseElement of oWqXml  // tr
+                End
+                Else If (tQuery.iOutputFormat = C_wqOutputText) Begin
+                    Send TextSubTotal (&tLay.aParts[iRow]) iLev iRow
+                End
+                
+            Loop
+            
+        Loop
+        
+    End_Procedure
+    
+    Procedure OutputHtmlRow wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Boolean bHighlight
+        Integer iRow iCol iPad iChn
+        String  sVal sText
+
+        Get piChannel to iChn
+        
+        For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+            Send AddOpenElement of oWqXml "tr"
+            If bHighlight Send AddAttribute of oWqXml "style" ("background-color:" * tQuery.sHighlightColour)
+            
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                Move tLay.aParts[iRow].aColumns[iCol].sCurVal to sVal
+                
+                If (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD) ;
+                     Move (NumberToString(oStringFunctions, sVal, tLay.aParts[iRow].aColumns[iCol].iDecimals))  to sText
+                Else Move sVal                                                                                  to sText
+                
+                If (pbAllowRawOutput(ghoWebQry)) Begin
+                    Send AddOpenElement of oWqXml "td"
+                    If      (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD)  Send AddAttribute of oWqXml "style" "text-align: right"
+                    Else If (tLay.aParts[iRow].aColumns[iCol].iType = DF_DATE) Send AddAttribute of oWqXml "style" "text-align: center"
+                    Send Stream of oWqXml ""
+                    Write channel iChn sText
+                    Send CloseElement of oWqXml
+                End
+                Else Begin
+                    Send AddElement of oWqXml "td" sText
+                    If      (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD)  Send AddAttribute of oWqXml "style" "text-align: right"
+                    Else If (tLay.aParts[iRow].aColumns[iCol].iType = DF_DATE) Send AddAttribute of oWqXml "style" "text-align: center"
+                End
+            Loop
+            
+            Move (tLay.iMaxCols - SizeOfArray(tLay.aParts[iRow].aColumns) - 1) to iPad
+            
+            If iPad Begin
+                Send AddElement of oWqXml "td" ""  // possibly "&nbsp;" is more correct, but also more HTML
+                Send AddAttribute of oWqXml "colspan" iPad
+            End
+            
+            Send CloseElement of oWqXml  // tr
+        Loop
+        
+    End_Procedure
+    
+    Procedure OutputTextRow wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay
+        Integer iRow iCol iChn
+        
+        Get piChannel to iChn
+        
+        For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+            Write channel iChn (Repeat("   ", iRow))
+            
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                If (iCol > 0) Write channel iChn "  "
+                
+                If (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD) Begin
+                    Write channel iChn (NumberToStringRTS(oStringFunctions, ;
+                                                          tLay.aParts[iRow].aColumns[iCol].sCurVal, ;
+                                                          tLay.aParts[iRow].aColumns[iCol].iDecimals, ;
+                                                          tLay.aParts[iRow].aColumns[iCol].iPrintWidth))
+                End
+                Else Begin
+                    Write channel iChn (Pad(tLay.aParts[iRow].aColumns[iCol].sCurVal, tLay.aParts[iRow].aColumns[iCol].iPrintWidth))
+                End
+                    
+            Loop
+            
+            WriteLn channel iChn
+        Loop
+
+    End_Procedure
+    
+    Procedure OutputCSVRow wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay
+        Integer iRow iCol iChn
+        
+        Get piChannel to iChn
+        
+        For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+            
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                If (iCol > 0) Write channel iChn ","
+                
+                If ((tLay.aParts[iRow].aColumns[iCol].iType = DF_ASCII) or ;
+                    (tLay.aParts[iRow].aColumns[iCol].iType = DF_TEXT)) Begin
+                    Write channel iChn '"'
+                    Write channel iChn (Replaces('"', tLay.aParts[iRow].aColumns[iCol].sCurVal, "'"))
+                    Write channel iChn '"'
+                End
+                Else Write channel iChn tLay.aParts[iRow].aColumns[iCol].sCurVal    
+            Loop
+            
+            WriteLn channel iChn
+        Loop
+
+    End_Procedure
+    
+    Procedure OutputXmlRow wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay
+        Integer iRow iCol
+        
+        For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+            Send AddOpenElement of oWqXml "record"
+            
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                Send AddElement of oWqXml (XmlTag(Self, tLay.aParts[iRow].aColumns[iCol].sName)) tLay.aParts[iRow].aColumns[iCol].sCurVal
+            Loop
+            
+            Send CloseElement of oWqXml  // record
+        Loop
+        
+    End_Procedure
+    
+    Procedure OutputRow wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay wqBreakpoint[] ByRef aBreaks Boolean bHighlight
+        Integer iRow iCol i iBrLev
+        String  sVal
+        tXPGrammar tExpGram
+        tXPToken[] aExpSyms
+        tXPError   tExpErr
+        tXPValue   tExpRes
+        
+        Get BreakLevel (&aBreaks) to iBrLev
+        
+        If (iBrLev > -1) Begin
+            If (tLay.iCount > 0) Send DoSubtotals (&tQuery) (&tLay) (&aBreaks) iBrLev
+            Send DoBreaks (&tQuery) (&tLay) (&aBreaks) iBrLev
+        End
+
+        Increment tLay.iCount
+        
+        // Get values and add in to any totals
+        For iRow from 0 to (SizeOfArray(tLay.aParts) - 1)
+            
+            For iCol from 0 to (SizeOfArray(tLay.aParts[iRow].aColumns) - 1)
+                
+                If (tLay.aParts[iRow].aColumns[iCol].bCalc) Begin
+                    Get NewGrammar            of oWqExprPar                              to tExpGram
+                    Get TokenizeString        of oWqExprPar tExpGram tLay.aParts[iRow].aColumns[iCol].sExpr (&tExpErr) ;
+                                                                                         to aExpSyms
+                    Get ReversePolishNotation of oWqExprPar tExpGram aExpSyms (&tExpErr) to aExpSyms
+                    Get Evaluate              of oWqExprPar tExpGram aExpSyms (&tExpErr) to tExpRes
+                    Move tExpRes.sValue                                                  to sVal
+                End
+                Else Begin
+                    Get_Field_Value tLay.aParts[iRow].aColumns[iCol].iTable ;
+                                    tLay.aParts[iRow].aColumns[iCol].iColumn to sVal
+                End
+                
+                Move (Trim(sVal)) to tLay.aParts[iRow].aColumns[iCol].sCurVal
+                
+                If ((tLay.aParts[iRow].aColumns[iCol].bSum) and ;
+                    (tLay.aParts[iRow].aColumns[iCol].iType = DF_BCD)) Begin
+                    
+                    For i from 0 to (SizeOfArray(aBreaks))  // NOT -1 because 0 is the overall total
+                        Move (tLay.aParts[iRow].aColumns[iCol].anSum[i] + ;
+                              Number(tLay.aParts[iRow].aColumns[iCol].sCurVal)) to ;
+                              tLay.aParts[iRow].aColumns[iCol].anSum[i]
+                    Loop
+                    
+                End
+                    
+            Loop
+            
+        Loop
+        
+        If Not (tQuery.bTotalsOnly) Begin
+        
+            // For each row send the appropriate format start row
+            If (tQuery.iOutputFormat = C_wqOutputHtml) Begin
+                Send OutputHtmlRow (&tQuery) (&tLay) bHighlight
+            End
+            Else If (tQuery.iOutputFormat = C_wqOutputText) Begin 
+                Send OutputTextRow (&tQuery) (&tLay)
+            End
+            Else If (tQuery.iOutputFormat = C_wqOutputCSV) Begin
+                Send OutputCSVRow (&tQuery) (&tLay)
+            End
+            Else If (tQuery.iOutputFormat = C_wqOutputXML) Begin
+                Send OutputXmlRow (&tQuery) (&tLay)
+            End
+            
+        End
+        
+    End_Procedure
+    
+    Procedure EndOutput wqWebQuery ByRef tQuery wqPrintRowLayout ByRef tLay Integer iChn String sFile
+        
+        If (tQuery.iOutputFormat = C_wqOutputHtml) Begin
+            Send WriteEndTable (&tQuery) (&tLay)
+            If (tQuery.iDestination <> C_wqDownload) Send WriteRemoveScript sFile iChn
+            Send WriteHtmlEnd (&tQuery) (&tLay) iChn
+        End
+        Else If (tQuery.iOutputFormat = C_wqOutputText) Begin
+            Send WriteTextTotals (&tQuery) (&tLay) iChn
+            Send WriteTextEnd    (&tQuery) (&tLay) iChn
+        End
+        Else If (tQuery.iOutputFormat = C_wqOutputXML) Begin
+            Send WriteXmlEnd
+        End
+    
+        Close_Output channel iChn
+        Send Seq_Release_Channel iChn
+    End_Procedure
+    
+    // This handles those filters which TableQuery does not.
+    Function IsExcluded wqWebQuery ByRef tQuery wqSelsForTQ[] ByRef aTQSels Returns Boolean
+        Integer i iType
+        String  sVal
+        
+        For i from 0 to (SizeOfArray(aTQSels) - 1)
+            
+            If not (aTQSels[i].bUseTQ) Begin
+                Get_Field_Value aTQSels[i].Selection.iTable aTQSels[i].Selection.iColumn to sVal
+                
+                If (aTQSels[i].Selection.sType = "CIN") Begin
+                    If (aTQSels[i].Selection.sValue contains sVal) Function_Return True
+                End
+                
+                If (aTQSels[i].Selection.sType = "x-y") Begin
+                    Move aTQSels[i].Selection.iType to iType
+                    
+                    If ((iType = DF_ASCII) or (iType = DF_TEXT)) Begin
+                        If ((sVal < aTQSels[i].sStartR) or ;
+                            (sVal > aTQSels[i].sEndR)) Function_Return True
+                    End
+                    Else If (iType = DF_BCD) Begin
+                        If ((Number(sVal) < Number(aTQSels[i].sStartR)) or ;
+                            (Number(sVal) > Number(aTQSels[i].sEndR))) Function_Return True
+                    End
+                    Else If ((iType = DF_DATE) or (iType = DF_DATETIME)) Begin
+                        If ((Date(sVal) < Date(aTQSels[i].sStartR)) or ;
+                            (Date(sVal) > Date(aTQSels[i].sEndR))) Function_Return True
+                    End
+                    
+                End
+                
+                If (aTQSels[i].Selection.sType = "CBT") Begin
+                    Move aTQSels[i].Selection.iType to iType
+                    
+                    If ((iType = DF_ASCII) or (iType = DF_TEXT)) Begin
+                        If ((sVal >= aTQSels[i].sStartR) or ;
+                            (sVal <= aTQSels[i].sEndR)) Function_Return True
+                    End
+                    Else If (iType = DF_BCD) Begin
+                        If ((Number(sVal) >= Number(aTQSels[i].sStartR)) or ;
+                            (Number(sVal) <= Number(aTQSels[i].sEndR))) Function_Return True
+                    End
+                    Else If ((iType = DF_DATE) or (iType = DF_DATETIME)) Begin
+                        If ((Date(sVal) >= Date(aTQSels[i].sStartR)) or ;
+                            (Date(sVal) <= Date(aTQSels[i].sEndR))) Function_Return True
+                    End
+                    
+                End
+                
+            End
+            
+        Loop
+        
+        Function_Return False
+    End_Function
+    
+    Procedure ProcessRecords wqWebQuery ByRef tQuery tTableQuery ByRef tTQ wqSelsForTQ[] ByRef aTQSels wqBreakpoint[] ByRef aBreaks wqPrintRowLayout ByRef tLay
+        Boolean bSkipRec bHighlight
+        tXPGrammar tSelGram
+        tXPToken[] aSelSyms
+        tXPError   tSelErr
+        tXPValue   tSelRes
+        
+        // Prepare select expression
+        If (tQuery.sSelectExpression <> "") Begin
+            Get NewGrammar of oWqExprPar                                                  to tSelGram
+            Get TokenizeString of oWqExprPar tSelGram tQuery.sSelectExpression (&tSelErr) to aSelSyms
+            Get ReversePolishNotation of oWqExprPar tSelGram aSelSyms  (&tSelErr)         to aSelSyms
+        End
+
+        If not (tQuery.bUseSQL) Begin
+            Send ForceNoESQL of oTQ (&tTQ) 5000 5000
+        End
+        
+        // The TableQuery loop
+        While (FindRecord(oTQ, &tTQ))
+            Move False to bSkipRec
+        
+            Get IsExcluded tQuery aTQSels to bSkipRec
+            
+            If (Not(bSkipRec) and  (tQuery.sSelectExpression <> "")) Begin
+                Get Evaluate of oWqExprPar tSelGram aSelSyms (&tSelErr) to tSelRes
+                Move (Not(tSelRes.sValue))                              to bSkipRec
+            End
+            
+            If not bSkipRec Begin
+                Move (tQuery.bHighlightAlt and (Mod(tLay.iCount, 2) <> 0)) to bHighlight                
+                Send OutputRow (&tQuery) (&tLay) (&aBreaks) bHighlight
+            End
+            
+        Loop
+
+        Send DoSubtotals (&tQuery) (&tLay) (&aBreaks) 0
+    End_Procedure
+    
+    Function OutputReport wqWebQuery ByRef tQuery Returns String
+        String  sFile sPath
+        Integer iChn
+        Boolean bSkipRec
+        Handle[] ahTabs
+        wqPrintRowLayout tLay
+        tTableQuery tTQ
+        wqTableDetail[] atTabDets
+        wqSelsForTQ[] aTQSels
+        wqBreakpoint[] aBreaks
+        
+        // Initalisation
+        Set _pbInsertThousandsSeparators of oStringFunctions to True
+        Get OpenOutput tQuery.iDestination tQuery.iOutputFormat (&sPath) (&sFile) to iChn
+        Send SetupBreaks (&tQuery) (&aBreaks)
+        Send CreateLayout (&tQuery) (&tLay) (&aBreaks)
+        Send TableDetails tQuery.hMainTable (&atTabDets) // Opens tables
+        
+        // TableQuery setup
+        Get NewQuery of oTQ tQuery.hMainTable to tTQ
+        Send AddTqRelations (&tTQ) tQuery.hMainTable (&ahTabs)
+        Send AddSelections (&tQuery) (&tTQ) (&aTQSels)
+        Send AddOrdering (&tQuery.aSegments) (&tTQ)
+        
+        // Output report
+        Send StartOutput (&tQuery) (&tLay) iChn
+        Send ProcessRecords (&tQuery) (&tTQ) (&aTQSels) (&aBreaks) (&tLay) iChn
+        Send EndOutput (&tQuery) (&tLay) iChn sFile
+        
+        // Return file for URL
+        Function_Return sFile
+    End_Function
+    
+End_Class
+
+Object oWQFuncs is a cWebQueryFunctions
+    Move Self to ghoWQF
+End_Object

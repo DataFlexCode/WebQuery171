@@ -1,0 +1,119 @@
+Use Windows.pkg
+Use ButtonsLD.pkg
+
+Struct tUaLoginPopup
+    String sLoginCaption
+    String sUser
+    String sPassword
+    Boolean bShadeUser
+    Boolean bShadePassword
+    Boolean bDialogCancelled
+    Boolean bAllowRetain
+    Integer _hValidateMsg
+    Integer _hValidateObj
+End_Struct
+
+Object oUaLoginPanel is a ModalPanel
+    Set Size to 105 231
+    Set Label to "Login"
+    Set piMinSize to 89 211
+    Set Location to 2 2
+    Set Border_Style to Border_Normal
+    Set Locate_Mode to CENTER_ON_SCREEN
+    On_Key kEnter Send Close_Panel_Ok
+    On_Key kSave_Record Send Close_Panel_Ok
+    On_Key kCancel Send Close_Panel_Cancel
+
+    Property tUaLoginPopup pstLogin
+
+    Object oUserForm is a Form
+        Set Size to 13 100
+        Set Location to 22 79
+        Set Label to "User:"
+        Set Label_Justification_Mode to JMode_Right
+        Set Label_Col_Offset to 0
+    End_Object
+
+    Object oRetainUser is a CheckBox
+        Set Size to 10 50
+        Set Location to 37 79
+        Set Label to "Retain user"
+    End_Object
+
+    Object oGrantAll is a CheckBox
+        Set Size to 10 50
+        Set Location to 37 139
+        Set Label to "Grant all privileges"
+    End_Object
+
+    Object oPwForm is a Form
+        Set Size to 13 100
+        Set Location to 55 79
+        Set label to "Password:"
+        Set Label_Justification_Mode to JMode_Right
+        Set Label_Col_Offset to 0
+        Set Password_State to True
+    End_Object
+
+    Function ValidatePanel Returns Boolean
+        Boolean bValidates
+        tUaLoginPopup stLogin
+        Get pstLogin to stLogin
+        Get stLogin._hValidateMsg of stLogin._hValidateObj (&stLogin) to bValidates
+        Function_Return bValidates
+    End_Function
+
+    Property Boolean _pbOk
+    Object oOK_Btn is a Button
+        Set Label    to (Translate(oLanguageFunctions,"ls.btn.ok"))
+        Set Location to 83 119
+        Set peAnchors To anBottomRight
+        Procedure OnClick
+            If (ValidatePanel(Self)) Begin
+                Set _pbOk to True
+                Send Stop_Modal_UI // Use Stop_Modal_UI instead of Close_Panel when closing a modal panel before the main UI has been started (Start_UI)
+            End
+        End_Procedure
+    End_Object
+
+    Object oCancel_Btn is a Button
+        Set Label    to (Translate(oLanguageFunctions,"ls.btn.cancel"))
+        Set Location to 83 173
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel_Cancel
+        End_Procedure
+    End_Object
+
+    Procedure Close_Panel_Ok
+        If (ValidatePanel(Self)) Begin
+            Set _pbOk to True
+            Send Stop_Modal_UI // Use Stop_Modal_UI instead of Close_Panel when closing a modal panel before the main UI has been started (Start_UI)
+        End
+    End_Procedure
+
+    Procedure Close_Panel_Cancel
+        Send Stop_Modal_UI // Use Stop_Modal_UI instead of Close_Panel when closing a modal panel before the main UI has been started (Start_UI)
+    End_Procedure
+
+    Function PopupAccept tUaLoginPopup ByRef stLogin Boolean ByRef bGrantAllPrivileges Returns Boolean
+        Set _pbOk to False
+        Set Label to stLogin.sLoginCaption
+        Set Enabled_State of oUserForm to (not(stLogin.bShadeUser))
+        Set Enabled_State of oPwForm   to (not(stLogin.bShadePassword))
+        Set Enabled_State of oRetainUser  to (stLogin.bAllowRetain)
+        Set Value of oUserForm to stLogin.sUser
+        Set Value of oPwForm to stLogin.sPassword
+        Set pstLogin to stLogin
+        Set Visible_State of oGrantAll to bGrantAllPrivileges
+        Send Popup
+        Get Value of oUserForm to stLogin.sUser
+        Get Value of oPwForm to stLogin.sPassword
+        Move (not(_pbOk(Self))) to stLogin.bDialogCancelled
+        If (bGrantAllPrivileges) Begin
+            Get Checked_State of oGrantAll to bGrantAllPrivileges
+        End
+        Function_Return (_pbOk(Self))
+    End_Function
+
+End_Object

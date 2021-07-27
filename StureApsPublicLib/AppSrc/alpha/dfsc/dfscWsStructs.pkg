@@ -1,0 +1,17 @@
+Struct tFeedbackLock_WebApplicationState
+    DateTime dtExe // Datetime of the exe file
+    String   sActiveView
+End_Struct
+
+Struct tFeedbackLock_New_Req
+    String sApplicationUUID
+    String sUserID
+    tFeedbackLock_WebApplicationState strApplicationState
+End_Struct
+
+Struct tFeedbackLock_New_Resp
+    String sUUID
+    Number nTicketID
+    Boolean bSuccess
+    String sStatusText
+End_Struct

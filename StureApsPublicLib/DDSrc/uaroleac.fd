@@ -1,0 +1,6 @@
+#REPLACE FILE1017 uaroleac
+#REPLACE uaroleac.Recnum |FN1017,0
+#REPLACE uaroleac.RoleID |FN1017,1
+#REPLACE uaroleac.GateID |FS1017,2
+#REPLACE uaroleac.PrivilegeID |FS1017,3
+#REPLACE uaroleac.C_S |FS1017,4

@@ -1,0 +1,185 @@
+Use Windows.pkg
+
+Use Win\GridFunctions.pkg
+Use DFPostMessage.pkg
+
+Object oVirtualColumnEditValuePanel is a ModalPanel
+    Set Location to 17 28
+    Set Size to 260 284
+    Set Label to "Select value"
+    Set piMinSize to 67 210
+    Set Border_Style to Border_Thick
+    Set Locate_Mode to CENTER_ON_PANEL
+    On_Key kCancel Send Close_Panel
+    
+    Property String psDimensionID
+    
+    Property Handle _phVDHandler
+    
+    Property Boolean pbRemove
+    
+    Object oDimension is a Form
+        Set Size to 13 98
+        Set Location to 6 122
+        Set Enabled_State to False
+        Set Label to "Select value for dimension:"
+        Set Label_Justification_Mode to JMode_Right
+        Set Label_Col_Offset to 0
+    End_Object
+    
+    Object oNameFilter is a Form
+        Set Size to 13 91
+        Set Location to 36 42
+        Set label to "Value filter:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Procedure GoToGrid
+            Send Activate of oGrid
+        End_Procedure
+        On_Key Key_Up_Arrow Send GoToGrid
+        On_Key Key_Down_Arrow Send GoToGrid
+        On_Key Key_Enter Send close_panel_ok
+        Procedure OnChange
+            Send FillList of oGrid
+        End_Procedure
+    End_Object
+        
+    Object oCheckBox is a CheckBox
+        Set Size to 10 50
+        Set Location to 38 146
+        Set Label to 'First-letters-match only'
+        Set Checked_State to True
+        Procedure OnChange
+            Send FillList of oGrid
+        End_Procedure
+    End_Object
+    
+    Function FilterValue Returns String
+        String sFilter
+        Get Value of oNameFilter to sFilter
+        Move (sFilter+"*") to sFilter
+        If (not(Checked_State(oCheckBox))) Begin
+            Move ("*"+sFilter) to sFilter
+        End
+        Function_Return sFilter
+    End_Function
+
+    Object oGrid is a cfreeGrid
+        Set Location to 55 11
+        Set Size to 175 262
+    
+        Set Line_Width to 2 0 // size and Line_width MUST be set before any column properties
+        Set Form_Width 0 to 98
+        Set Header_Label  0 to "Value"
+        Set Form_Width 1 to 154
+        Set Header_Label  1 to "Label"
+        Set peAnchors to anAll
+        Set peResizeColumn to rcSelectedColumn
+        Set piResizeColumn to 1
+        Send SetHighlightRowState of oGridFunctions Self    
+        
+        On_Key Key_Enter Send close_panel_ok
+        
+        Procedure OnMouseDoubleClick Integer iItem
+            Send close_panel_ok
+        End_Procedure
+        
+        Procedure FillList
+            Integer iMax iItem iBase iRoleID
+            String sFilter sDimID
+            Handle hVDHandler
+            tvdSelectOption[] aOptions
+            
+            Get _phVDHandler to hVDHandler
+            
+            Set Dynamic_Update_State to False
+            Send Delete_Data
+            Get FilterValue to sFilter
+            Get Value of oDimension to sDimID
+
+            Get ValueListPatternMatch of hVDHandler sDimID sFilter to aOptions
+            Move (SizeOfArray(aOptions)-1) to iMax
+            For iItem from 0 to iMax
+                Send Add_Item MSG_NONE aOptions[iItem].sValue
+                Send Add_Item MSG_NONE aOptions[iItem].sLabel
+            Loop
+            
+            Send SetEntryState of oGridFunctions Self False
+            Set Dynamic_Update_State to True
+        End_Procedure
+        
+        Function CurrentValue Returns String
+            Integer iBase
+            String sValue
+            If (Item_Count(Self)>0) Begin
+                Get BaseItem of oGridFunctions Self to iBase
+                Get Value iBase to sValue
+            End
+            Function_Return sValue
+        End_Function
+    End_Object
+    
+    Procedure Close_Panel_Ok
+        Set _pbAccept to True
+        Send Close_Panel
+    End_Procedure
+
+    Property Boolean _pbAccept
+    
+    Procedure Close_Panel_Ok
+        Set _pbAccept to True
+        Send Close_Panel
+    End_Procedure
+    
+    Function DimensionValue Integer hVDHandler String sDimID String ByRef sValue Returns Boolean
+        Set psDimensionID to sDimID
+        
+        Set _phVDHandler to hVDHandler
+        Set Value of oDimension to sDimID
+        Set Value of oNameFilter to sValue
+        Send DFPostMessage MSG_FillList oGrid
+        Set _pbAccept to False
+        Set pbRemove to False
+        Send Popup
+        If (_pbAccept(Self)) Begin
+            If (pbRemove(Self)) Begin
+                Move "" to sValue
+            End
+            Else Begin
+                Get CurrentValue of oGrid to sValue
+            End
+        End
+        Function_Return (_pbAccept(Self))
+    End_Function
+
+    Object oBtnOk is a Button
+        Set Size to 14 45
+        Set Location to 239 115
+        Set Label to 'Select'
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel_Ok
+        End_Procedure
+    End_Object
+
+    Object oBtnRemove is a Button
+        Set Size to 14 66
+        Set Location to 239 163
+        Set Label to 'Remove value'
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Set pbRemove to True
+            Send Close_Panel_Ok
+        End_Procedure
+    End_Object
+
+    Object oBtnCancel is a Button
+        Set Size to 14 43
+        Set Location to 239 232
+        Set Label to 'Cancel'
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+End_Object

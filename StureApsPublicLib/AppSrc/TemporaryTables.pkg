@@ -1,0 +1,674 @@
+// Temporary tables are embedded tables!
+
+Use AttributeFunctions.pkg
+Use TableStructure.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+Use TableAccessFunctions.pkg
+Use StringFunctions.pkg // Define oStringFunctions object
+
+
+Struct tTempTableDefinitionField
+    String sName            // Field name
+    Integer iType           // DF_BCD, DF_ASCII, DF_DATE, DF_TEXT, DF_BINARY, DF_DATETIME
+    Integer iLen
+    Integer iPrecision
+End_Struct
+
+Struct tTempTableDefinitionIndex
+    String sName
+    Boolean bOnline
+    Integer[] aFields
+    Boolean[] aCaseInsensitive
+    Boolean[] aDescending
+End_Struct
+
+Struct tTempTableDefinition
+    String sFolder     // Absolute location of table files. If blank, the data folder will be used.
+    String sSubFolder  // 
+    String sFileName   // Disk file name of table
+//    String sTableLongName
+    Integer iMaxRecords
+    Boolean bCompression
+    Boolean bSingleUser
+//    Integer iDriverId // TA_DRIVER_DATAFLEX TA_DRIVER_PERVASIVE TA_DRIVER_ORACLE TA_DRIVER_MS_SQL TA_DRIVER_DB2 TA_DRIVER_ODBC TA_DRIVER_MS_SQL_DAW TA_DRIVER_MAX
+    tTempTableDefinitionField[] aFields
+    tTempTableDefinitionIndex[] aIndices
+End_Struct
+
+Struct tTempTableIndexSeederSegment
+    Integer iColumn
+    String sValue
+End_Struct
+
+Struct tTempTableHandle
+    String sDiskFileName
+    Integer hTable
+    String[] aIndexNames
+End_Struct
+
+Global_Variable Integer oTemporaryTablesFunctions
+Global_Variable tTempTableIndexSeederSegment[][] _gaTableSeeds
+
+Object _oTemporaryTablesFunctions is a cObject
+    Move Self to oTemporaryTablesFunctions
+
+    //> Returns an empty TempTable definition with only a few very basic attributes set.
+    Function EmptyTempTableDefinition Returns tTempTableDefinition
+        tTempTableDefinition strRval
+        Move 10000 to strRval.iMaxRecords
+        Move False to strRval.bCompression
+        Move False to strRval.bSingleUser
+        Function_Return strRval
+    End_Function
+    
+    Procedure AddColumn tTempTableDefinition ByRef strTempTable String sName Integer iType Integer iLen Integer iPrecision
+        Integer iFieldIndex
+        Move (SizeOfArray(strTempTable.aFields)) to iFieldIndex
+        Move sName to strTempTable.aFields[iFieldIndex].sName
+        Move iType to strTempTable.aFields[iFieldIndex].iType
+        Move iLen to strTempTable.aFields[iFieldIndex].iLen
+        Move iPrecision to strTempTable.aFields[iFieldIndex].iPrecision
+    End_Procedure
+    
+    Procedure AddIndex tTempTableDefinition ByRef strTempTable Boolean bOnline
+        Integer iIndex
+        Move (SizeOfArray(strTempTable.aIndices)) to iIndex
+        If (iIndex=0) Begin
+            Move 1 to iIndex // First index is index 1. Not index 0.
+        End
+        Move bOnline to strTempTable.aIndices[iIndex].bOnline
+    End_Procedure
+    
+    Procedure Set IndexName tTempTableDefinition ByRef strTempTable String sName
+        Integer iIndex
+        Move (SizeOfArray(strTempTable.aIndices)-1) to iIndex
+        Move sName to strTempTable.aIndices[iIndex].sName
+    End_Procedure
+
+                Function _FindColumnName tTempTableDefinition strTempTable String sName Returns Integer
+                    Integer iFieldIndex iFieldMax
+                    Move (Uppercase(sName)) to sName
+                    If (sName="RECNUM") Function_Return 0
+                    Move (SizeOfArray(strTempTable.aFields)-1) to iFieldMax
+                    For iFieldIndex from 0 to iFieldMax
+                        If (sName=Uppercase(strTempTable.aFields[iFieldIndex].sName)) Begin
+                            Function_Return (iFieldIndex+1)
+                        End
+                    Loop
+                    Function_Return -1 // Not found
+                End_Function
+
+    Procedure AddIndexSegment tTempTableDefinition ByRef strTempTable String sColumnName Boolean bCaseInSensitive Boolean bDescending
+        Integer iSegmentIndex iIndex iField
+        
+        Get _FindColumnName strTempTable sColumnName to iField
+        
+        If (iField>=0) Begin
+            Move (SizeOfArray(strTempTable.aIndices)-1) to iIndex
+            Move (SizeOfArray(strTempTable.aIndices[iIndex].aFields)) to iSegmentIndex
+            Move iField to strTempTable.aIndices[iIndex].aFields[iSegmentIndex]
+            Move bCaseInSensitive to strTempTable.aIndices[iIndex].aCaseInsensitive[iSegmentIndex]
+            Move bDescending to strTempTable.aIndices[iIndex].aDescending[iSegmentIndex]
+        End
+        Else Begin
+            Error 826 "Field not found"
+        End
+    End_Procedure
+
+    Function DropTable tTempTableDefinition strTempTable Boolean bOverWrite Returns Boolean
+        Integer iRval
+        String sFolder sTableRoot
+
+        Get TablePath strTempTable to sTableRoot
+
+        Get DeleteFileNew of oFileFunctions (sTableRoot+".dat") False to iRval
+        If (iRval=0) Begin
+            Get DeleteFileNew of oFileFunctions (sTableRoot+".k?") False to iRval
+        End
+        If (iRval=0) Begin
+            Get DeleteFileNew of oFileFunctions (sTableRoot+".hdr") False to iRval
+        End
+        If (iRval=0) Begin
+            Get DeleteFileNew of oFileFunctions (sTableRoot+".tag") False to iRval
+        End
+        If (iRval=0) Begin
+            Get DeleteFileNew of oFileFunctions (sTableRoot+".vld") False to iRval
+        End
+        If (iRval=0) Begin
+            Get DeleteFileNew of oFileFunctions (sTableRoot+".dat") False to iRval
+        End
+        Function_Return (iRval=0)
+    End_Function
+    
+    //> Create table
+    Function CreateTable tTempTableDefinition strTempTable Boolean bOverWrite Returns Boolean
+        Integer iFieldIndex iFieldMax iGrb
+        Integer iIndexIndex iIndexMax iIndex
+        Integer iSegmentIndex iSegmentMax iSegment
+        Boolean bSuccess bOnline
+        String sFolder
+        tTempTableDefinitionField strField
+        tTempTableDefinitionIndex strIndex
+
+        // Calculate the desired folder:
+        If (strTempTable.sFolder="") begin
+            Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        End
+        Else Begin
+            Move strTempTable.sFolder to sFolder
+        End
+
+        If (strTempTable.sSubFolder<>"") Begin
+            Get CreateFolderMultiLevel of oFileFunctions sFolder strTempTable.sSubFolder to bSuccess
+            Get AppendPath of oFileFunctions sFolder strTempTable.sSubFolder to sFolder
+        End
+        Else Begin
+            Move True to bSuccess
+            Move strTempTable.sFolder to sFolder
+        End
+
+        If (bSuccess) Begin
+            Get Structure_Start_New_Table of oTableStructureFunctions strTempTable.sFileName sFolder "DATAFLEX" to bSuccess
+            If bSuccess Begin
+
+                Set Table_Attribute of oTableStructureFunctions DF_FILE_MAX_RECORDS to strTempTable.iMaxRecords
+
+                If (strTempTable.bSingleUser) Begin
+                    Set Table_Attribute of oTableStructureFunctions DF_FILE_MULTIUSER to DF_FILE_USER_SINGLE
+                End
+                If (strTempTable.bCompression) Begin
+                    Set Table_Attribute of oTableStructureFunctions DF_FILE_COMPRESSION to DF_FILE_COMPRESS_FAST
+                End
+
+                // Create fields:
+                Move (SizeOfArray(strTempTable.aFields)-1) to iFieldMax
+                For iFieldIndex from 0 to iFieldMax
+                    Move strTempTable.aFields[iFieldIndex] to strField
+                    Get Append_Field_2 of oTableStructureFunctions strField.sName strField.iType strField.iLen strField.iPrecision to iGrb
+                Loop
+
+                // Create indices:
+                Move (SizeOfArray(strTempTable.aIndices)-1) to iIndexMax
+                For iIndexIndex from 1 to iIndexMax
+                    Move strTempTable.aIndices[iIndexIndex] to strIndex
+                    Move (SizeOfArray(strIndex.aFields)-1) to iSegmentMax
+
+                    If (iSegmentMax>=0) Begin
+                        Move iIndexIndex to iIndex
+                        Send Create_Index of oTableStructureFunctions iIndex
+                        Move strTempTable.aIndices[iIndexIndex].bOnline to bOnline
+                        Set Index_Attribute of oTableStructureFunctions DF_INDEX_TYPE iIndex to (If(bOnline,DF_INDEX_TYPE_ONLINE,DF_INDEX_TYPE_BATCH))
+                        Set Index_Attribute of oTableStructureFunctions DF_INDEX_NUMBER_SEGMENTS iIndex to (iSegmentMax+1)
+                        For iSegmentIndex from 0 to iSegmentMax
+                            Move (iSegmentIndex+1) to iSegment
+                            Set Index_Segment_Attribute of oTableStructureFunctions DF_INDEX_SEGMENT_FIELD iIndex iSegment to strIndex.aFields[iSegmentIndex]
+                            Set Index_Segment_Attribute of oTableStructureFunctions DF_INDEX_SEGMENT_CASE iIndex iSegment to (If(strIndex.aCaseInsensitive[iSegmentIndex],DF_CASE_IGNORED,DF_CASE_USED))
+                            Set Index_Segment_Attribute of oTableStructureFunctions DF_INDEX_SEGMENT_DIRECTION iIndex iSegment to (If(strIndex.aDescending[iSegmentIndex],DF_DESCENDING,DF_ASCENDING))
+                        Loop
+                    End
+                Loop
+                
+                // Round it up:
+                Get Structure_End of oTableStructureFunctions DF_STRUCTEND_OPT_NONE to bSuccess
+            End
+        End
+        Function_Return bSuccess
+    End_Function
+    
+    //> Returns path that may be used to open table (... as)
+    Function TablePath tTempTableDefinition strTempTable Returns String
+        String sFolder sTablePath
+        // Calculate the desired folder:
+        If (strTempTable.sFolder="") Begin
+            Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        End
+        Else Begin
+            Move strTempTable.sFolder to sFolder
+        End
+        
+        If (strTempTable.sSubFolder<>"") Begin
+            Get AppendPath of oFileFunctions sFolder strTempTable.sSubFolder to sFolder
+        End
+        
+        Get AppendPath of oFileFunctions sFolder strTempTable.sFileName to sTablePath
+        Get PathStripType of oFileFunctions sTablePath to sTablePath
+        Function_Return sTablePath
+    End_Function
+    
+    Function OpenTable tTempTableDefinition strTempTable Boolean bExclusive Returns Integer 
+        Integer iTable iCode
+
+        Get TableExists strTempTable to iCode
+        
+        If (iCode=0) Begin // Does not exist
+            Get CreateTableAndOpen strTempTable True bExclusive to iTable
+        End
+        If (iCode=1) Begin // Exists but does not match
+            Get OpenTableAsAutoHandle of oTableAccessFunctions (TablePath(Self,strTempTable)) (If(bExclusive,DF_EXCLUSIVE,DF_SHARE)) 0 to iTable
+        End
+        If (iCode=2) Begin // Exists and matches the definition
+            Get OpenTableAsAutoHandle of oTableAccessFunctions (TablePath(Self,strTempTable)) (If(bExclusive,DF_EXCLUSIVE,DF_SHARE)) 0 to iTable
+        End
+        Function_Return iTable
+    End_Function
+    
+    Function CreateTableAndOpen tTempTableDefinition strTempTable Boolean bOverWrite Boolean bExclusive Returns Integer
+        Integer iTable
+        Boolean bSuccess
+        Get CreateTable strTempTable bOverWrite to bSuccess
+        Move 0 to iTable
+        If (bSuccess) Begin
+            Get OpenTableAsAutoHandle of oTableAccessFunctions (TablePath(Self,strTempTable)) (If(bExclusive,DF_EXCLUSIVE,DF_SHARE)) 0 to iTable
+        End
+        Function_Return iTable
+    End_Function
+    
+                Function _CompareTableToDefinitionColumns tTempTableDefinition strTempTable Integer iTable Returns Integer
+                    Integer iLen iPrec iType
+                    Integer iColumn iColumns
+                    Integer iColumnNumber
+                    Move (SizeOfArray(strTempTable.aFields)-1) to iColumns
+                    For iColumn from 0 to iColumns
+                        Move strTempTable.aFields[iColumn].iPrecision to iPrec
+                        Get FieldNameToNumber of oTableAccessFunctions iTable strTempTable.aFields[iColumn].sName to iColumnNumber
+                        If (iColumnNumber=-1) Function_Return 1 // Missing column
+                        Get_Attribute DF_FIELD_TYPE of iTable iColumnNumber to iType
+                        If (iType<>strTempTable.aFields[iColumn].iType) Function_Return 2 // Column type mismatch
+                        Get_Attribute DF_FIELD_LENGTH of iTable iColumnNumber to iLen
+                        If (iLen<strTempTable.aFields[iColumn].iLen) Function_Return 3 // Column length mismatch
+                        Get_Attribute DF_FIELD_PRECISION of iTable iColumnNumber to iPrec
+                        If (iPrec<strTempTable.aFields[iColumn].iPrecision) Function_Return 4 // Column precision mismatch
+                    Loop
+                    Function_Return 0 // Columns are defined
+                End_Function
+                    
+                Function _CompareTableToDefinitionIndices tTempTableDefinition strTempTable Integer iTable Returns Integer
+                    Integer iIndex iIndices
+                    Move (SizeOfArray(strTempTable.aIndices)-1) to iIndices
+                    For iIndex from 0 to iIndices
+                        // Unfinished!
+                    Loop
+                    Function_Return 0 // Indices are defined
+                End_Function
+                
+        Function _CompareTableToDefinition tTempTableDefinition strTempTable Integer iTable Returns Integer
+            Integer iError
+            Get _CompareTableToDefinitionColumns strTempTable iTable to iError
+            If (iError=0) Begin
+                Get _CompareTableToDefinitionIndices strTempTable iTable to iError
+            End
+            Function_Return iError
+        End_Function
+
+    //> Returns  2: Exists and matches the definition.  1: Exists but does not match  0: Does not exist
+    Function TableExists tTempTableDefinition strTempTable Returns Integer
+        Integer iTable iError iRval
+        Get OpenTableAsAutoHandle of oTableAccessFunctions (TablePath(Self,strTempTable)) DF_SHARE 0 to iTable
+        If (iTable>0) Begin
+            Get _CompareTableToDefinition strTempTable iTable to iError
+            If (iError=0) Begin
+                Move 2 to iRval // Table exists and matches definition
+            End
+            Else Begin
+                Move 1 to iRval // Table exists but does not match definition
+            End
+            Close iTable
+        End
+        Else Begin
+            Move 0 to iRval // Table does not exist
+        End
+        Function_Return iRval
+    End_Function
+    
+    // This function creates a tTempTableDefinition value that resembles the one handed over in the
+    // strTableAttributes parameter. We say 'resembles' because a number of details are lost in the
+    // transformation (such as specific numbering of indices, overlaps makes no sense)
+    Function AttributesToTempTableDefinition tTableAttributes strTableAttributes Returns tTempTableDefinition
+        Integer iTable iRecords
+        Integer iColumn iColumns
+        Integer iIndex iIndices
+        Integer iSegment iSegments
+        Integer iColumnType iColumnLength iColumnPrecision
+        Integer iIndexColumn 
+        Boolean bCaseSense bDescending
+        String sColumnName
+        tTableAttributes[] aTables
+        tTempTableDefinition strTableDefinition
+        
+        // This we (irritatingly) have to do to be able to use the TableAttribute function
+        // of oAttributeFunctions for querying the strTableAttributes parameter:
+        Move strTableAttributes.iReadFromFileListEntryNo to iTable
+        Move strTableAttributes to aTables[0]
+
+        Get EmptyTempTableDefinition to strTableDefinition
+        Get TableAttribute of oAttributeFunctions aTables DF_FILE_MAX_RECORDS iTable 0 0 to strTableDefinition.iMaxRecords
+        
+        // Add columns:
+        Get TableAttribute of oAttributeFunctions aTables DF_FILE_NUMBER_FIELDS iTable 0 0 to iColumns
+        For iColumn from 1 to iColumns
+            Get TableAttribute of oAttributeFunctions aTables DF_FIELD_NAME iTable iColumn 0 0 to sColumnName
+            Get TableAttribute of oAttributeFunctions aTables DF_FIELD_TYPE iTable iColumn 0 0 to iColumnType     
+            Get TableAttribute of oAttributeFunctions aTables DF_FIELD_LENGTH iTable iColumn 0 0 to iColumnLength   
+            Get TableAttribute of oAttributeFunctions aTables DF_FIELD_PRECISION iTable iColumn 0 0 to iColumnPrecision
+            If (iColumnType<>DF_OVERLAP) Begin
+                Send AddColumn (&strTableDefinition) sColumnName iColumnType iColumnLength iColumnPrecision
+            End
+        Loop
+        
+        // Add indices:
+        Get TableAttribute of oAttributeFunctions aTables DF_FILE_LAST_INDEX_NUMBER iTable 0 0 to iIndices
+        For iIndex from 1 to iIndices
+            Get TableAttribute of oAttributeFunctions aTables DF_INDEX_NUMBER_SEGMENTS iTable iIndex 0 to iSegments
+            If (iSegments<>0) Begin
+                Send AddIndex (&strTableDefinition) True
+                For iSegment from 1 to iSegments
+                    Get TableAttribute of oAttributeFunctions aTables DF_INDEX_SEGMENT_FIELD iTable iIndex iSegment to iIndexColumn
+                    Get TableAttribute of oAttributeFunctions aTables DF_INDEX_SEGMENT_CASE iTable iIndex iSegment to bCaseSense
+                    Move (Integer(TableAttribute(oAttributeFunctions,aTables,DF_INDEX_SEGMENT_CASE,iTable,iIndex,iSegment))=DF_CASE_USED) to bCaseSense
+                    Move (Integer(TableAttribute(oAttributeFunctions,aTables,DF_INDEX_SEGMENT_DIRECTION,iTable,iIndex,iSegment))=DF_DESCENDING) to bDescending
+                    Get TableAttribute of oAttributeFunctions aTables DF_FIELD_NAME iTable iIndexColumn 0 0 to sColumnName
+                    Send AddIndexSegment (&strTableDefinition) sColumnName (not(bCaseSense)) bDescending
+                Loop
+            End
+        Loop
+        
+        Function_Return strTableDefinition
+    End_Function
+    
+    Function ValidateTempTableHandles tTempTableHandle[] aTableHandles Returns Boolean
+        Integer iIndex iMax iTable
+        
+        Move (SizeOfArray(aTableHandles)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aTableHandles[iIndex].hTable to iTable
+            If (iTable<=0) Begin
+                Function_Return False
+            End
+        Loop
+        Function_Return True
+    End_Function
+
+    Function OpenTemporaryTables tTempTableDefinition[] aTables Boolean bExclusive Returns tTempTableHandle[]
+        Integer iTableIndex iTableMax iTable
+        Integer iIndexIndex iIndexMax 
+        tTempTableHandle[] aTableHandles aEmpty
+        
+        Move (SizeOfArray(aTables)-1) to iTableMax
+        For iTableIndex from 0 to iTableMax
+            Get OpenTable aTables[iTableIndex] bExclusive to iTable
+            Move iTable to aTableHandles[iTableIndex].hTable
+            Move aTables[iTableIndex].sFileName to aTableHandles[iTableIndex].sDiskFileName
+            // Copy index names to tTempTableHandle
+            Move (SizeOfArray(aTables[iTableIndex].aIndices)-1) to iIndexMax
+            For iIndexIndex from 0 to iIndexMax
+                Move aTables[iTableIndex].aIndices[iIndexIndex].sName to aTableHandles[iTableIndex].aIndexNames[iIndexIndex]
+            Loop
+        Loop
+        
+        If (not(ValidateTempTableHandles(Self,aTableHandles))) Begin
+            Send CloseTemporaryTables aTableHandles
+            Move aEmpty to aTableHandles // Empty return value signals "error" to the caller
+        End
+        
+        Function_Return aTableHandles
+    End_Function
+    
+    Procedure CloseTemporaryTables tTempTableHandle[] aTableHandles
+        Integer iIndex iMax iTable
+        
+        Move (SizeOfArray(aTableHandles)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aTableHandles[iIndex].hTable to iTable
+            If (iTable>0) Begin
+                Close iTable
+            End
+        Loop
+    End_Procedure
+    
+End_Object // _oTemporaryTablesFunctions
+
+Class cTemporaryTablesHandler is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property tTempTableDefinition[] paTableDefinitions
+        Property tTempTableHandle[] _paTableHandles
+    End_Procedure
+    
+    Function OpenTables Boolean bExclusive Returns Boolean
+        tTempTableHandle[] aTableHandles
+        tTempTableDefinition[] aTables
+        Get paTableDefinitions to aTables
+        Get OpenTemporaryTables of oTemporaryTablesFunctions aTables bExclusive to aTableHandles
+        Set _paTableHandles to aTableHandles
+        Function_Return (SizeOfArray(aTableHandles)>0)
+    End_Function
+    
+    Procedure CloseTables
+        tTempTableHandle[] aTableHandles aEmpty
+        Get _paTableHandles to aTableHandles
+        Send CloseTemporaryTables of oTemporaryTablesFunctions aTableHandles
+        Set _paTableHandles to aEmpty
+    End_Procedure
+
+
+            Function _FindTable String sTable Integer ByRef iTable Boolean bQuietOnError Returns Boolean
+                Integer iIndex iMax
+                tTempTableHandle[] aTableHandles
+
+                Get _paTableHandles to aTableHandles
+                Move 0 to iTable
+                
+                Move (SizeOfArray(aTableHandles)-1) to iMax
+                For iIndex from 0 to iMax 
+                    If (Uppercase(sTable)=Uppercase(aTableHandles[iIndex].sDiskFileName)) Begin
+                        Move aTableHandles[iIndex].hTable to iTable
+                        Function_Return True 
+                    End
+                Loop
+                If (bQuietOnError) Begin
+                    Error 424 ("Table-name not recognized ("+sTable+")")
+                End
+                Function_Return False
+            End_Function
+
+            Function _FindTableAndIndex String sTable String sIndex Integer ByRef iTable Integer ByRef iIndex Boolean bQuietOnError Returns Boolean
+                Integer iHandleIndex iHandleMax
+                Integer iIndexIndex iIndexMax
+                tTempTableHandle[] aTableHandles
+                                    
+                Get _paTableHandles to aTableHandles
+                Move 0 to iTable
+                Move 0 to iIndex
+                
+                Move (SizeOfArray(aTableHandles)-1) to iHandleMax
+                For iHandleIndex from 0 to iHandleMax 
+                    If (Uppercase(sTable)=Uppercase(aTableHandles[iHandleIndex].sDiskFileName)) Begin
+                        Move aTableHandles[iHandleIndex].hTable to iTable
+
+                        // If sIndex is an integer we take it for an index number
+                        If (IsInteger(oStringFunctions,sIndex)) Begin
+                            Move sIndex to iIndex
+                            Function_Return True
+                        End
+                        
+                        // Else it must be an index name and we must look for it:
+                        Move (Lowercase(sIndex)) to sIndex
+                        Move (SizeOfArray(aTableHandles[iHandleIndex].aIndexNames)-1) to iIndexMax
+                        For iIndexIndex from 0 to iIndexMax
+                            If (sIndex=aTableHandles[iHandleIndex].aIndexNames[iIndexIndex]) Begin
+                                Move iIndexIndex to iIndex
+                                Function_Return True
+                            End
+                        Loop
+                        
+                        If (not(bQuietOnError)) Begin
+                            Error 424 ("Table index not found ("+sTable+", index: "+sIndex+")")
+                        End
+                        Function_Return False // No sense in going through the rest of the tables,
+                    End
+                Loop
+                If (not(bQuietOnError)) Begin
+                    Error 425 ("Table index not found ("+sTable+", index: "+sIndex+")")
+                End
+                Function_Return False
+            End_Function
+    
+            Function _FindTableAndColumn String sTable String sColumn Integer ByRef iTable Integer ByRef iColumn Boolean bQuietOnError Returns Boolean
+                Integer iIndex iMax
+                tTempTableHandle[] aTableHandles
+                                    
+                Get _paTableHandles to aTableHandles
+                Move 0 to iTable
+                Move 0 to iColumn
+                
+                Move (SizeOfArray(aTableHandles)-1) to iMax
+                For iIndex from 0 to iMax 
+                    If (Uppercase(sTable)=Uppercase(aTableHandles[iIndex].sDiskFileName)) Begin
+                        Move aTableHandles[iIndex].hTable to iTable
+                        Get FieldNameToNumber of oTableAccessFunctions iTable sColumn to iColumn
+                        If (iColumn>=0) Begin
+                            Function_Return True
+                        End
+                        If (not(bQuietOnError)) Begin
+                            Error 422 ("Table column not found ("+sTable+"."+sColumn+")")
+                        End
+                        Function_Return False // No sense in going through the rest of the tables,
+                    End
+                Loop
+                If (not(bQuietOnError)) Begin
+                    Error 423 ("Table column not found ("+sTable+"."+sColumn+")")
+                End
+                Function_Return False
+            End_Function
+            
+    Procedure Set Column_Value String sTable String sColumn String sValue
+        Integer iTable iColumn
+        If (_FindTableAndColumn(Self,sTable,sColumn,&iTable,&iColumn,False)) Begin
+            Set_Field_Value iTable iColumn to sValue
+        End
+    End_Procedure
+    
+    Function Column_Value String sTable String sColumn Returns String
+        Integer iTable iColumn
+        String sRval
+        If (_FindTableAndColumn(Self,sTable,sColumn,&iTable,&iColumn,False)) Begin
+            Get_Field_Value iTable iColumn to sRval
+        End
+        Else Begin
+            Move "" to sRval
+        End
+        Function_Return (Rtrim(sRval))
+    End_Function
+    
+    Procedure SaveRecord String sTable
+        Integer iTable
+        If (_FindTable(Self,sTable,&iTable,False)) Begin
+            SaveRecord iTable
+        End
+    End_Procedure
+    
+    Procedure Clear String sTable
+        Integer iTable
+        If (_FindTable(Self,sTable,&iTable,False)) Begin
+            Clear iTable
+            // Clear all preseeding seeds:
+            If (SizeOfArray(_gaTableSeeds)>iTable) Begin
+                Move (ResizeArray(_gaTableSeeds[iTable],0)) to _gaTableSeeds[iTable]
+            End
+        End
+    End_Procedure
+    
+    Procedure DeleteString String sTable
+        Integer iTable
+        If (_FindTable(Self,sTable,&iTable,False)) Begin
+            Delete iTable
+        End
+    End_Procedure
+    
+    Procedure SeedIndex String sTable String sColumn String sValue
+        Integer iTable iColumn iSegment
+        If (_FindTableAndColumn(Self,sTable,sColumn,&iTable,&iColumn,False)) Begin
+            If (SizeOfArray(_gaTableSeeds)>iTable) Begin
+                Move (SizeOfArray(_gaTableSeeds[iTable])) to iSegment
+            End
+            Else Begin
+                Move 0 to iSegment
+            End
+            Move iColumn to _gaTableSeeds[iTable][iSegment].iColumn
+            Move sValue to _gaTableSeeds[iTable][iSegment].sValue
+            Set_Field_Value iTable iColumn to sValue
+        End
+    End_Procedure
+    
+    Function Find String sTable String sIndex Integer iMode Boolean bConstrained Returns Boolean
+        Boolean bFound
+        Integer iTable iIndex
+        Integer iSegmentIndex iSegmentMax
+        Integer iColumn iType
+        String sValue
+        If (_FindTableAndIndex(Self,sTable,sIndex,&iTable,&iIndex,False)) Begin
+            Vfind iTable iIndex iMode
+            Move (Found) to bFound
+            If (bFound and bConstrained) Begin
+                // Check that seeded values are identical with the record found:
+                Move (SizeOfArray(_gaTableSeeds[iTable])-1) to iSegmentMax
+                For iSegmentIndex from 0 to iSegmentMax
+                    Move _gaTableSeeds[iTable][iSegmentIndex].iColumn to iColumn
+                    Get_Field_Value iTable iColumn to sValue
+                    Get_Attribute DF_FIELD_TYPE of iTable iColumn to iType
+                    If (iType=DF_ASCII) Begin
+                        Move (_gaTableSeeds[iTable][iSegmentIndex].sValue=sValue) to bFound
+                    End
+                    Else If (iType=DF_BCD) Begin
+                        Move (Number(_gaTableSeeds[iTable][iSegmentIndex].sValue)=Number(sValue)) to bFound
+                    End
+                    Else If (iType=DF_DATE) Begin
+                        Move (Date(_gaTableSeeds[iTable][iSegmentIndex].sValue)=Date(sValue)) to bFound
+                    End
+                    Else Begin
+                        Error 426 "Find was seeded by a TEXT or BINARY field"
+                    End
+                Loop
+            End
+            Function_Return (bFound)
+        End
+        Function_Return False
+    End_Function
+End_Class
+
+
+//Procedure TestrTempTable
+//    tTempTableDefinition stDef
+//    Get EmptyTempTableDefinition of oTemporaryTablesFunctions to stDef
+//
+//    Move 200000 to stDef.iMaxRecords
+//    Move "badseeds" to stDef.sFileName
+//    Move "" to stDef.sFolder // blank means it goes in the data folder
+//    Move "test" to stDef.sSubFolder // means it goes in a subfolder of the data folder called test
+//    
+//    Send AddColumn of oTemporaryTablesFunctions (&stDef) "FirstName"   DF_ASCII 20 0  // field no 1
+//    Send AddColumn of oTemporaryTablesFunctions (&stDef) "LastName"    DF_ASCII 20 0  // field no 2
+//    Send AddColumn of oTemporaryTablesFunctions (&stDef) "Address"     DF_TEXT 256 0  // field no 3
+//    Send AddColumn of oTemporaryTablesFunctions (&stDef) "DateOfBirth" DF_DATE 0 0    // field no 4
+//    Send AddColumn of oTemporaryTablesFunctions (&stDef) "ArrestCount" DF_BCD 4 0     // field no 5
+//    Send AddColumn of oTemporaryTablesFunctions (&stDef) "HighestPct"  DF_BCD 4 2     // field no 6
+//    
+//    Send AddIndex of oTemporaryTablesFunctions (&stDef) True
+//    Send AddIndexSegment of oTemporaryTablesFunctions (&stDef) "FirstName" True False // FirstName
+//    Send AddIndexSegment of oTemporaryTablesFunctions (&stDef) "LastName"  True False // LastName
+//    
+//    Send AddIndex of oTemporaryTablesFunctions (&stDef) True
+//    Send AddIndexSegment of oTemporaryTablesFunctions (&stDef) "DateOfBirth" False False // DateOfBirth
+//    Send AddIndexSegment of oTemporaryTablesFunctions (&stDef) "Recnum"      False False // Recnum
+//    
+//    Send AddIndex of oTemporaryTablesFunctions (&stDef) True
+//    Send AddIndexSegment of oTemporaryTablesFunctions (&stDef) "HighestPct"  False True // HighestPct
+//    Send AddIndexSegment of oTemporaryTablesFunctions (&stDef) "ArrestCount" False True // ArrestCount
+//    
+//    If (CreateTable(oTemporaryTablesFunctions,stDef,True)) Begin
+//        Showln "Success"
+//    End
+//    Else Begin
+//        Showln "Failure"
+//    End
+//End_Procedure

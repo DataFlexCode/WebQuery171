@@ -1,0 +1,363 @@
+// svg.js
+
+Use cWebHtmlBox.pkg
+Use StringFunctions.pkg
+
+Use XmlBuilder.pkg
+Use HtmlSequenceFunctions.pkg
+
+Class cWebHtmlBoxSture is a cWebHtmlBox
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Send Define_cXmlBuilderProxyMixin
+        Object _oXMLBuilder is a cXmlBuilder
+            Set pbTagSelfClosingEnabled to False
+        End_Object
+        Set phXMLBuilder to _oXMLBuilder
+        Property Integer piServer
+        Property Integer[] pahHtmlBoxItems
+        {WebProperty=True}
+        Property String psUniqueIdPush
+        {WebProperty=True}
+        Property String psModalPanelDataPush // Used by
+    End_Procedure
+    
+    Procedure Set HtmlBoxModalPanelDataPush String sUniqueIdPush String sData
+        WebSet psUniqueIdPush to sUniqueIdPush
+        WebSet psModalPanelDataPush to sData
+    End_Procedure
+    
+    Function HtmlBoxModalPanelDataPush String ByRef sUniqueIdPush Returns String
+        String sData
+        WebGet psModalPanelDataPush to sData
+        WebGet psUniqueIdPush to sUniqueIdPush
+        Function_Return sData
+    End_Function
+    
+    Import_Class_Protocol cXmlBuilderProxyMixin // AddElement AndAllThat
+    
+    Procedure AddOnClickAttributes String sAction String sParameters
+        Send AddAttribute "data-ServerOnClick" sAction
+        Send AddAttribute "data-OnClickParam" sParameters
+    End_Procedure
+    
+    Procedure AddOnClickAttributesRID String sAction Integer iTable
+        String sParameters
+        Move ("rid:"+String(iTable)+","+SerializeRowID(GetRowID(iTable))) to sParameters
+        Send AddOnClickAttributes sAction sParameters
+    End_Procedure
+    
+    Procedure AddSmallButton String sLabel String sAction String sParameters String sColor Integer iLeftMargin Integer iRightMargin
+        Integer iColor
+        String sMarginStyle
+        Send AddElement "span" sLabel
+        Send AddAttribute "class" "smallbtn"
+        Send AddOnClickAttributes sAction sParameters
+        Move ("margin-left:"+String(iLeftMargin)+"px;margin-right:"+String(iRightMargin)+"px;") to sMarginStyle
+        If (sColor<>"") Begin
+            Send AddAttribute "style" ("background-color:"+ToHTML(oRgbFunctions,iColor)+";"+sMarginStyle)
+        End
+        Else Begin
+            Send AddAttribute "style" sMarginStyle
+        End
+//        Get HTMLToRgb of oRgbFunctions "#DCE0C6" to iColor
+//        Move (Darken(oRgbFunctions,iColor,15)) to iColor
+    End_Procedure
+
+    Function JQueryToggleElementID String sID Returns String
+        Function_Return ("$(document.getElementById('"+sID+"')).toggle();")
+    End_Function
+
+    Procedure OnBuildHtml
+    End_Procedure
+    
+    Function InnerHtml Returns String
+        Integer iSize
+        Send XmlToString
+        Send OnBuildHtml
+        Send EndXml
+        Get XmlStringValueLength to iSize
+        If (iSize>MaxArgumentSize(oStringFunctions)) Begin
+            Error DFERR_PROGRAM ("Argument too big. Max allowed: "+String(MaxArgumentSize(oStringFunctions))+", arg is: "+String(iSize)+" (cWebHtmlBoxSture.pkg)")
+        End
+        Function_Return (XmlStringValue(Self))
+    End_Function
+    
+    Procedure RefreshContent
+        Send UpdateHtml (InnerHtml(Self))
+    End_Procedure
+
+    Procedure OnTableRowClick String sAction Integer iTable Boolean bFound
+        String sTable
+        String sMessage sCaption
+        If (iTable<>0) Begin
+            Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sTable
+        End
+
+        Send ShowInfoBox sAction ("Tablerecord"*sTable*If(bFound,"found","not found"))
+    End_Procedure
+
+    Procedure OnOrdinaryClick String sAction String sParam
+        Send ShowInfoBox (sAction+"\n\r"+sParam) "Ordinary click"
+    End_Procedure
+    
+    Register_Function OnClickWillHandle String sAction Returns Boolean
+    
+    Function _HandledByEmbeddedObjectHandle String sAction Returns Integer
+        Integer iItem iMax hHandle
+        Integer[] ahHtmlBoxItems
+        Get pahHtmlBoxItems to ahHtmlBoxItems
+        Move (SizeOfArray(ahHtmlBoxItems)-1) to iMax
+        For iItem from 0 to iMax
+            Move ahHtmlBoxItems[iItem] to hHandle
+            If (OnClickWillHandle(hHandle,sAction)) Begin
+                Function_Return hHandle
+            End
+        Loop
+        Function_Return 0
+   End_Function
+
+    Procedure OnClick String sAction String sParam
+        Integer iTable hHandler
+        RowID riRow
+        String[] aTemp
+        
+        
+        Get _HandledByEmbeddedObjectHandle sAction to hHandler
+//        Send ClientLog ("HtmlBox:OnClick: action:"+sAction+", sParam="+sParam+", hHandler="+String(hHandler))
+        If (hHandler<>0) Begin
+            Send OnClick of hHandler sAction sParam
+        End
+        Else If (Left(sParam,4)="rid:") Begin // table row select
+            Move (Replace("rid:",sParam,"")) to sParam
+            Send SplitString of oStringFunctions sParam "," True False (&aTemp)
+            Move aTemp[0] to iTable
+            Move (DeserializeRowID(aTemp[1])) to riRow
+            Clear iTable
+            Send OnTableRowClick sAction iTable (FindByRowID(iTable,riRow))
+        End
+        Else Begin
+            Send OnOrdinaryClick sAction sParam
+        End
+    End_Procedure
+
+    Function FindRecordFromParam String sParam Returns Boolean
+        Integer iTable 
+        RowID riRow
+        String[] aTemp
+        If (Left(sParam,4)="rid:") Begin // table row select
+            Move (Replace("rid:",sParam,"")) to sParam
+            Send SplitString of oStringFunctions sParam "," True False (&aTemp)
+            Move aTemp[0] to iTable
+            Move (DeserializeRowID(aTemp[1])) to riRow
+            Clear iTable
+            Function_Return (FindByRowID(iTable,riRow))
+        End
+        Error DFERR_PROGRAM "Illegal parameter passed to FindRecordFromParam function"
+        Function_Return False
+    End_Function
+    
+    Procedure OnCloseModalDialog Handle hoModalDialog
+        Integer hHandler
+        String sUniqueIdPush
+        WebGet psUniqueIdPush to sUniqueIdPush
+        Get _HandledByEmbeddedObjectHandle sUniqueIdPush to hHandler
+        If (hHandler<>0) Begin
+            Send OnCloseModalDialog of hHandler hoModalDialog
+        End
+        WebSet psUniqueIdPush to "" // Clear to avoid subsequent mistakes
+    End_Procedure
+    
+    Procedure UpdateInnerHtml String sElementID String sHtml
+        String[] asParams
+        
+        Move sElementID to asParams[0]
+        Move sHtml to asParams[1]
+        
+        Send ClientAction "updateInnerHtml" asParams
+    End_Procedure
+    
+    Procedure Register_HtmlBoxItem Integer hHtmlBoxItem
+        Integer[] ahHtmlBoxItems
+        Get pahHtmlBoxItems to ahHtmlBoxItems
+        Move hHtmlBoxItem to ahHtmlBoxItems[SizeOfArray(ahHtmlBoxItems)]
+        Set pahHtmlBoxItems to ahHtmlBoxItems
+    End_Procedure
+End_Class
+
+//    Use TableQueryFunctions.pkg
+//    Use StructFunctions.pkg
+//    Use Base64Functions.pkg
+//    Use TestProjects\Web\WebSessionFolderFunctions.pkg
+//
+//    Struct tHtmlTQ
+//        String sTitle
+//        tSimpleTableLayout strTableLayout
+//        tTableQuery strQ
+//        String[] aFixedRecordRowIDs
+//    End_Struct
+//
+//    Class cHtmlTQ is a cObject
+//        Function CalculateColumn Integer iColumn tSimpleTableColumnLayout strColumnLayout Returns String
+//        End_Function
+//
+//        Procedure OnRecordSelected
+//        End_Procedure
+//
+//        Procedure OutputHtml tHtmlTQ strHtmlTQ
+//            Integer iColumn iAutoTable iAutoColumn
+//            tTableQuery strQ
+//            tSimpleTableLayout strTableLayout
+//            tCSSRules strRules
+//            tHTMLSequence strTableBegin strTableRow strTableEnd
+//            String sValue sCSS
+//
+//            Move strHtmlTQ.strTableLayout to strTableLayout
+//            Move strHtmlTQ.strQ to strQ
+//
+//            Get GetSimpleTableLayoutCSS of oHTMLSequenceFunctions strTableLayout to strRules
+//
+//            If (SizeOfArray(strRules.aRules)>0) Begin
+//                Get CSSRulesToString of oCSSFunctions strRules to sCSS
+//                Send AddElement "style" sCSS
+//            End
+//
+//            If (strHtmlTQ.sTitle<>"") Begin
+//                Send AddElement "h2" strHtmlTQ.sTitle
+//            End
+//
+//            If (FixedTablesRestore_Serialized(oTQ,strQ,strHtmlTQ.aFixedRecordRowIDs)) Begin
+//                Send GetSimpleTableLayout of oHTMLSequenceFunctions strTableLayout (&strTableBegin) (&strTableRow) (&strTableEnd)
+//                While (FindSection(oHTMLSequenceFunctions,Self,&strTableBegin))
+//                Loop
+//                While (FindRecord(oTQ,&strQ))
+//                    Send OnRecordSelected
+//                    While (FindSection(oHTMLSequenceFunctions,Self,&strTableRow))
+//                        If (Left(strTableRow.sCurrentSection,2)="td") Begin
+//                            Move (Replace("td",strTableRow.sCurrentSection,"")) to iColumn
+//                            Move strTableLayout.aColumns[iColumn-1].iAutoSourceTable to iAutoTable
+//                            If (iAutoTable<>0) Begin
+//                                Move strTableLayout.aColumns[iColumn-1].iAutoSourceColumn to iAutoColumn
+//                                Get ResultColumnValue of oTQ (&strQ) iAutoTable iAutoColumn to sValue
+//                                Move (Trim(sValue)) to sValue
+//                            End
+//                            Else Begin
+//                                Get CalculateColumn (iColumn-1) strTableLayout.aColumns[iColumn-1] to sValue
+//                            End
+//                            Send AddElement "span" sValue
+//                        End
+//                    Loop
+//
+//                Loop
+//
+//                While (FindSection(oHTMLSequenceFunctions,Self,&strTableEnd))
+//                Loop
+//            End
+//            Else Begin
+//                Send AddElement "p" "Fixed parent records could not be restored!"
+//            End
+//        End_Procedure
+//    End_Class
+//
+//
+//    Struct tHtmlBoxTQ
+//        String sTitle
+//        tTableQuery        strQ
+//        tSimpleTableLayout strTableLayout
+//        String[]           aFixedRecordRowIDs
+//    End_Struct
+//
+//    Class cWebSessionVar_Template is a cObject
+//        Procedure Construct_Object
+//            Forward Send Construct_Object
+//            Property tHtmlBoxTQ pstrData
+//        End_Procedure
+//
+//        Procedure WriteData Integer iChannel
+//            tHtmlBoxTQ strData
+//            Get pstrData to strData
+//            Send WriteVariant of oStructFunctions iChannel strData
+//        End_Procedure
+//
+//        Procedure ReadData Integer iChannel
+//            tValueTree strValueTree
+//            tHtmlBoxTQ strData
+//            Send ReadValueTree of oStructFunctions iChannel (&strValueTree)
+//            ValueTreeDeserializeParameter strValueTree to strData
+//            Set pstrData to strData
+//        End_Procedure
+//    End_Class
+//
+//
+//    Class cWebHtmlBoxStureTQ is a cWebHtmlBoxSture
+//        Procedure Construct_Object
+//            Forward Send Construct_Object
+//            { WebProperty=True }
+//            Property String pstrHtmlBoxTQ ""
+//        End_Procedure
+//
+//        Procedure WebSetHtmlBoxTQ tHtmlBoxTQ strHtmlBoxTQ
+//            String sValue
+//            Get VariantToString of oStructFunctions strHtmlBoxTQ to sValue
+//            Get EncodeString of oBase64Functions sValue to sValue
+//            WebSet pstrHtmlBoxTQ to sValue
+//        End_Procedure
+//
+//        Function WebGetHtmlBoxTQ Returns tHtmlBoxTQ
+//            String sValue
+//            tValueTree strValueTree
+//            tHtmlBoxTQ strHtmlBoxTQ
+//            WebGet pstrHtmlBoxTQ to sValue
+//            Get DecodeString of oBase64Functions sValue to sValue
+//            Get StringToValueTree of oBase64Functions sValue to strValueTree
+//            ValueTreeDeserializeParameter strValueTree to strHtmlBoxTQ
+//            Function_Return strHtmlBoxTQ
+//        End_Function
+//
+//        Procedure UpdateHtml tHtmlBoxTQ strHtmlBoxTQ
+//            tTableQuery strQ
+//            tSimpleTableLayout strTableLayout
+//            tCSSRules strRules
+//            tHTMLSequence strTableBegin strTableRow strTableEnd
+//            String sValue sCSS
+//
+//            Move strHtmlBoxTQ.strTableLayout to strTableLayout
+//            Move strHtmlBoxTQ.strQ to strQ
+//
+//            Get GetSimpleTableLayoutCSS of oHTMLSequenceFunctions strTableLayout to strRules
+//
+//    //        Send BeginHTML
+//
+//            If (SizeOfArray(strRules.aRules)>0) Begin
+//                Get CSSRulesToString of oCSSFunctions strRules to sCSS
+//                Send AddElement "style" sCSS
+//            End
+//
+//
+//            Send AddElement "h2" strHtmlBoxTQ.sTitle
+//
+//            If (FixedTablesRestore_Serialized(oTQ,strQ,strHtmlBoxTQ.aFixedRecordRowIDs)) Begin
+//                Send GetSimpleTableLayout of oHTMLSequenceFunctions strTableLayout (&strTableBegin) (&strTableRow) (&strTableEnd)
+//                While (FindSection(oHTMLSequenceFunctions,Self,&strTableBegin))
+//                Loop
+//                Send ReUse of oTQ (&strQ)
+//                While (FindRecord(oTQ,&strQ))
+//
+//                    While (FindSection(oHTMLSequenceFunctions,Self,&strTableRow))
+//
+//                    Loop
+//
+//                Loop
+//
+//                While (FindSection(oHTMLSequenceFunctions,Self,&strTableEnd))
+//                Loop
+//            End
+//            Else Begin
+//                Send AddElement "p" "Fixed parent records could not be restored!"
+//            End
+//    //        Send EndHTML
+//
+//        End_Procedure
+//
+//    End_Class

@@ -1,0 +1,16 @@
+// Use LangSymb.pkg // Language symbols
+//
+// This package file is part of FreeLib.
+
+define LNG_DUTCH       for  0  // 131
+define LNG_FRENCH      for  1  // 133
+define LNG_SPANISH     for  2  // 134
+define LNG_ITALIAN     for  3  // 139 // NOT TRANSLATED. DO NOT SELECT!
+define LNG_ENGLISH     for  4  // 144
+define LNG_DANISH      for  5  // 145
+define LNG_SWEDISH     for  6  // 146
+define LNG_NORWEGIAN   for  7  // 147
+define LNG_GERMAN      for  8  // 149
+define LNG_PORTUGUESE  for  9  // 155
+define LNG_PAPIAMENTU  for 10  // 199 // NOT TRANSLATED. DO NOT SELECT!
+define LNG_MAX         for 11  // Points one higher than the highest language

@@ -1,0 +1,2237 @@
+// Use AttributeFunctions.pkg // Database and global API attributes
+
+Use FileFunctions.pkg // Define oFileFunctions object
+Use TableAccessFunctions.pkg
+Use StackFunctions.pkg // Define oStackFunctions object
+Use RelationMapStruct.pkg // tRelationsDrawingMapItem struct
+Use TableDriverFunctions.pkg
+Use StringFunctions.pkg // Define oStringFunctions object
+
+Use cli.pkg
+
+Enum_List // Attribute types
+    Define ATYPE_NONE      // Not an attribute type
+    Define ATYPE_GLOBAL    // No parameters
+    Define ATYPE_DRIVER    // 1: Driver number
+    Define ATYPE_DRVSRV    // 1: Driver number  2: Server number
+    Define ATYPE_FILELIST  // 1: File  (No record buffer access, filelist only)
+    Define ATYPE_FILE      // 1: File
+    Define ATYPE_FIELD     // 1: File   2: Field
+    Define ATYPE_INDEX     // 1: File   2: Index
+    Define ATYPE_IDXSEG    // 1: File   2: Index   3: Segment
+    Define ATYPE_SPECIAL   // 1: File 2/3: Field/Field  (overlap check)
+    Define ATYPE_FLSTNAV   // 1: File (for navigating filelist)
+End_Enum_List
+
+//Enum_List // Calculated table attributes
+//    Define CTA_HAS_UNIQUE_INDEX
+//    Define CTA_HAS_UNIQUE_ONE_COLUMN_INDEX
+//    Define CTA_RELATES_BY_RECNUM
+//    Define CTA_HAS_OVERLAP_COLUMNS
+//End_Enum_List
+
+Struct tAttributeType
+    String  sName
+    Integer iParamCount
+    Integer iAttrNextAvailableIndex // array index that is
+End_Struct
+
+Struct tAttributeDiscreteValue
+    Integer iValue       // Actual attribute value
+    String  sCodeValue   // Value as written in source code
+    String  sDisplayName // Value as presented to an unknowing user
+End_Struct
+
+Struct tAttributeDefinition
+    String sName
+    Integer iAttrType              // Attribute type
+    String sDisplayName            // Attribute display name
+    Boolean bWrite                 // Write access?
+    Boolean bDawOnly               // Internal DAW use
+    Integer iValueType             // DF_BCD or DF_ASCII
+    Boolean bRuntimeOnly           // Runtime only attribute (FILE attr)
+    Boolean bDriverOnly            // Only query this (table-) attribute when driver is in use
+    tAttributeDiscreteValue[] aLegalValues // Legal values
+End_Struct
+
+Struct tAttributeValue
+    String  sValue
+End_Struct
+
+Global_Variable tAttributeValue[] gaEmptyAttributes
+
+Struct tFieldAttributes
+    tAttributeValue[] aFieldAttributes
+End_Struct
+
+Struct tIndexSegmentAttributes
+    tAttributeValue[] aIndexSegmentAttributes
+End_Struct
+
+Struct tIndexAttributes
+    tAttributeValue[] aIndexAttributes
+    tIndexSegmentAttributes[] aSegments
+End_Struct
+
+Struct tTableAttributes
+    Integer iReadFromFileListEntryNo
+    String  sOpenAsPath
+    tAttributeValue[] aTableAttributes
+    tFieldAttributes[] aFields
+    tIndexAttributes[] aIndices
+End_Struct
+
+Struct tDataBaseServer
+    tAttributeValue[] aServerAttributes
+End_Struct
+
+Struct tDataBaseDriver
+    tAttributeValue[] aDriverAttributes
+    tDataBaseServer[] aServers
+End_Struct
+
+Struct tFileList
+    tAttributeValue[] aGlobalAttributes
+    tDataBaseDriver[] aDrivers
+    tTableAttributes[] aTables
+End_Struct
+
+Struct tTableField // Arg! This should have been named tTableIndexColumn
+    Integer iTable
+    Integer iField
+    Boolean bCapslock
+    Boolean bDescending
+End_Struct
+
+Struct tTableRelation
+    Integer iFromTable
+    Integer iToTable
+    tTableField[] aFromFields
+    tTableField[] aToFields
+    Boolean bFunctioning // Relation sufficient for finding parent record
+    Integer[] aChildIndices // Indices that may be used for querying the child table records filtered by this relation
+End_Struct
+
+Struct tTableFieldExplicit
+    Integer iPosition
+    String  sName
+    Integer iType
+    Integer iLen
+    Integer iPrecision
+    Integer iRelFile
+    Integer iRelField
+    Integer iMainIndex
+    Integer iOffset
+    Integer iNativeLength
+    Integer iOverlapFieldStart
+    Integer iOverlapFieldEnd
+End_Struct
+
+Struct tTableIndexExplicit
+    Integer iType
+    Boolean bUnique
+    Integer iLevels
+    Integer iKeyLength
+    Integer[] aFields
+    Boolean[] aDescending
+    Boolean[] aCaseInsensitive
+End_Struct
+
+Struct tTableExplicit
+    Integer iFileListEntry
+    String  sRootName
+    String  sLogicalName
+    String  sDisplayName
+    String  sDriver
+    Boolean bSystemFile
+    Number  nMaxRecords
+    Number  nRecordsUsed
+    String  sPhysicalName
+    Integer iRecordLength
+    Integer iRecordLengthUsed
+    Integer iLockType
+    Integer iIntegrityCheck
+    tTableFieldExplicit[] aFields
+    tTableIndexExplicit[] aIndices
+End_Struct
+
+Global_Variable tAttributeType[]       gaAttributeTypes   // AttrType definitions
+Global_Variable tAttributeDefinition[] gaAttributes       // Attr definitions
+Global_Variable Integer[][]            gaAttributesByType // Lists attributes by type (for speed)
+Global_Variable Integer[]              gaCompressedAttributeIndices // Look up an attribute and see it's compressed index
+Global_Variable Integer[][]            gaInverseCompressedAttributeIndices // [AttrType,compressed-Attr-index]-> Attr
+
+Global_Variable Integer oAttributeFunctions
+
+Class _cAttributeFunctions is a cObject
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer[] _paTableCompressedIndices
+        Property Integer _phProgressCallbackMsg 0
+        Property Integer _phProgressCallbackObj 0
+        Property Integer[] _paTempTableFilter
+        Send _BuildAttributeTypesArray
+        Send _BuildAttributesArray
+    End_Procedure
+
+    // **** Initialization of the object ***************************************************
+        Procedure _AddAttributeType Integer iAttrType String sName Integer iParams
+            Move sName to gaAttributeTypes[iAttrType].sName
+            Move iParams to gaAttributeTypes[iAttrType].iParamCount
+        End_Procedure
+
+    Procedure _BuildAttributeTypesArray
+        Send _AddAttributeType ATYPE_NONE     ""                   -1
+        Send _AddAttributeType ATYPE_GLOBAL   "Global"              0
+        Send _AddAttributeType ATYPE_DRIVER   "Driver"              1
+        Send _AddAttributeType ATYPE_DRVSRV   "Server"              2
+        Send _AddAttributeType ATYPE_FILELIST "Filelist"            1
+        Send _AddAttributeType ATYPE_FILE     "File"                1
+        Send _AddAttributeType ATYPE_FIELD    "Field"               2
+        Send _AddAttributeType ATYPE_INDEX    "Index"               2
+        Send _AddAttributeType ATYPE_IDXSEG   "Index segment"       3
+        Send _AddAttributeType ATYPE_SPECIAL  "Special1"            3
+        Send _AddAttributeType ATYPE_FLSTNAV  "Filelist navigation" 1
+    End_Procedure
+
+    Function AttributeType Integer iAttr Returns Integer
+        Function_Return gaAttributes[iAttr].iAttrType
+    End_Function
+    
+    Function AttributeName Integer iAttr Returns String
+        Function_Return gaAttributes[iAttr].sDisplayName
+    End_Function
+
+        Procedure _AddAttribute Integer iAttr String sName Integer iAttrType String sDisplayName Boolean bWrite Boolean bDawOnly Integer iValueType Boolean bRuntimeOnly Boolean bDriverOnly
+            Integer iNextAvailIndex
+            // Update gaAttributes containing all attributes regardless of type in a 1-dimensional array
+            Move sName to gaAttributes[iAttr].sName
+            Move iAttrType to gaAttributes[iAttr].iAttrType
+            Move sDisplayName to gaAttributes[iAttr].sDisplayName
+            Move bWrite to gaAttributes[iAttr].bWrite
+            Move bDawOnly to gaAttributes[iAttr].bDawOnly
+            Move iValueType to gaAttributes[iAttr].iValueType
+            Move bRuntimeOnly to gaAttributes[iAttr].bRuntimeOnly
+            Move bDriverOnly to gaAttributes[iAttr].bDriverOnly
+
+            // gaAttributesByType groups attributes by type:
+            Move iAttr to gaAttributesByType[iAttrType][SizeOfArray(gaAttributesByType[iAttrType])]
+
+            If (iAttrType=ATYPE_FILELIST) Move ATYPE_FILE to iAttrType
+            Move gaAttributeTypes[iAttrType].iAttrNextAvailableIndex to iNextAvailIndex
+            Move (iNextAvailIndex+1) to gaAttributeTypes[iAttrType].iAttrNextAvailableIndex
+            Move iNextAvailIndex to gaCompressedAttributeIndices[iAttr]
+            Move iAttr to gaInverseCompressedAttributeIndices[iAttrType][iNextAvailIndex]
+        End_Procedure
+
+        Procedure _AddAttributeLegalValue Integer iAttr Integer iValue String sCodeName String sDisplayName
+            Integer iIndex
+            Move (SizeOfArray(gaAttributes[iAttr].aLegalValues)) to iIndex
+            Move iValue to gaAttributes[iAttr].aLegalValues[iIndex].iValue
+            Move sCodeName to gaAttributes[iAttr].aLegalValues[iIndex].sCodeValue
+            Move sDisplayName to gaAttributes[iAttr].aLegalValues[iIndex].sDisplayName
+        End_Procedure
+
+    Procedure _BuildAttributesArray
+        //                                                                                                               Can    Daw            RT    Driver
+        //                DF symbol                  As written in source code    Attr. Type     Display name           Write   Only  Type     only  only
+        Send _AddAttribute DF_LOCK_DELAY              "DF_LOCK_DELAY"              ATYPE_GLOBAL   "Lock delay"            True  False DF_BCD   False False
+        Send _AddAttribute DF_LOCK_TIMEOUT            "DF_LOCK_TIMEOUT"            ATYPE_GLOBAL   "Lock timeout"          True  False DF_BCD   False False
+        Send _AddAttribute DF_OPEN_PATH               "DF_OPEN_PATH"               ATYPE_GLOBAL   "Open path"             True  False DF_ASCII False False
+        Send _AddAttribute DF_DATE_FORMAT             "DF_DATE_FORMAT"             ATYPE_GLOBAL   "Date format"           True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_DATE_FORMAT DF_DATE_USA      "DF_DATE_USA"      "USA (mm/dd/yyyy)"
+             Send _AddAttributeLegalValue DF_DATE_FORMAT DF_DATE_EUROPEAN "DF_DATE_EUROPEAN" "European (dd/mm/yyyy)"
+             Send _AddAttributeLegalValue DF_DATE_FORMAT DF_DATE_MILITARY "DF_DATE_MILITARY" "Military (yyyy/mm/dd)"
+        Send _AddAttribute DF_DATE_SEPARATOR          "DF_DATE_SEPARATOR"          ATYPE_GLOBAL   "Date separator"        True  False DF_BCD   False False
+        Send _AddAttribute DF_DECIMAL_SEPARATOR       "DF_DECIMAL_SEPARATOR"       ATYPE_GLOBAL   "Decimal sep."          True  False DF_BCD   False False
+        Send _AddAttribute DF_THOUSANDS_SEPARATOR     "DF_THOUSANDS_SEPARATOR"     ATYPE_GLOBAL   "Thousands sep."        True  False DF_BCD   False False
+        Send _AddAttribute DF_ALL_FILES_TOUCHED       "DF_ALL_FILES_TOUCHED"       ATYPE_GLOBAL   "All files touched"     False False DF_BCD   True  False
+        Send _AddAttribute DF_HIGH_DATA_INTEGRITY     "DF_HIGH_DATA_INTEGRITY"     ATYPE_GLOBAL   "High data integr,"     True  False DF_BCD   False False
+        Send _AddAttribute DF_TRAN_COUNT              "DF_TRAN_COUNT"              ATYPE_GLOBAL   "Transact. nest. lev"   False False DF_BCD   True  False
+        Send _AddAttribute DF_TRANSACTION_ABORT       "DF_TRANSACTION_ABORT"       ATYPE_GLOBAL   "Transaction abort"     False False DF_BCD   False False
+        Send _AddAttribute DF_REREAD_REQUIRED         "DF_REREAD_REQUIRED"         ATYPE_GLOBAL   "Reread required"       False False DF_BCD   False False
+        Send _AddAttribute DF_FILELIST_NAME           "DF_FILELIST_NAME"           ATYPE_GLOBAL   "Filelist name"         True  False DF_ASCII False False
+        Send _AddAttribute DF_REPORT_UNSUPPORTED_ATTRIBUTES ;
+                                                      "DF_REPORT_UNSUPPORTED_ATTRIBUTES" ;
+                                                                                   ATYPE_GLOBAL   "Report unsup. attr."   True  False DF_BCD   False False
+        Send _AddAttribute DF_STRICT_ATTRIBUTES       "DF_STRICT_ATTRIBUTES"       ATYPE_GLOBAL   "Strict attributes"     True  False DF_BCD   False False
+        Send _AddAttribute DF_NUMBER_DRIVERS          "DF_NUMBER_DRIVERS"          ATYPE_GLOBAL   "Number drivers"        False False DF_BCD   False False
+        Send _AddAttribute DF_DRIVER_NAME             "DF_DRIVER_NAME"             ATYPE_DRIVER   "Driver name"           False False DF_ASCII False False
+        Send _AddAttribute DF_DRIVER_NUMBER_SERVERS   "DF_DRIVER_NUMBER_SERVERS"   ATYPE_DRIVER   "Driver number servers" False False DF_BCD   False True
+        Send _AddAttribute DF_DRIVER_CONFORMANCE      "DF_DRIVER_CONFORMANCE"      ATYPE_DRIVER   "Driver conformance"    False False DF_BCD   False True
+        Send _AddAttribute DF_DRIVER_SERVER_NAME      "DF_DRIVER_SERVER_NAME"      ATYPE_DRVSRV   "Driver server name"    False False DF_ASCII False False
+        Send _AddAttribute DF_API_DISABLED            "DF_API_DISABLED"            ATYPE_GLOBAL   "API disabled"          False True  DF_BCD   False False
+        Send _AddAttribute DF_API_DISABLED_ERROR      "DF_API_DISABLED_ERROR"      ATYPE_GLOBAL   "API disabled error"    False True  DF_BCD   False False
+        Send _AddAttribute DF_TRANABORT_ONERROR       "DF_TRANABORT_ONERROR"       ATYPE_GLOBAL   "Abort trans on error"  False False DF_BCD   False False
+        Send _AddAttribute DF_OPEN_FILE_COUNT         "DF_OPEN_FILE_COUNT"         ATYPE_GLOBAL   "Open tables count"     False False DF_BCD   False False
+        Send _AddAttribute DF_DATE_4_STATE            "DF_DATE_4_STATE"            ATYPE_GLOBAL   "Date 4 state"          False False DF_BCD   False False
+        Send _AddAttribute DF_EPOCH_VALUE             "DF_EPOCH_VALUE"             ATYPE_GLOBAL   "Epoch value"           False False DF_BCD   False False
+        Send _AddAttribute DF_SYSDATE_4_STATE         "DF_SYSDATE_4_STATE"         ATYPE_GLOBAL   "Sysdate 4 state"       False False DF_BCD   False False
+        Send _AddAttribute DF_NUMBER_FILES_SUPPORTED  "DF_NUMBER_FILES_SUPPORTED"  ATYPE_GLOBAL   "Max open tables"       False False DF_BCD   False False
+
+        Send _AddAttribute DF_FILE_STATUS             "DF_FILE_STATUS"             ATYPE_FILE     "Status"                False False DF_BCD   True  False
+             Send _AddAttributeLegalValue DF_FILE_STATUS DF_FILE_INACTIVE       "DF_FILE_INACTIVE"       "Inactive"
+             Send _AddAttributeLegalValue DF_FILE_STATUS DF_FILE_ACTIVE         "DF_FILE_ACTIVE"         "Active"
+             Send _AddAttributeLegalValue DF_FILE_STATUS DF_FILE_ACTIVE_CHANGED "DF_FILE_ACTIVE_CHANGED" "Changed"
+        Send _AddAttribute DF_FILE_MODE               "DF_FILE_MODE"               ATYPE_FILE     "Mode"                  True  False DF_BCD   True  False
+             Send _AddAttributeLegalValue DF_FILE_MODE DF_FILE_ALIAS_DEFAULT "DF_FILE_ALIAS_DEFAULT" "Default"
+             Send _AddAttributeLegalValue DF_FILE_MODE DF_FILE_IS_MASTER     "DF_FILE_IS_MASTER"     "Master"
+             Send _AddAttributeLegalValue DF_FILE_MODE DF_FILE_IS_ALIAS      "DF_FILE_IS_ALIAS"      "Alias"
+        Send _AddAttribute DF_FILE_MAX_RECORDS        "DF_FILE_MAX_RECORDS"        ATYPE_FILE     "Max records"           True  False DF_BCD   False False
+        Send _AddAttribute DF_FILE_RECORDS_USED       "DF_FILE_RECORDS_USED"       ATYPE_FILE     "Record count"          False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_TYPE               "DF_FILE_TYPE"               ATYPE_FILE     "Type"                  False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_MULTIUSER          "DF_FILE_MULTIUSER"          ATYPE_FILE     "Multiuser"             True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_FILE_MULTIUSER DF_FILE_USER_SINGLE "DF_FILE_USER_SINGLE" "Single user"
+             Send _AddAttributeLegalValue DF_FILE_MULTIUSER DF_FILE_USER_MULTI  "DF_FILE_USER_MULTI"  "Multi user"
+        Send _AddAttribute DF_FILE_REUSE_DELETED      "DF_FILE_REUSE_DELETED"      ATYPE_FILE     "Reuse deleted"         True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_FILE_REUSE_DELETED DF_FILE_DELETED_NOREUSE "DF_FILE_DELETED_NOREUSE" "No reuse"
+             Send _AddAttributeLegalValue DF_FILE_REUSE_DELETED DF_FILE_DELETED_REUSE   "DF_FILE_DELETED_REUSE"   "Reuse"
+        Send _AddAttribute DF_FILE_NUMBER             "DF_FILE_NUMBER"             ATYPE_FILE     "Number"                False False DF_BCD   True  False
+        Send _AddAttribute DF_FILE_COMPRESSION        "DF_FILE_COMPRESSION"        ATYPE_FILE     "Compression"           True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_FILE_COMPRESSION DF_FILE_COMPRESS_NONE     "DF_FILE_COMPRESS_NONE"     "None"
+             Send _AddAttributeLegalValue DF_FILE_COMPRESSION DF_FILE_COMPRESS_FAST     "DF_FILE_COMPRESS_FAST"     "Fast"
+             Send _AddAttributeLegalValue DF_FILE_COMPRESSION DF_FILE_COMPRESS_STANDARD "DF_FILE_COMPRESS_STANDARD" "Standard"
+             Send _AddAttributeLegalValue DF_FILE_COMPRESSION DF_FILE_COMPRESS_CUSTOM   "DF_FILE_COMPRESS_CUSTOM"   "Custom"
+        Send _AddAttribute DF_FILE_LAST_INDEX_NUMBER  "DF_FILE_LAST_INDEX_NUMBER"  ATYPE_FILE     "Highest index"         False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_NUMBER_FIELDS      "DF_FILE_NUMBER_FIELDS"      ATYPE_FILE     "Number fields"         False False DF_BCD   False False
+        // Max 8 characters:
+        Send _AddAttribute DF_FILE_LOGICAL_NAME       "DF_FILE_LOGICAL_NAME"       ATYPE_FILELIST "Logical name"          True  False DF_ASCII False False
+        // Max 40 characters:
+        Send _AddAttribute DF_FILE_ROOT_NAME          "DF_FILE_ROOT_NAME"          ATYPE_FILELIST "Root name"             True  False DF_ASCII False False
+        Send _AddAttribute DF_FILE_CHANGED            "DF_FILE_CHANGED"            ATYPE_FILE     "Changed"               False False DF_BCD   True  False
+        Send _AddAttribute DF_FILE_ALIAS              "DF_FILE_ALIAS"              ATYPE_FILE     "Alias"                 True  False DF_BCD   True  False
+        //                                                                                                               Can    Daw            RT    Driver
+        //                DF symbol                  As written in source code    Attr. Type     Display name           Write   Only  Type     only  only
+        Send _AddAttribute DF_FILE_TOUCHED            "DF_FILE_TOUCHED"            ATYPE_FILE     "Touched"               False False DF_BCD   True  False
+        Send _AddAttribute DF_FILE_TRANSACTION        "DF_FILE_TRANSACTION"        ATYPE_FILE     "Transaction"           True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_FILE_TRANSACTION DF_FILE_TRANSACTION_NONE          "DF_FILE_TRANSACTION_NONE"          "None"
+             Send _AddAttributeLegalValue DF_FILE_TRANSACTION DF_FILE_TRANSACTION_CLIENT_ATOMIC "DF_FILE_TRANSACTION_CLIENT_ATOMIC" "Client atomic"
+             Send _AddAttributeLegalValue DF_FILE_TRANSACTION DF_FILE_TRANSACTION_SERVER_ATOMIC "DF_FILE_TRANSACTION_SERVER_ATOMIC" "Server atomic"
+             Send _AddAttributeLegalValue DF_FILE_TRANSACTION DF_FILE_TRANSACTION_SERVER_LOGGED "DF_FILE_TRANSACTION_SERVER_LOGGED" "Server logged"
+        Send _AddAttribute DF_FILE_OPENED             "DF_FILE_OPENED"             ATYPE_FILE     "Opened"                False False DF_BCD   True  False
+        // Max 32 characters:
+        Send _AddAttribute DF_FILE_DISPLAY_NAME       "DF_FILE_DISPLAY_NAME"       ATYPE_FILELIST "Display name"          True  False DF_ASCII False False
+        Send _AddAttribute DF_FILE_PHYSICAL_NAME      "DF_FILE_PHYSICAL_NAME"      ATYPE_FILE     "Physical name"         False False DF_ASCII False False
+        Send _AddAttribute DF_FILE_NEXT_OPENED        "DF_FILE_NEXT_OPENED"        ATYPE_FLSTNAV  "Next opened"           False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_NEXT_USED          "DF_FILE_NEXT_USED"          ATYPE_FLSTNAV  "Next used"             False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_NEXT_EMPTY         "DF_FILE_NEXT_EMPTY"         ATYPE_FLSTNAV  "Next empty"            False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_RECORD_LENGTH      "DF_FILE_RECORD_LENGTH"      ATYPE_FILE     "Record length"         True  False DF_BCD   False False
+        Send _AddAttribute DF_FILE_RESTRUCTURE        "DF_FILE_RESTRUCTURE"        ATYPE_FILE     "Restructure"           False False DF_BCD   True  False
+             Send _AddAttributeLegalValue DF_FILE_RESTRUCTURE DF_NO_RESTRUCTURE    "DF_NO_RESTRUCTURE"    "None"
+             Send _AddAttributeLegalValue DF_FILE_RESTRUCTURE DF_RESTRUCTURE_FILE  "DF_RESTRUCTURE_FILE"  "File"
+             Send _AddAttributeLegalValue DF_FILE_RESTRUCTURE DF_RESTRUCTURE_INDEX "DF_RESTRUCTURE_INDEX" "Index"
+             Send _AddAttributeLegalValue DF_FILE_RESTRUCTURE DF_RESTRUCTURE_BOTH  "DF_RESTRUCTURE_BOTH"  "File/Index"
+        Send _AddAttribute DF_FILE_OPEN_MODE          "DF_FILE_OPEN_MODE"          ATYPE_FILE     "Open mode"             False False DF_BCD   True  False
+              Send _AddAttributeLegalValue DF_FILE_OPEN_MODE DF_SHARE     "DF_SHARE"     "Share"
+              Send _AddAttributeLegalValue DF_FILE_OPEN_MODE DF_EXCLUSIVE "DF_EXCLUSIVE" "Exclusive"
+        Send _AddAttribute DF_FILE_INTEGRITY_CHECK    "DF_FILE_INTEGRITY_CHECK"    ATYPE_FILE     "Integrity check"       True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_FILE_INTEGRITY_CHECK DFTRUE  "DFTRUE"  "True"
+             Send _AddAttributeLegalValue DF_FILE_INTEGRITY_CHECK DFFALSE "DFFALSE" "False"
+        Send _AddAttribute DF_FILE_OWNER              "DF_FILE_OWNER"              ATYPE_FILE     "Owner"                 False False DF_ASCII True  False
+        Send _AddAttribute DF_FILE_IS_SYSTEM_FILE     "DF_FILE_IS_SYSTEM_FILE"     ATYPE_FILE     "Is system file"        False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_LOCK_TYPE          "DF_FILE_LOCK_TYPE"          ATYPE_FILE     "Lock type"             False False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_FILE_LOCK_TYPE DF_LOCK_TYPE_NONE   "DF_LOCK_TYPE_NONE"   "None"
+             Send _AddAttributeLegalValue DF_FILE_LOCK_TYPE DF_LOCK_TYPE_FILE   "DF_LOCK_TYPE_FILE"   "File"
+             Send _AddAttributeLegalValue DF_FILE_LOCK_TYPE DF_LOCK_TYPE_RECORD "DF_LOCK_TYPE_RECORD" "Record"
+        Send _AddAttribute DF_FILE_COMMITTED          "DF_FILE_COMMITTED"          ATYPE_FILE     "Committed"             False False DF_BCD   True  False
+             Send _AddAttributeLegalValue DF_FILE_COMMITTED DFTRUE  "DFTRUE"  "True"
+             Send _AddAttributeLegalValue DF_FILE_COMMITTED DFFALSE "DFFALSE" "False"
+        Send _AddAttribute DF_FILE_DRIVER             "DF_FILE_DRIVER"             ATYPE_FILE     "Driver"                False False DF_ASCII False False
+        Send _AddAttribute DF_FILE_LOGIN              "DF_FILE_LOGIN"              ATYPE_FILE     "Driver login"          False False DF_ASCII False True
+        Send _AddAttribute DF_FILE_RECORD_LENGTH_USED "DF_FILE_RECORD_LENGTH_USED" ATYPE_FILE     "Record length used"    False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_HANDLE_TYPE        "DF_FILE_HANDLE_TYPE"        ATYPE_FILE     "Handle type"           False True  DF_BCD   True  False
+             Send _AddAttributeLegalValue DF_FILE_HANDLE_TYPE DF_FILE_HANDLE_BAD                   "DF_FILE_HANDLE_BAD"                  "Bad"
+             Send _AddAttributeLegalValue DF_FILE_HANDLE_TYPE DF_FILE_HANDLE_CLOSED                "DF_FILE_HANDLE_CLOSED"               "Closed"
+             Send _AddAttributeLegalValue DF_FILE_HANDLE_TYPE DF_FILE_HANDLE_OPENED                "DF_FILE_HANDLE_OPENED"               "Opened"
+             Send _AddAttributeLegalValue DF_FILE_HANDLE_TYPE DF_FILE_HANDLE_EXISTING_RESTRUCTURE  "DF_FILE_HANDLE_EXISTING_RESTRUCTURE" "Existing restructure"
+             Send _AddAttributeLegalValue DF_FILE_HANDLE_TYPE DF_FILE_HANDLE_NEW_RESTRUCTURE       "DF_FILE_HANDLE_NEW_RESTRUCTURE"      "New restructure"
+        Send _AddAttribute DF_FILE_RECORD_IDENTITY    "DF_FILE_RECORD_IDENTITY"    ATYPE_FILE     "Record identity"       True  False DF_BCD   False False
+        //Send _AddAttribute DF_FILE_LOGIN              "DF_FILE_LOGIN"              ATYPE_FILE     "Login"                 True  False DF_ASCII True
+        Send _AddAttribute DF_FILE_RECORD_PRIVILEGE   "DF_FILE_RECORD_PRIVILEGE"   ATYPE_FILE     "Record privilege"      False True  DF_BCD   True  False
+        Send _AddAttribute DF_FILE_PRIVILEGE          "DF_FILE_PRIVILEGE"          ATYPE_FILE     "Privilege"             False True  DF_BCD   True  False
+        Send _AddAttribute DF_FILE_CREATION_SERIAL    "DF_FILE_CREATION_SERIAL"    ATYPE_FILE     "Creation serial"       False True  DF_BCD   True  False
+        Send _AddAttribute DF_FILE_REVISION           "DF_FILE_REVISION"           ATYPE_FILE     "Revision"              False False DF_ASCII False False
+        Send _AddAttribute DF_FILE_RELATED_COUNT      "DF_FILE_RELATED_COUNT"      ATYPE_FILE     "Related count"         False True  DF_BCD   True  False
+        Send _AddAttribute DF_FILE_RELATED_FIELDS     "DF_FILE_RELATED_FIELDS"     ATYPE_FILE     "Related fields"        False True  DF_BCD   True  False
+        Send _AddAttribute DF_FILE_SYSTEM_FILE        "DF_FILE_SYSTEM_FILE"        ATYPE_FILE     "System file"           False False DF_BCD   True  False
+        Send _AddAttribute DF_FILE_SYSTEM_FIELD       "DF_FILE_SYSTEM_FIELD"       ATYPE_FILE     "System field"          False False DF_BCD   True  False
+        Send _AddAttribute DF_FILE_RECORD_REREAD      "DF_FILE_RECORD_REREAD"      ATYPE_FILE     "Record reread"         False True  DF_BCD   True  False
+        Send _AddAttribute DF_FILE_RECNUM_TABLE       "DF_FILE_RECNUM_TABLE "      ATYPE_FILE     "Recnum table"          False False DF_BCD   False False
+        Send _AddAttribute DF_FILE_PRIMARY_INDEX      "DF_FILE_PRIMARY_INDEX"      ATYPE_FILE     "Primary index"         False False DF_BCD   False True
+        
+        //                                                                                                                Can    Daw           RT    Driver
+        //                 DF symbol                  As written in source code    Attr. Type     Display name            Write  Only  Type    only  only
+        Send _AddAttribute DF_FILE_REFIND_AFTER_SAVE  "DF_FILE_REFIND_AFTER_SAVE"  ATYPE_FILE     "Refind after save"     False False DF_BCD   False True
+             Send _AddAttributeLegalValue DF_FILE_REFIND_AFTER_SAVE DFTRUE  "DFTRUE"  "True"
+             Send _AddAttributeLegalValue DF_FILE_REFIND_AFTER_SAVE DFFALSE "DFFALSE" "False"
+        
+        Send _AddAttribute DF_FILE_GET_RID_AFTER_CREATE "DF_FILE_GET_RID_AFTER_CREATE" ATYPE_FILE "Get rid after create"  False False DF_BCD   False True
+             Send _AddAttributeLegalValue DF_FILE_GET_RID_AFTER_CREATE DFTRUE  "DFTRUE"  "True"
+             Send _AddAttributeLegalValue DF_FILE_GET_RID_AFTER_CREATE DFFALSE "DFFALSE" "False"
+             
+        Send _AddAttribute DF_FILE_JIT_BINDING "DF_FILE_JIT_BINDING" ATYPE_FILE "Get rid after create"  False False DF_BCD   False True
+             Send _AddAttributeLegalValue DF_FILE_JIT_BINDING DFTRUE  "DFTRUE"  "True"
+             Send _AddAttributeLegalValue DF_FILE_JIT_BINDING DFFALSE "DFFALSE" "False"
+
+        // ToDo: Send _AddAttribute DF_FILE_JIT_BINDING       "DF_FILE_"      ATYPE_FILE     "Primary index"         False False DF_BCD   False True
+        //       Send _AddAttribute DF_DRIVER_JIT_TRESHOLD       "DF_FILE_"      ATYPE_FILE     "Primary index"         False False DF_BCD   False True
+        //       Send _AddAttribute DF_FILE_USE_DUMMY_ZERO_DATE
+
+        Send _AddAttribute DF_FIELD_NUMBER            "DF_FIELD_NUMBER"            ATYPE_FIELD    "Number"                False False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_TYPE              "DF_FIELD_TYPE"              ATYPE_FIELD    "Type"                  True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_FIELD_TYPE DF_ASCII    "DF_ASCII"    "Ascii"
+             Send _AddAttributeLegalValue DF_FIELD_TYPE DF_BCD      "DF_BCD"      "Number"
+             Send _AddAttributeLegalValue DF_FIELD_TYPE DF_DATE     "DF_DATE"     "Date"
+             Send _AddAttributeLegalValue DF_FIELD_TYPE DF_DATETIME "DF_DATETIME" "DateTime"
+             Send _AddAttributeLegalValue DF_FIELD_TYPE DF_OVERLAP  "DF_OVERLAP"  "Overlap"
+             Send _AddAttributeLegalValue DF_FIELD_TYPE DF_TEXT     "DF_TEXT"     "Text"
+             Send _AddAttributeLegalValue DF_FIELD_TYPE DF_BINARY   "DF_BINARY"  " Binary"
+        Send _AddAttribute DF_FIELD_LENGTH            "DF_FIELD_LENGTH"            ATYPE_FIELD    "Length"                True  False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_PRECISION         "DF_FIELD_PRECISION"         ATYPE_FIELD    "Precision"             True  False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_RELATED_FILE      "DF_FIELD_RELATED_FILE"      ATYPE_FIELD    "Related file"          True  False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_RELATED_FIELD     "DF_FIELD_RELATED_FIELD"     ATYPE_FIELD    "Related field"         True  False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_NAME              "DF_FIELD_NAME"              ATYPE_FIELD    "Name"                  True  False DF_ASCII False False
+        Send _AddAttribute DF_FIELD_INDEX             "DF_FIELD_INDEX"             ATYPE_FIELD    "Index"                 True  False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_OFFSET            "DF_FIELD_OFFSET"            ATYPE_FIELD    "Offset"                True  False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_OLD_NUMBER        "DF_FIELD_OLD_NUMBER"        ATYPE_FIELD    "Old number"            False True  DF_BCD   False False // Only during restruct!
+        Send _AddAttribute DF_FIELD_OVERLAP           "DF_FIELD_OVERLAP"           ATYPE_SPECIAL  "Overlap"               False False DF_BCD   False False
+        Send _AddAttribute DF_FIELD_NATIVE_LENGTH     "DF_FIELD_NATIVE_LENGTH"     ATYPE_FIELD    "Native length"         False False DF_BCD   False False
+
+        Send _AddAttribute DF_INDEX_NUMBER_SEGMENTS   "DF_INDEX_NUMBER_SEGMENTS"   ATYPE_INDEX    "Number segments"       True  False DF_BCD   False False
+        Send _AddAttribute DF_INDEX_NUMBER_BUFFERS    "DF_INDEX_NUMBER_BUFFERS"    ATYPE_INDEX    "Number buffers"        False False DF_BCD   False False
+        Send _AddAttribute DF_INDEX_TYPE              "DF_INDEX_TYPE"              ATYPE_INDEX    "Type"                  True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_INDEX_TYPE DF_INDEX_TYPE_ONLINE "DF_INDEX_TYPE_ONLINE" "Online"
+             Send _AddAttributeLegalValue DF_INDEX_TYPE DF_INDEX_TYPE_BATCH  "DF_INDEX_TYPE_BATCH"  "Batch"
+        Send _AddAttribute DF_INDEX_LEVELS            "DF_INDEX_LEVELS"            ATYPE_INDEX    "Levels"                False False DF_BCD   False False
+        Send _AddAttribute DF_INDEX_KEY_LENGTH        "DF_INDEX_KEY_LENGTH"        ATYPE_INDEX    "Key length"            False False DF_BCD   False False
+
+        Send _AddAttribute DF_INDEX_SEGMENT_DIRECTION "DF_INDEX_SEGMENT_DIRECTION" ATYPE_IDXSEG   "Segment direction"     True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_INDEX_SEGMENT_DIRECTION DF_ASCENDING  "DF_ASCENDING"  "Ascending"
+             Send _AddAttributeLegalValue DF_INDEX_SEGMENT_DIRECTION DF_DESCENDING "DF_DESCENDING" "Descending"
+        Send _AddAttribute DF_INDEX_SEGMENT_CASE      "DF_INDEX_SEGMENT_CASE"      ATYPE_IDXSEG   "Segment case"          True  False DF_BCD   False False
+             Send _AddAttributeLegalValue DF_INDEX_SEGMENT_CASE DF_CASE_USED    "DF_CASE_USED"    "Case used"
+             Send _AddAttributeLegalValue DF_INDEX_SEGMENT_CASE DF_CASE_IGNORED "DF_CASE_IGNORED" "Case ignored"
+        Send _AddAttribute DF_INDEX_SEGMENT_FIELD     "DF_INDEX_SEGMENT_FIELD"     ATYPE_IDXSEG   "Segment field"         True  False DF_BCD   False False
+    End_Procedure
+
+    // **** Functions for reading the attributes of a database *****************************************
+
+    Function _LegalValuesIndex Integer iAttr String sValue Returns Integer
+        Integer iMax iIndex
+        String sTest
+        Move (SizeOfArray(gaAttributes[iAttr].aLegalValues)-1) to iMax
+        For iIndex from 0 to iMax
+            Move gaAttributes[iAttr].aLegalValues[iIndex].iValue to sTest
+            If (sValue=sTest) Function_Return iIndex
+            //If (sValue=gaAttributes[iAttr].aLegalValues[iIndex]) Function_Return iIndex
+        Loop
+        Function_Return -1
+    End_Function
+
+    Function AttributeDisplayValue Integer iAttr String sValue Returns String
+        Integer iIndex
+        Get _LegalValuesIndex iAttr sValue to iIndex
+        If (iIndex=-1) Function_Return sValue
+        Function_Return gaAttributes[iAttr].aLegalValues[iIndex].sDisplayName // "European (dd/mm/yyyy)"
+    End_Function
+
+    Function AttributeSymbolicValue Integer iAttr String sValue Returns String
+        Integer iIndex
+        Get _LegalValuesIndex iAttr sValue to iIndex
+        If (iIndex=-1) Function_Return sValue
+        Function_Return gaAttributes[iAttr].aLegalValues[iIndex].sCodeValue // "DF_DATE_EUROPEAN"
+    End_Function
+    
+        Function _IsTableBufferAttributeType Integer iAttrType Returns Boolean
+            Function_Return (iAttrType=ATYPE_FILE or iAttrType=ATYPE_FIELD or ;
+                iAttrType=ATYPE_INDEX or iAttrType=ATYPE_INDEX or iAttrType=ATYPE_SPECIAL)
+        End_Function
+
+    Function _CanGetAttribute Integer hTable Integer iAttr Returns Boolean
+        Integer iHandleType iAttrType
+        Boolean bRestruct bOpen
+        String sDriver
+
+        //    Define ATYPE_GLOBAL    // No parameters
+        //    Define ATYPE_DRIVER    // 1: Driver number
+        //    Define ATYPE_DRVSRV    // 1: Driver number  2: Server number
+        //    Define ATYPE_FILELIST  // 1: File  (No record buffer access, filelist only)
+        //    Define ATYPE_FILE      // 1: File
+        //    Define ATYPE_FIELD     // 1: File   2: Field
+        //    Define ATYPE_INDEX     // 1: File   2: Index
+        //    Define ATYPE_IDXSEG    // 1: File   2: Index   3: Segment
+        //    Define ATYPE_SPECIAL   // 1: File 2/3: Field/Field  (overlap check)
+        //    Define ATYPE_FLSTNAV   // 1: File (for navigating filelist)
+
+        Move gaAttributes[iAttr].iAttrType to iAttrType
+        
+        If (_IsTableBufferAttributeType(Self,iAttrType) or iAttrType=ATYPE_FILELIST or iAttrType=ATYPE_FLSTNAV) Begin
+            Get_Attribute DF_FILE_HANDLE_TYPE of hTable to iHandleType
+
+                // Possible return values for iHandleType:
+                //   DF_FILE_HANDLE_BAD
+                //   DF_FILE_HANDLE_CLOSED
+                //   DF_FILE_HANDLE_OPENED
+                //   DF_FILE_HANDLE_EXISTING_RESTRUCTURE
+                //   DF_FILE_HANDLE_NEW_RESTRUCTURE
+
+            Move (iHandleType=DF_FILE_HANDLE_EXISTING_RESTRUCTURE or iHandleType=DF_FILE_HANDLE_NEW_RESTRUCTURE) to bRestruct
+
+            If (bRestruct and iAttrType=ATYPE_FILELIST) Begin
+                Function_Return False
+            End
+    
+            If (not(bRestruct) and iAttr=DF_FIELD_OLD_NUMBER) Begin
+                Function_Return False
+            End
+    
+            // Can't read those during a restructure
+            If (bRestruct and iAttr=DF_INDEX_NUMBER_BUFFERS or iAttr=DF_FILE_TOUCHED or iAttr=DF_FILE_OPENED) Begin
+                Function_Return False
+            End
+
+            If (bRestruct or iHandleType=DF_FILE_OPENED) Begin
+                Get_Attribute DF_FILE_DRIVER of hTable to sDriver
+                If (sDriver="DFBTRDRV") Begin
+                    If (iAttr=DF_FILE_REFIND_AFTER_SAVE or ;
+                        iAttr=DF_FILE_GET_RID_AFTER_CREATE or ;
+                        iAttr=DF_FILE_JIT_BINDING) Begin
+                        Function_Return False
+                    End
+                End
+            End
+        End
+        Function_Return True
+    End_Function
+//
+//
+//        If (hTable>=1) Begin
+//            Get_Attribute DF_FILE_OPENED of hTable to bOpen
+//            If (bOpen) Begin
+//                Get_Attribute DF_FILE_DRIVER of hTable to sDriver
+//            End
+//            If (sDriver="DFBTRDRV") Begin
+//                If (iAttr=DF_FILE_REFIND_AFTER_SAVE or ;
+//                    iAttr=DF_FILE_GET_RID_AFTER_CREATE or ;
+//                    iAttr=DF_FILE_JIT_BINDING) Begin
+//                    Function_Return False
+//                End
+//            End
+//        End
+//
+//
+//        If (bRestruct and iAttrType=ATYPE_FILELIST) Begin
+//            Function_Return False
+//        End
+//
+//        If (not(bRestruct) and iAttr=DF_FIELD_OLD_NUMBER) Begin
+//            Function_Return False
+//        End
+//
+//        // Can't read those during a restructure
+//        If (bRestruct and iAttr=DF_INDEX_NUMBER_BUFFERS or iAttr=DF_FILE_TOUCHED or iAttr=DF_FILE_OPENED) Begin
+//            Function_Return False
+//        End
+//        Function_Return True
+
+//DF_FILE_HANDLE_OPENED
+//DF_FILE_HANDLE_EXISTING_RESTRUCTURE
+//DF_FILE_HANDLE_NEW_RESTRUCTURE
+
+
+
+        Procedure Set _AttributeValue tAttributeValue[] ByRef aAttributes Integer iAttr String sValue
+            Move sValue to aAttributes[gaCompressedAttributeIndices[iAttr]].sValue
+        End_Procedure
+
+        Function _AttributeValue tAttributeValue[] aAttributes Integer iAttr Returns String
+            Integer iIndex
+            If (SizeOfArray(aAttributes)<>0) Begin
+                Move gaCompressedAttributeIndices[iAttr] to iIndex
+                If (iIndex<SizeOfArray(aAttributes)) Function_Return aAttributes[iIndex].sValue
+            End
+            Function_Return ""
+        End_Function
+
+        Procedure _GetAllAttributesOfType Integer iAttrType tAttributeValue[] ByRef aAttributes ;
+                                                            Integer iVal1 Integer iVal2 Integer iVal3
+            Boolean bOk bRestruct
+            Integer iIndex iMax iAttr iParams
+            String sValue sDriver
+            Move gaAttributeTypes[iAttrType].iParamCount to iParams
+            Move (SizeOfArray(gaAttributesByType[iAttrType])-1) to iMax
+            For iIndex from 0 to iMax
+                Move gaAttributesByType[iAttrType][iIndex] to iAttr
+
+                If (not(gaAttributes[iAttr].bDawOnly)) Begin
+                    If (gaAttributes[iAttr].bDriverOnly) Begin
+                        If (iAttrType=ATYPE_DRIVER) Begin
+                            Get_Attribute DF_DRIVER_NAME of iVal1 to sDriver
+                            Move (sDriver<>"DATAFLEX") to bOk
+                        End
+                        Else Begin
+                            Get_Attribute DF_FILE_DRIVER of iVal1 to sDriver
+                            Move (sDriver<>"DATAFLEX") to bOk
+                        End
+                    End
+                    Else begin
+                        Move True to bOk
+                    End
+
+                    If (bOk) Begin
+                        If (iParams=0) Begin
+                            Get_Attribute iAttr to sValue
+                        End
+                        Else Begin
+                            If (_CanGetAttribute(Self,iVal1,iAttr)) Begin
+                                If (iParams=1) Get_Attribute iAttr of iVal1 to sValue
+                                If (iParams=2) Get_Attribute iAttr of iVal1 iVal2 to sValue
+                                If (iParams=3) Get_Attribute iAttr of iVal1 iVal2 iVal3 to sValue
+                            End
+                            Else Begin
+                                Move "" to sValue
+                            End
+                        End
+                        Set _AttributeValue (&aAttributes) iAttr to sValue
+                    End
+                    Else begin
+                        Move "" to sValue
+                    End
+                End
+            Loop
+        End_Procedure
+
+    Procedure _GetFieldAttributes tFieldAttributes ByRef strField Integer iTable Integer iField
+        // Make sure nothing lingers from a previous call
+        Move (ResizeArray(strField.aFieldAttributes,0)) to strField.aFieldAttributes
+        Send _GetAllAttributesOfType ATYPE_FIELD (&strField.aFieldAttributes) iTable iField
+    End_Procedure
+
+    Procedure _GetIndexSegmentAttributes tIndexSegmentAttributes ByRef strIndexSegment Integer iTable Integer iIndex Integer iSegment
+        // Make sure nothing lingers from a previous call
+        Move (ResizeArray(strIndexSegment.aIndexSegmentAttributes,0)) to strIndexSegment.aIndexSegmentAttributes
+        Send _GetAllAttributesOfType ATYPE_IDXSEG (&strIndexSegment.aIndexSegmentAttributes) iTable iIndex iSegment
+    End_Procedure
+
+    Procedure _GetIndexAttributes tIndexAttributes ByRef strIndex Integer iTable Integer iIndex
+        Integer iMaxSegment iSegment
+        tIndexSegmentAttributes strIndexSegment
+
+        // Make sure nothing lingers from a previous call
+        Move (ResizeArray(strIndex.aIndexAttributes,0)) to strIndex.aIndexAttributes
+        Move (ResizeArray(strIndex.aSegments,0)) to strIndex.aSegments
+
+        Get_Attribute DF_INDEX_NUMBER_SEGMENTS of iTable iIndex to iMaxSegment
+        If (iMaxSegment>=1) Begin
+            Send _GetAllAttributesOfType ATYPE_INDEX (&strIndex.aIndexAttributes) iTable iIndex
+            For iSegment from 1 to iMaxSegment
+                Send _GetIndexSegmentAttributes (&strIndexSegment) iTable iIndex iSegment
+                Move strIndexSegment to strIndex.aSegments[iSegment]
+            Loop
+        End
+    End_Procedure
+
+    //> Get table attributes for one table (must be open)
+    Procedure GetTableAttributes tTableAttributes ByRef strTable Integer iTable // iFile must be open. If not, empty tables are returned
+        Boolean bOpen
+        Integer iMaxField iField iMaxIndex iIndex iHandleType
+        String sDriver
+        tFieldAttributes strField
+        tIndexAttributes strIndex
+
+        // Make sure nothing lingers from a previous call
+        Move (ResizeArray(strTable.aTableAttributes,0)) to strTable.aTableAttributes
+        Move (ResizeArray(strTable.aFields,0)) to strTable.aFields
+        Move (ResizeArray(strTable.aIndices,0)) to strTable.aIndices
+
+        If (iTable<>0) Begin
+
+            Get_Attribute DF_FILE_HANDLE_TYPE of iTable to iHandleType
+            If (iHandleType=DF_FILE_HANDLE_EXISTING_RESTRUCTURE or iHandleType=DF_FILE_HANDLE_NEW_RESTRUCTURE) Begin
+                Move True to bOpen
+            End
+            Else Begin
+                If (iHandleType=DF_FILE_HANDLE_BAD) Begin
+                    Move False to bOpen
+                End
+                Else Begin
+                    Get_Attribute DF_FILE_OPENED of iTable to bOpen
+                End
+            End
+
+            Move iTable to strTable.iReadFromFileListEntryNo
+            Send _GetAllAttributesOfType ATYPE_FILELIST (&strTable.aTableAttributes) iTable
+            If (bOpen) Begin
+                Get TableOpenAsPath of oTableAccessFunctions iTable to strTable.sOpenAsPath
+
+                Send _GetAllAttributesOfType ATYPE_FILE (&strTable.aTableAttributes) iTable
+    
+                Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iMaxField
+                For iField from 1 to iMaxField
+                    Send _GetFieldAttributes (&strField) iTable iField
+                    Move strField to strTable.aFields[iField]
+                Loop
+    
+                Get_Attribute DF_FILE_LAST_INDEX_NUMBER of iTable to iMaxIndex
+                For iIndex from 1 to iMaxIndex
+                    Send _GetIndexAttributes (&strIndex) iTable iIndex
+                    Move strIndex to strTable.aIndices[iIndex]
+                Loop
+            End
+            Else Begin
+                Move "" to strTable.sOpenAsPath
+                // Even if the table isn't opened, we can still try to figure
+                // out which driver is supposed to be used
+                Get TableDriver of oTableAccessFunctions iTable to sDriver
+                Get DriverIdToDll of oTableDriverFunctions sDriver to sDriver
+                Set _AttributeValue (&strTable.aTableAttributes) DF_FILE_DRIVER to sDriver
+            End
+        End
+    End_Procedure
+
+            Function TableIndex tTableAttributes[] astTables Integer iTable Returns Integer
+                Integer iMax iIndex
+                Integer[] aTableCompressedIndices
+                Get _paTableCompressedIndices to aTableCompressedIndices
+                If (SizeOfArray(aTableCompressedIndices)>0) Begin
+                    If (iTable<=SizeOfArray(aTableCompressedIndices)) Begin
+                        Function_Return aTableCompressedIndices[iTable]
+                    End
+                    Function_Return 0 // This should never happen
+                End
+                Else Begin
+                    Move (SizeOfArray(astTables)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (iTable=astTables[iIndex].iReadFromFileListEntryNo) Function_Return iIndex
+                    Loop
+                End
+                Function_Return -1
+            End_Function
+
+    //> Get table attributes for an array of tables
+    Procedure GetTablesAttributes tTableAttributes[] ByRef astTables Integer[] aSetOfTabels Boolean bAttemptOpen
+        Boolean bCanOpen bOpen bCloseAgain bIsOpen
+        Integer iTable iMax iIndex iTableIndex
+        Integer hProgressMsg hProgressObj
+        String sLogicalName
+        tTableAttributes strTable
+        
+        Get _phProgressCallbackMsg to hProgressMsg
+        Get _phProgressCallbackObj to hProgressObj
+        
+        Move (ResizeArray(astTables,0)) to astTables
+        Move (SizeOfArray(aSetOfTabels)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aSetOfTabels[iIndex] to iTable
+
+            Move False to bCloseAgain
+            Get IsOpen of oTableAccessFunctions iTable to bIsOpen
+            If (not(bIsOpen) and bAttemptOpen) Begin
+                Get OpenTable of oTableAccessFunctions iTable DF_SHARE 0 to bCloseAgain
+            End
+
+            If (hProgressMsg<>0) Begin
+                Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sLogicalName
+                Send hProgressMsg of hProgressObj ("Reading "+sLogicalName) (iIndex+1) (iMax+1)
+            End
+            Send GetTableAttributes (&strTable) iTable // Whether its actually open or not we call _GetTableAttributes. If it's not open we will simply store an empty tTableAttributes value in our array (signaling that we actually tried to read the attributes)
+
+            Get TableIndex aSetOfTabels iTable to iTableIndex
+            If (iTableIndex=-1) Begin
+                Move (SizeOfArray(astTables)) to iTableIndex
+            End
+            Move strTable to astTables[iTableIndex]
+
+            If bCloseAgain Begin
+                Close iTable
+            End
+        Loop
+    End_Procedure
+
+    Procedure _GetDrivers tDataBaseDriver[] ByRef aDrivers
+        Integer iDriverMax iDriverIndex iServerMax iServerIndex
+        String sName
+        tAttributeValue[] aAttributeValues
+        Get_Attribute DF_NUMBER_DRIVERS to iDriverMax
+        For iDriverIndex from 1 to iDriverMax
+            Send _GetAllAttributesOfType ATYPE_DRIVER (&aDrivers[iDriverIndex].aDriverAttributes) iDriverIndex
+            Get_Attribute DF_DRIVER_NAME of iDriverIndex to sName
+            If (sName<>"DATAFLEX") Begin
+                Get_Attribute DF_DRIVER_NUMBER_SERVERS of iDriverIndex to iServerMax
+                For iServerIndex from 1 to iServerMax
+//                    Send _GetAllAttributesOfType ATYPE_DRVSRV (&aDrivers[iDriverIndex].aServers[iServerIndex].aServerAttributes) iDriverIndex iServerIndex 0
+                    Send _GetAllAttributesOfType ATYPE_DRVSRV (&aAttributeValues) iDriverIndex iServerIndex 0
+                    Move aAttributeValues to aDrivers[iDriverIndex].aServers[iServerIndex].aServerAttributes
+                Loop
+            End
+        Loop
+    End_Procedure
+
+    Procedure _GetGlobals tAttributeValue[] ByRef aGlobals
+        Send _GetAllAttributesOfType ATYPE_GLOBAL (&aGlobals)
+    End_Procedure
+
+    Procedure GetAllAttributes tFileList ByRef strFilelist
+        Integer[] aTables
+        Get _paTempTableFilter to aTables
+        If (SizeOfArray(aTables)=0) Begin
+            Get TableIntegerArray of oTableAccessFunctions DF_FILE_NEXT_USED to aTables
+        End
+        Send _GetGlobals (&strFilelist.aGlobalAttributes)
+        Send GetTablesAttributes (&strFilelist.aTables) aTables True
+        Send _GetDrivers (&strFilelist.aDrivers)
+    End_Procedure
+
+    Procedure GetAllAttributesProgressCallback tFileList ByRef strFilelist Integer hMsg Integer hObj
+        Set _phProgressCallbackMsg to hMsg
+        Set _phProgressCallbackObj to hObj
+        Send GetAllAttributes (&strFilelist)
+        Set _phProgressCallbackMsg to 0
+        Set _phProgressCallbackObj to 0
+    End_Procedure
+
+    Function FilelistNavigationTableArray tTableAttributes[] astTables Integer iFileListNavAttr Returns Integer[]
+        Integer iTable iIndex
+        Integer[] aTables
+        If (iFileListNavAttr=DF_FILE_NEXT_OPENED or iFileListNavAttr=DF_FILE_NEXT_USED or iFileListNavAttr=DF_FILE_NEXT_EMPTY) Begin
+            Move 0 to iTable
+            Move 0 to iIndex
+            Repeat
+                Get TableAttribute astTables iFileListNavAttr iTable 0 0 to iTable
+                If (iTable<>0) Begin
+                    Move iTable to aTables[iIndex]
+                    Increment iIndex
+                End
+            Until (iTable=0)
+        End
+        Function_Return aTables
+    End_Function
+
+    // iAttr=DF_FILE_NEXT_USED|DF_FILE_NEXT_EMPTY
+//    Function FilelistNavigation Integer iAttr Integer iTable Boolean bAscending Returns Integer
+//        If (iAttr=DF_FILE_NEXT_USED)
+//    End_Function
+
+    Function TableAttribute tTableAttributes[] astTables Integer iAttr Integer iTable Integer iVal1 Integer iVal2 Returns String
+        Integer iTableIndex iAttrType
+        Integer iStart1 iEnd1 iStart2 iEnd2 iRecordLength
+        String sRval
+
+        Move "" to sRval
+        Move gaAttributes[iAttr].iAttrType to iAttrType
+
+        If (iAttrType=ATYPE_FLSTNAV) Begin
+            Repeat
+                Increment iTable
+                Get TableIndex astTables iTable to iTableIndex
+                If (iAttr=DF_FILE_NEXT_OPENED) Begin
+                    // This makes no sense except that of course the table was open at the time its definition was recorded.
+                    If (iTableIndex<>-1) Move iTable to sRval
+                End
+                If (iAttr=DF_FILE_NEXT_USED) Begin
+                    If (iTableIndex<>-1) Move iTable to sRval
+                End
+                If (iAttr=DF_FILE_NEXT_EMPTY) Begin
+                    If (iTableIndex=-1) Move iTable to sRval
+                End
+            Until (sRval<>"" or iTable>4096)
+        End
+        Else Begin
+            Get TableIndex astTables iTable to iTableIndex
+            If (iTableIndex<>-1) Begin
+                If (iAttrType=ATYPE_FILELIST or iAttrType=ATYPE_FILE) Begin
+                    If (iAttr=DF_FILE_OPENED) Begin // If table can be found => it's open
+                        Get _AttributeValue astTables[iTableIndex].aTableAttributes DF_FILE_RECORD_LENGTH to iRecordLength
+                        If (iRecordLength<>0) Begin
+                            Move 1 to sRval
+                        End
+                    End
+                    Else Begin
+                        Get _AttributeValue astTables[iTableIndex].aTableAttributes iAttr to sRval
+                    End
+                End
+                Else If (iAttrType=ATYPE_FIELD) Begin
+                    If (SizeOfArray(astTables[iTableIndex].aFields)>0) Begin
+                        Get _AttributeValue astTables[iTableIndex].aFields[iVal1].aFieldAttributes iAttr to sRval
+                    End
+                End
+                Else If (iAttrType=ATYPE_INDEX) Begin
+                    If (iVal1>=SizeOfArray(astTables[iTableIndex].aIndices)) Begin
+                        Move "" to sRval
+                    End
+                    Else Begin
+                        Get _AttributeValue astTables[iTableIndex].aIndices[iVal1].aIndexAttributes iAttr to sRval
+                    End
+                End
+                Else If (iAttrType=ATYPE_IDXSEG) Begin
+                    Get _AttributeValue astTables[iTableIndex].aIndices[iVal1].aSegments[iVal2].aIndexSegmentAttributes iAttr to sRval
+                End
+                Else If (iAttrType=ATYPE_SPECIAL) Begin
+                    If (iAttr=DF_FIELD_OVERLAP) Begin // Must be calculated
+                        Get _AttributeValue astTables[iTableIndex].aFields[iVal1].aFieldAttributes DF_FIELD_OFFSET to iStart1
+                        Get _AttributeValue astTables[iTableIndex].aFields[iVal2].aFieldAttributes DF_FIELD_OFFSET to iStart2
+                        Get _AttributeValue astTables[iTableIndex].aFields[iVal1].aFieldAttributes DF_FIELD_NATIVE_LENGTH to iEnd1
+                        Get _AttributeValue astTables[iTableIndex].aFields[iVal2].aFieldAttributes DF_FIELD_NATIVE_LENGTH to iEnd2
+                        Move (iStart1+iEnd1-1) to iEnd1
+                        Move (iStart2+iEnd2-1) to iEnd2
+                        Move (iStart1<=iEnd2 and iStart2<=iEnd1) to sRval
+                    End
+                End
+            End
+        End
+        Function_Return sRval
+    End_Function
+
+    Procedure Set TableAttribute tTableAttributes[] ByRef astTables Integer iAttr Integer iTable Integer iVal1 Integer iVal2 String sValue 
+        Integer iTableIndex iAttrType
+        Move gaAttributes[iAttr].iAttrType to iAttrType
+        Get TableIndex astTables iTable to iTableIndex
+        If (iTableIndex<>-1) Begin
+            If (iAttrType=ATYPE_FILELIST or iAttrType=ATYPE_FILE) Begin
+                Set _AttributeValue astTables[iTableIndex].aTableAttributes iAttr to sValue
+            End
+            Else If (iAttrType=ATYPE_FIELD) Begin
+                Set _AttributeValue astTables[iTableIndex].aFields[iVal1].aFieldAttributes iAttr to sValue
+            End
+            Else If (iAttrType=ATYPE_INDEX) Begin
+                Set _AttributeValue astTables[iTableIndex].aIndices[iVal1].aIndexAttributes iAttr to sValue
+            End
+            Else If (iAttrType=ATYPE_IDXSEG) Begin
+                Set _AttributeValue astTables[iTableIndex].aIndices[iVal1].aSegments[iVal2].aIndexSegmentAttributes iAttr to sValue
+            End
+            Else If (iAttrType=ATYPE_SPECIAL) Begin
+                // It's an overlap calculation to be done when neeeded sometime
+                Error 811 "Read only attributes"
+            End
+        End
+    End_Procedure
+
+    Function DriverAttribute tDataBaseDriver[] aDrivers Integer iAttr Integer iDriverIndex Integer iServerIndex Returns String
+        Integer iAttrType
+        String sRval
+        Move gaAttributes[iAttr].iAttrType to iAttrType
+        If (iAttrType=ATYPE_DRIVER) Begin
+            Get _AttributeValue aDrivers[iDriverIndex].aDriverAttributes iAttr to sRval
+        End
+        Else If (iAttrType=ATYPE_DRVSRV) Begin
+            Get _AttributeValue aDrivers[iDriverIndex].aServers[iServerIndex].aServerAttributes iAttr to sRval
+        End
+        Function_Return sRval
+    End_Function
+
+    Procedure Set DriverAttribute tDataBaseDriver[] aDrivers Integer iAttr Integer iDriverIndex Integer iServerIndex String sValue
+        Integer iAttrType
+        Move gaAttributes[iAttr].iAttrType to iAttrType
+        If (iAttrType=ATYPE_DRIVER) Begin
+            Set _AttributeValue aDrivers[iDriverIndex].aDriverAttributes iAttr to sValue
+        End
+        Else If (iAttrType=ATYPE_DRVSRV) Begin
+            Set _AttributeValue aDrivers[iDriverIndex].aServers[iServerIndex].aServerAttributes iAttr to sValue
+        End
+    End_Procedure
+
+    Function Attrib tFileList strFilelist Integer iAttr Integer iVal1 Integer iVal2 Integer iVal3 Returns String
+        Integer iAttrType
+        String sRval
+        Move gaAttributes[iAttr].iAttrType to iAttrType
+        If (iAttrType=ATYPE_GLOBAL) begin
+            Get _AttributeValue strFilelist.aGlobalAttributes iAttr to sRval
+        End
+        Else If (iAttrType=ATYPE_DRIVER or iAttrType=ATYPE_DRVSRV) begin
+            Get DriverAttribute strFilelist.aDrivers iAttr iVal1 iVal2 to sRval
+        End
+        Else Begin
+            Get TableAttribute strFilelist.aTables iAttr iVal1 iVal2 iVal3 to sRval
+        End
+        Function_Return sRval
+    End_Function
+
+    Procedure Set Attrib tFileList ByRef strFilelist Integer iAttr Integer iVal1 Integer iVal2 Integer iVal3 String sValue
+        Integer iAttrType
+        Move gaAttributes[iAttr].iAttrType to iAttrType
+        If (iAttrType=ATYPE_GLOBAL) Begin
+            Set _AttributeValue (&strFilelist.aGlobalAttributes) iAttr to sValue
+        End
+        Else If (iAttrType=ATYPE_DRIVER or iAttrType=ATYPE_DRVSRV) Begin
+            Set DriverAttribute (&strFilelist.aDrivers) iAttr iVal1 iVal2 to sValue
+        End
+        Else Begin
+            Set TableAttribute (&strFilelist.aTables) iAttr iVal1 iVal2 iVal3 to sValue
+        End
+    End_Procedure
+
+    // Procedure _HandleAttribute tTableAttributes[] astTables integer iAttr integer iTable integer iVal1 integer iVal2 string sValue String sDisplayValue
+    Procedure CallBackAttributeValues Integer hMsg Integer hObj tFileList strFilelist Integer iAttrType Integer iTable Integer iVal1 Integer iVal2
+        Integer iMax iIndex iAttr
+        String sValue
+        String sDisplayValue
+        Move (SizeOfArray(gaAttributesByType[iAttrType])-1) to iMax
+        For iIndex from 0 to iMax
+            Move gaAttributesByType[iAttrType][iIndex] to iAttr
+            Get Attrib strFilelist iAttr iTable iVal1 iVal2 to sValue
+            Get AttributeDisplayValue iAttr sValue to sDisplayValue
+            Send hMsg of hObj strFilelist iAttr iTable iVal1 iVal2 sValue sDisplayValue
+        Loop
+    End_Procedure
+
+    // Procedure HandleAttribute integer iAttr tAttributeDefinition stAttrDef
+    Procedure CallBackAttributes Integer hMsg Integer hObj Integer iAttrType
+        Integer iMax iIndex iAttr
+        Move (SizeOfArray(gaAttributesByType[iAttrType])-1) to iMax
+        For iIndex from 0 to iMax
+            Move gaAttributesByType[iAttrType][iIndex] to iAttr
+            Send hMsg of hObj iAttr gaAttributes[iAttr]
+        Loop
+    End_Procedure
+
+    Function FieldAttributesToExplicit tFieldAttributes strField Returns tTableFieldExplicit
+        tTableFieldExplicit stFieldExplicit
+
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_NUMBER to stFieldExplicit.iPosition
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_NAME to stFieldExplicit.sName
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_TYPE to stFieldExplicit.iType
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_LENGTH to stFieldExplicit.iLen
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_PRECISION to stFieldExplicit.iPrecision
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_RELATED_FILE to stFieldExplicit.iRelFile
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_RELATED_FIELD to stFieldExplicit.iRelField
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_INDEX to stFieldExplicit.iMainIndex
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_OFFSET to stFieldExplicit.iOffset
+        Get _AttributeValue strField.aFieldAttributes DF_FIELD_NATIVE_LENGTH to stFieldExplicit.iNativeLength
+
+        Function_Return stFieldExplicit
+    End_Function
+
+    Function IndexAttributesToExplicit tIndexAttributes strIndex Returns tTableIndexExplicit
+        Integer iSegmentIndex iSegmentMax
+        Integer iDirection iCase
+        tTableIndexExplicit stIndexExplicit
+
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegmentMax
+        If (iSegmentMax>=0) Begin
+            Get _AttributeValue strIndex.aIndexAttributes DF_INDEX_TYPE to stIndexExplicit.iType
+            Get _AttributeValue strIndex.aIndexAttributes DF_INDEX_LEVELS to stIndexExplicit.iLevels
+            Get _AttributeValue strIndex.aIndexAttributes DF_INDEX_KEY_LENGTH to stIndexExplicit.iKeyLength
+            For iSegmentIndex from 0 to iSegmentMax
+                Get _AttributeValue strIndex.aSegments[iSegmentIndex].aIndexSegmentAttributes DF_INDEX_SEGMENT_FIELD to stIndexExplicit.aFields[iSegmentIndex]
+                Get _AttributeValue strIndex.aSegments[iSegmentIndex].aIndexSegmentAttributes DF_INDEX_SEGMENT_DIRECTION to iDirection
+                Move (iDirection=DF_DESCENDING) to stIndexExplicit.aDescending[iSegmentIndex]
+                Get _AttributeValue strIndex.aSegments[iSegmentIndex].aIndexSegmentAttributes DF_INDEX_SEGMENT_CASE to iCase
+                Move (iCase=DF_CASE_IGNORED) to stIndexExplicit.aCaseInsensitive[iSegmentIndex]
+            Loop
+            Move (stIndexExplicit.aFields[iSegmentMax]<>0) to stIndexExplicit.bUnique
+        End
+        Function_Return stIndexExplicit
+    End_Function
+    
+    Function TableAttributesToExplicit tTableAttributes strTable Returns tTableExplicit
+        Integer iFieldIndex iFieldMax
+        Integer iIndexIndex iIndexMax
+        Integer iValue
+        Integer[] aOverlappedFields
+        tTableExplicit strTableExplicit
+        Move strTable.iReadFromFileListEntryNo                              to strTableExplicit.iFileListEntry   
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_DRIVER        to strTableExplicit.sDriver
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_MAX_RECORDS   to strTableExplicit.nMaxRecords      
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_RECORDS_USED  to strTableExplicit.nRecordsUsed     
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_PHYSICAL_NAME to strTableExplicit.sPhysicalName    
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_RECORD_LENGTH to strTableExplicit.iRecordLength    
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_RECORD_LENGTH_USED to strTableExplicit.iRecordLengthUsed
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_LOCK_TYPE     to strTableExplicit.iLockType
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_INTEGRITY_CHECK to strTableExplicit.iIntegrityCheck
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_IS_SYSTEM_FILE to iValue
+        Move (iValue<>0) to strTableExplicit.bSystemFile
+        
+        // Columns:
+        Move (SizeOfArray(strTable.aFields)-1) to iFieldMax
+        For iFieldIndex from 0 to iFieldMax
+            Get FieldAttributesToExplicit strTable.aFields[iFieldIndex] to strTableExplicit.aFields[iFieldIndex]
+            If (strTableExplicit.aFields[iFieldIndex].iType=DF_OVERLAP) Begin
+                Get OverlapToColumns strTable iFieldIndex to aOverlappedFields
+                If (SizeOfArray(aOverlappedFields)<>0) Begin // We need this condition because an overlap field may defined to overlap nothing at all (length 0, for example)
+                    Move aOverlappedFields[0] to strTableExplicit.aFields[iFieldIndex].iOverlapFieldStart
+                    Move aOverlappedFields[SizeOfArray(aOverlappedFields)-1] to strTableExplicit.aFields[iFieldIndex].iOverlapFieldEnd
+                End
+            End
+        Loop
+
+        // Indices:
+        Move (SizeOfArray(strTable.aIndices)-1) to iIndexMax
+        For iIndexIndex from 0 to iIndexMax
+            Get IndexAttributesToExplicit strTable.aIndices[iIndexIndex] to strTableExplicit.aIndices[iIndexIndex]
+        Loop
+
+        Function_Return strTableExplicit
+    End_Function
+    
+    Function FilelistEntryToExplicit tFileList strFilelist Integer iTable Returns tTableExplicit
+        tTableAttributes strTable
+        String sValue
+        tTableExplicit strTableExplicit
+        
+        Move iTable to strTableExplicit.iFileListEntry
+        // Convert to array index:
+        Get TableIndex strFilelist.aTables iTable to iTable 
+        
+        Move strFilelist.aTables[iTable] to strTable
+        Get TableAttributesToExplicit strTable to strTableExplicit
+        
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_ROOT_NAME to strTableExplicit.sRootName   
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_LOGICAL_NAME to strTableExplicit.sLogicalName
+        Get _AttributeValue strTable.aTableAttributes DF_FILE_DISPLAY_NAME to strTableExplicit.sDisplayName
+        
+        Function_Return strTableExplicit
+    End_Function
+    
+    Function FilelistToExplicitArray tFileList strFilelist Returns tTableExplicit[]
+        Integer iItem iMax iTable 
+        Integer[] aTables
+        tTableExplicit[] aTableExplicits
+        
+        Get FilelistNavigationTableArray strFilelist.aTables DF_FILE_NEXT_USED to aTables
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iItem from 0 to iMax
+            Get FilelistEntryToExplicit strFilelist aTables[iItem] to aTableExplicits[iItem]
+        Loop
+        
+        Function_Return aTableExplicits
+    End_Function
+    
+    Procedure CallBackTableAttributes Integer hMsg Integer hObj tTableAttributes strTable
+        Integer iMax iIndex iAttr
+        String sValue
+        Move (SizeOfArray(gaAttributesByType[ATYPE_FILE])-1) to iMax
+        For iIndex from 0 to iMax
+            Move gaAttributesByType[ATYPE_FILE][iIndex] to iAttr
+            Get _AttributeValue strTable.aTableAttributes iAttr to sValue
+            Send hMsg of hObj strTable iAttr sValue
+        Loop
+    End_Procedure
+    
+    Procedure AppendArrays Variant[] ByRef aArray1 Variant[] aArray2
+        Integer iIndex1 iIndex2 iMax2
+        Move (SizeOfArray(aArray1)) to iIndex1
+        Move (SizeOfArray(aArray2)-1) to iMax2
+        For iIndex2 from 0 to iMax2
+            Move aArray2[iIndex2] to aArray1[iIndex1]
+            Increment iIndex1
+        Loop
+    End_Procedure
+
+    Function FieldArrayReplaceOverlap tTableAttributes[] astTables tTableField strField Returns tTableField[]
+        Boolean bOverlaps
+        Integer iTableIndex iResultIndex iFieldType
+        Integer iFieldMax iFieldIndex
+        tTableField[] aResultFields
+        tFieldAttributes[] aFields
+
+        Move 0 to iResultIndex
+
+        Get TableIndex astTables strField.iTable to iTableIndex
+        If (iTableIndex<>-1) Begin
+            Get TableAttribute astTables DF_FIELD_TYPE strField.iTable strField.iField to iFieldType
+            If (iFieldType=DF_OVERLAP) Begin
+                Move astTables[iTableIndex].aFields to aFields
+                Move (SizeOfArray(aFields)-1) to iFieldMax
+                For iFieldIndex from 1 to iFieldMax
+                    Get TableAttribute astTables DF_FIELD_TYPE strField.iTable iFieldIndex to iFieldType
+                    If (iFieldIndex<>strField.iField and iFieldType<>DF_OVERLAP) Begin
+                        Get TableAttribute astTables DF_FIELD_OVERLAP strField.iTable strField.iField iFieldIndex to bOverlaps
+                        If (bOverlaps) Begin
+                            Move strField.iTable to aResultFields[iResultIndex].iTable
+                            Move iFieldIndex to aResultFields[iResultIndex].iField
+                            Move strField.bCapslock to aResultFields[iResultIndex].bCapslock
+                            Move strField.bDescending to aResultFields[iResultIndex].bDescending
+                            Increment iResultIndex
+                        End
+                    End
+                Loop
+            End
+            Else Move strField to aResultFields[0] // If it's not an overlap field we just return the field itself
+        End
+        Else Move strField to aResultFields[0] // This is pointless. If iTable is not in astTable we are in an error condition anyway.
+        Function_Return aResultFields
+    End_Function
+    
+    Function FieldArrayReplaceOverlaps tTableAttributes[] astTables tTableField[] aFields Returns tTableField[]
+        Integer iFieldIndex iFieldMax
+        tTableField[] aTemp
+        tTableField[] aResultFields
+        Move (SizeOfArray(aFields)-1) to iFieldMax
+        For iFieldIndex from 0 to iFieldMax
+            Get FieldArrayReplaceOverlap astTables aFields[iFieldIndex] to aTemp
+            Send AppendArrays (&aResultFields) aTemp
+        Loop
+        Function_Return aResultFields
+    End_Function
+    
+    Function OverlapToColumns tTableAttributes strTable Integer iField Returns Integer[]
+        Integer iMax iIndex
+        Integer[] aFields
+        tTableAttributes[] astTables
+        tTableField strField
+        tTableField[] astFields
+        
+        Move strTable to astTables[0]
+        Move strTable.iReadFromFileListEntryNo to strField.iTable
+        Move iField to strField.iField
+        Get FieldArrayReplaceOverlap astTables strField to astFields
+        Move (SizeOfArray(astFields)-1) to iMax
+        
+        For iIndex from 0 to iMax
+            Move astFields[iIndex].iField to aFields[iIndex]
+        Loop
+        Function_Return aFields
+    End_Function
+
+    Procedure OverlapColumnBoundaries tTableAttributes[] astTables Integer iTable Integer iColumn Integer ByRef iStartColumn Integer ByRef iEndColumn
+        tTableField strField 
+        tTableField[] aFields
+        Move iTable to strField.iTable
+        Move iColumn to strField.iField
+        Get FieldArrayReplaceOverlap astTables strField to aFields
+        Move aFields[0].iField to iStartColumn
+        Move aFields[SizeOfArray(aFields)-1] to iEndColumn
+    End_Procedure
+    
+// **** Procedure for reading and writing to sequential files
+
+    Procedure Write_Attributes Integer iChannel Integer iAttrType tAttributeValue[] aAttributes
+        Integer iIndex iMax iAttr
+        Move (SizeOfArray(aAttributes)-1) to iMax
+        Writeln channel iChannel iMax
+        For iIndex from 0 to iMax
+            Move gaInverseCompressedAttributeIndices[iAttrType][iIndex] to iAttr
+            Writeln iAttr
+            Writeln (Length(aAttributes[iIndex].sValue))
+            Write aAttributes[iIndex].sValue
+        Loop
+    End_Procedure
+    
+    Procedure Read_Attributes Integer iChannel Integer iAttrType tAttributeValue[] ByRef aAttributes
+        Integer iIndex iMax iAttr iLen
+        String sValue
+        Move (ResizeArray(aAttributes,0)) to aAttributes
+        Readln channel iChannel iMax
+        For iIndex from 0 to iMax
+           Readln iAttr
+           Readln iLen
+           Read_Block sValue iLen
+           Set _AttributeValue (&aAttributes) iAttr to sValue
+        Loop
+    End_Procedure
+    
+    Procedure Write_TableAttributes Integer iChannel tTableAttributes astTableAttributes
+        Integer iMax iIndex iSegmentMax iSegmentIndex
+        Writeln channel iChannel astTableAttributes.iReadFromFileListEntryNo
+        Writeln channel iChannel astTableAttributes.sOpenAsPath
+        Send Write_Attributes iChannel ATYPE_FILE astTableAttributes.aTableAttributes
+        
+        Move (SizeOfArray(astTableAttributes.aFields)-1) to iMax
+        Writeln iMax
+        For iIndex from 0 to iMax
+            Send Write_Attributes iChannel ATYPE_FIELD astTableAttributes.aFields[iIndex].aFieldAttributes
+        Loop
+        
+        Move (SizeOfArray(astTableAttributes.aIndices)-1) to iMax
+        Writeln iMax
+        For iIndex from 0 to iMax
+            Send Write_Attributes iChannel ATYPE_INDEX astTableAttributes.aIndices[iIndex].aIndexAttributes
+            Move (SizeOfArray(astTableAttributes.aIndices[iIndex].aSegments)-1) to iSegmentMax
+            Writeln iSegmentMax
+            For iSegmentIndex from 0 to iSegmentMax
+                Send Write_Attributes iChannel ATYPE_IDXSEG astTableAttributes.aIndices[iIndex].aSegments[iSegmentIndex].aIndexSegmentAttributes
+            Loop
+        Loop    
+    End_Procedure
+    
+    Procedure Read_TableAttributes Integer iChannel tTableAttributes ByRef astTableAttributes
+        Integer iMax iIndex iSegmentMax iSegmentIndex
+        Readln channel iChannel astTableAttributes.iReadFromFileListEntryNo
+        Readln channel iChannel astTableAttributes.sOpenAsPath
+        Send Read_Attributes iChannel ATYPE_FILE (&astTableAttributes.aTableAttributes)
+        
+        Readln iMax
+        For iIndex from 0 to iMax
+            Move gaEmptyAttributes to astTableAttributes.aFields[iIndex].aFieldAttributes
+            Send Read_Attributes iChannel ATYPE_FIELD (&astTableAttributes.aFields[iIndex].aFieldAttributes)
+        Loop
+        
+        Readln iMax
+        For iIndex from 0 to iMax
+            Move gaEmptyAttributes to astTableAttributes.aIndices[iIndex].aIndexAttributes
+            Send Read_Attributes iChannel ATYPE_INDEX (&astTableAttributes.aIndices[iIndex].aIndexAttributes)
+            Readln iSegmentMax
+            For iSegmentIndex from 0 to iSegmentMax
+                Move gaEmptyAttributes to astTableAttributes.aIndices[iIndex].aSegments[iSegmentIndex].aIndexSegmentAttributes
+                Send Read_Attributes iChannel ATYPE_IDXSEG (&astTableAttributes.aIndices[iIndex].aSegments[iSegmentIndex].aIndexSegmentAttributes)
+            Loop
+        Loop
+    End_Procedure
+    
+    Procedure Write_TablesAttributes Integer iChannel tTableAttributes[] aTables
+        Integer iMax iIndex
+        Move (SizeOfArray(aTables)-1) to iMax
+        Writeln channel iChannel iMax
+        For iIndex from 0 to iMax
+            Send Write_TableAttributes iChannel aTables[iIndex]
+        Loop 
+    End_Procedure
+    
+    Procedure Read_TablesAttributes Integer iChannel tTableAttributes[] ByRef aTables
+        Integer iMax iIndex
+        Move (ResizeArray(aTables,0)) to aTables
+        Readln channel iChannel iMax
+        For iIndex from 0 to iMax
+            Send Read_TableAttributes iChannel (&aTables[iIndex])
+        Loop
+    End_Procedure
+                                                     
+    Procedure Write_ServerAttributes Integer iChannel tDataBaseServer stServer
+        Send Write_Attributes iChannel ATYPE_DRVSRV stServer.aServerAttributes
+    End_Procedure
+    
+    Procedure Read_ServerAttributes Integer iChannel tDataBaseServer ByRef stServer
+        Send Read_Attributes iChannel ATYPE_DRVSRV (&stServer.aServerAttributes)
+    End_Procedure
+                                                     
+    Procedure Write_DriverAttributes Integer iChannel tDataBaseDriver[] aDrivers
+        Integer iDriverMax iDriverIndex iServerMax iServerIndex
+        
+        Move (SizeOfArray(aDrivers)-1) to iDriverMax
+        Writeln channel iChannel iDriverMax
+        
+        For iDriverIndex from 0 to iDriverMax
+            Send Write_Attributes iChannel ATYPE_DRIVER aDrivers[iDriverIndex].aDriverAttributes
+            Move (SizeOfArray(aDrivers[iDriverIndex].aServers)-1) to iServerMax
+            Writeln iServerMax
+            For iServerIndex from 0 to iServerMax
+                Send Write_Attributes iChannel ATYPE_IDXSEG aDrivers[iDriverIndex].aServers[iServerIndex].aServerAttributes
+            Loop
+        Loop
+    End_Procedure
+    
+    Procedure Read_DriverAttributes Integer iChannel tDataBaseDriver[] ByRef aDrivers
+        Integer iDriverMax iDriverIndex iServerMax iServerIndex
+        Readln channel iChannel iDriverMax
+        For iDriverIndex from 0 to iDriverMax
+            Move gaEmptyAttributes to aDrivers[iDriverIndex].aDriverAttributes
+            Send Read_Attributes iChannel ATYPE_DRIVER (&aDrivers[iDriverIndex].aDriverAttributes)
+            Readln iServerMax 
+            For iServerIndex from 0 to iServerMax
+                Move gaEmptyAttributes to aDrivers[iDriverIndex].aServers[iServerIndex]
+                Send Read_Attributes iChannel ATYPE_IDXSEG (&aDrivers[iDriverIndex].aServers[iServerIndex].aServerAttributes)
+            Loop
+        Loop
+    End_Procedure
+    
+    //> Write tFileList variable to sequential channel iChannel
+    Procedure WriteChannel_FilelistAttributes Integer iChannel tFileList strFilelist
+        Send Write_Attributes iChannel ATYPE_GLOBAL strFilelist.aGlobalAttributes
+        Send Write_DriverAttributes iChannel strFilelist.aDrivers
+        Send Write_TablesAttributes iChannel strFilelist.aTables
+    End_Procedure
+
+    //> Read tFileList variable from sequential channel iChannel
+    Procedure ReadChannel_FilelistAttributes Integer iChannel tFileList ByRef strFilelist
+        Send Read_Attributes iChannel ATYPE_GLOBAL (&strFilelist.aGlobalAttributes)
+        Send Read_DriverAttributes iChannel (&strFilelist.aDrivers)
+        Send Read_TablesAttributes iChannel (&strFilelist.aTables)
+    End_Procedure
+
+    //> Write tFileList variable to sequential file with filename sFilename
+    Procedure WriteFile_FileListAttributes String sFilename tFileList strFilelist
+        Integer iChannel
+        Get DirectOutput of oFileFunctions sFilename to iChannel
+        If (iChannel>=0) Begin
+            Send WriteChannel_FilelistAttributes iChannel strFilelist
+            Send CloseOutput of oFileFunctions iChannel
+        End
+    End_Procedure
+
+    //> Read tFileList variable from sequential file with filename sFilename
+    Procedure ReadFile_FileListAttributes String sFilename tFileList ByRef strFilelist
+        Integer iChannel
+        Get DirectInput of oFileFunctions sFilename to iChannel
+        If (iChannel>=0) Begin
+            Send ReadChannel_FilelistAttributes iChannel (&strFilelist)
+            Send CloseInput of oFileFunctions iChannel
+        End
+    End_Procedure
+    
+// **** Utility function TableRelations that extracts all the relations within a tTableAttributes array and return them as a tTableRelation array. ****
+
+            Function RelationIndex tTableRelation[] aRelations Integer iFromTable Integer iToTable Returns Integer
+                Integer iRelMax iRelIndex
+                Move (SizeOfArray(aRelations)-1) to iRelMax
+                For iRelIndex from 0 to iRelMax
+                    If (aRelations[iRelIndex].iFromTable=iFromTable and aRelations[iRelIndex].iToTable=iToTable) Function_Return iRelIndex
+                Loop
+                Function_Return -1
+            End_Function
+
+    Procedure AddRelationSegment tTableRelation[] ByRef aRelations Integer iFromTable Integer iFromField Integer iToTable Integer iToField
+        Integer iRelIndex iRelSegmentIndex
+        Get RelationIndex aRelations iFromTable iToTable to iRelIndex
+        If (iRelIndex=-1) Begin
+            Move (SizeOfArray(aRelations)) to iRelIndex
+            Move iFromTable to aRelations[iRelIndex].iFromTable
+            Move iToTable to aRelations[iRelIndex].iToTable
+        End
+        Move (SizeOfArray(aRelations[iRelIndex].aFromFields)) to iRelSegmentIndex
+        Move iFromTable to aRelations[iRelIndex].aFromFields[iRelSegmentIndex].iTable
+        Move iFromField to aRelations[iRelIndex].aFromFields[iRelSegmentIndex].iField
+        Move iToTable to aRelations[iRelIndex].aToFields[iRelSegmentIndex].iTable
+        Move iToField to aRelations[iRelIndex].aToFields[iRelSegmentIndex].iField
+    End_Procedure
+    
+            Procedure _ValidateRelations tTableAttributes[] astTables tTableRelation[] ByRef aRelations
+                Integer iRelIndex iRelMax iIndex
+                Move (SizeOfArray(aRelations)-1) to iRelMax
+                For iRelIndex from 0 to iRelMax
+                    // In this place it should be checked that the fields in the relation makes up
+                    // sufficient information to look up a record in the parent table.
+                    // Futhermore it should be checked whether the index could be used for header-detail like queries.
+                    // But for now I'll just stamp them all with an OK.
+                    Move -1 to iIndex
+                    If (Integer(TableAttribute(Self,astTables,DF_FILE_NUMBER_FIELDS,aRelations[iRelIndex].iToTable))>0) Begin // Was it opened?
+                        Get FindIndexUnique astTables aRelations[iRelIndex].iToTable aRelations[iRelIndex].aToFields to iIndex
+                    End
+                    Move (iIndex<>-1) to aRelations[iRelIndex].bFunctioning
+                    Get ConstrainIndexArray astTables aRelations[iRelIndex].iFromTable aRelations[iRelIndex].aFromFields to aRelations[iRelIndex].aChildIndices
+                Loop
+            End_Procedure
+            
+            Procedure _SetTableCompressedIndices tTableAttributes[] astTables
+                Integer iItem iMax
+                Integer[] aCompressedIndices
+                Move (SizeOfArray(astTables)-1) to iMax
+                For iItem from 0 to iMax
+                    Move iItem to aCompressedIndices[astTables[iItem].iReadFromFileListEntryNo]
+                Loop
+                Set _paTableCompressedIndices to aCompressedIndices
+            End_Procedure
+            
+            Procedure _ClearTableCompressedIndices 
+                Integer[] aCompressedIndices
+                Set _paTableCompressedIndices to aCompressedIndices
+            End_Procedure
+
+    Function TableRelations tTableAttributes[] astTables Returns tTableRelation[]
+        Integer iTableMax iTableIndex iTable
+        Integer iFieldMax iField
+        Integer iRelTable iRelField
+        Integer iRelIndex
+        tTableRelation[] aRelations
+        
+        Send _SetTableCompressedIndices astTables
+
+        Move (SizeOfArray(astTables)-1) to iTableMax
+        For iTableIndex from 0 to iTableMax
+            Move astTables[iTableIndex].iReadFromFileListEntryNo to iTable
+            Move (SizeOfArray(astTables[iTableIndex].aFields)-1) to iFieldMax
+            For iField from 1 to iFieldMax
+                Get TableAttribute astTables DF_FIELD_RELATED_FILE iTable iField to iRelTable
+                If (iRelTable<>0) Begin
+                    Get TableAttribute astTables DF_FIELD_RELATED_FIELD iTable iField to iRelField
+                    Send AddRelationSegment (&aRelations) iTable iField iRelTable iRelField
+                End
+            Loop
+        Loop
+        Send _ValidateRelations astTables (&aRelations)
+        Send _ClearTableCompressedIndices
+        Function_Return aRelations
+    End_Function
+
+    // Define call back procedure like this: Procedure HandleTableRelation integer iFromTable integer iToTable tTableRelation stRelation
+    Procedure CallBackTableRelations Integer hMsg Integer hObj Boolean bFrom Integer iTable tTableRelation[] aRelations
+        Integer iRelMax iRelIndex
+        Move (SizeOfArray(aRelations)-1) to iRelMax
+         
+        If (bFrom) Begin // Parent tables
+            For iRelIndex from 0 to iRelMax
+                If (aRelations[iRelIndex].iFromTable=iTable) Begin
+                    Send hMsg of hObj iTable aRelations[iRelIndex].iToTable aRelations[iRelIndex]  
+                End
+            Loop
+        End
+        Else Begin // Child tables
+            For iRelIndex from 0 to iRelMax
+                If (aRelations[iRelIndex].iToTable=iTable) Begin
+                    Send hMsg of hObj aRelations[iRelIndex].iFromTable iTable aRelations[iRelIndex]  
+                End
+            Loop
+        End
+    End_Procedure
+    
+//    Procedure CallBackTableRelations2 Integer hMsg Integer hObj Integer iFromTable Integer iToTable tTableRelation[] aRelations
+//    End_Procedure
+    
+        Function _IntegerRemoveDublettes Integer[] aValues Returns Integer[]
+            Integer iMax iIndex iResultItem iPrevValue
+            Integer[] aResult
+            Move 0 to iResultItem
+            Move (SortArray(aValues)) to aValues
+            Move (SizeOfArray(aValues)-1) to iMax
+            For iIndex from 0 to iMax
+                If (iIndex=0 or aValues[iIndex]<>iPrevValue) Begin
+                    Move aValues[iIndex] to aResult[iResultItem]
+                    Increment iResultItem
+                    Move aValues[iIndex] to iPrevValue
+                End
+            Loop
+            Function_Return aResult
+        End_Function
+
+    //> 
+    Function ParentTableArray tTableRelation[] astRelations Integer iTable Returns Integer[]
+        Integer iRelMax iRelIndex iParentTableIndex
+        Integer[] aParentTable
+
+        Move 0 to iParentTableIndex
+
+        Move (SizeOfArray(astRelations)-1) to iRelMax
+        For iRelIndex from 0 to iRelMax
+            If (astRelations[iRelIndex].iFromTable=iTable) Begin
+                Move astRelations[iRelIndex].iToTable to aParentTable[iParentTableIndex]
+                Increment iParentTableIndex
+            End
+        Loop
+        Function_Return (_IntegerRemoveDublettes(Self,aParentTable))
+    End_Function
+    
+    //> 
+    Function ChildTableArray tTableRelation[] astRelations Integer iTable Returns Integer[]
+        Integer iRelMax iRelIndex iChildTableIndex
+        Integer[] aChildTable
+
+        Move 0 to iChildTableIndex
+
+        Move (SizeOfArray(astRelations)-1) to iRelMax
+        For iRelIndex from 0 to iRelMax
+            If (astRelations[iRelIndex].iToTable=iTable) Begin
+                Move astRelations[iRelIndex].iFromTable to aChildTable[iChildTableIndex]
+                Increment iChildTableIndex
+            End
+        Loop
+        Function_Return (_IntegerRemoveDublettes(Self,aChildTable))
+    End_Function
+    
+    //> Returns a sorted array of tables numbers that has the same ïphysical name (a.k.a. root-name) as the
+    //> one passed in parameter iTable. The result array will return the iTable itself
+    Function AliasTableArray tTableAttributes[] astTables Integer iTable Returns Integer[]
+        Integer iTableMax iTableIndex iResultIndex
+        Integer[] aRval
+        String sRootName
+        Move 0 to iResultIndex
+        Get TableAttribute astTables DF_FILE_ROOT_NAME iTable to sRootName
+        If (sRootName<>"") Begin
+            Move (SizeOfArray(astTables)-1) to iTableMax
+            For iTableIndex from 0 to iTableMax
+                If (Uppercase(TableAttribute(Self,astTables,DF_FILE_ROOT_NAME,astTables[iTableIndex].iReadFromFileListEntryNo))=Uppercase(sRootName)) Begin
+                    Move astTables[iTableIndex].iReadFromFileListEntryNo to aRval[iResultIndex]
+                    Increment iResultIndex
+                End
+            Loop
+            Move (SortArray(aRval)) to aRval
+        End
+        Function_Return aRval
+    End_Function
+    
+    Function IsAlias tTableAttributes[] astTables Integer iTable Returns Boolean
+        Boolean bAlias
+        Integer[] aLogicalTables
+        Move False to bAlias
+        Get AliasTableArray astTables iTable to aLogicalTables
+        If (SizeOfArray(aLogicalTables)>0) Begin
+            Move (iTable<>aLogicalTables[0]) to bAlias // An ad-hoc definition of 'aliasness' that may do for many purposes
+        End
+        Function_Return bAlias
+    End_Function
+    
+    Function TableDefinitionOk tTableAttributes[] astTables Integer iTable Returns Boolean
+        Get TableIndex astTables iTable to iTable
+        Function_Return (SizeOfArray(astTables[iTable].aFields)<>0)
+    End_Function
+    
+    Function RemoveAliasesFromTableArray tTableAttributes[] astTables Integer[] aTables Returns Integer[]
+        Integer iMax iIndex iTable
+        Integer[] aResult
+        String[] aMaster
+        String sRootName
+
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aTables[iIndex] to iTable
+            Get TableAttribute astTables DF_FILE_ROOT_NAME iTable to sRootName
+            If (StringAddToSet(oStackFunctions,&aMaster,Lowercase(sRootName))) Begin
+                Move iTable to aResult[SizeOfArray(aResult)]
+            End
+        Loop
+        Function_Return aResult
+    End_Function
+
+    // Removes "flexerrs", "codemast" and "codetype" from aTables array
+    Function RemoveUtilityTablesFromArray tTableAttributes[] astTables Integer[] aTables Returns Integer[]
+        Integer iMax iIndex iTable
+        Integer[] aResult
+        String sRootName
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aTables[iIndex] to iTable
+            Get TableAttribute astTables DF_FILE_ROOT_NAME iTable 0 0 to sRootName
+            Move (Lowercase(sRootName)) to sRootName
+            If (not(sRootName contains "flexerrs") and not(sRootName contains "codemast") and not(sRootName contains "codetype")) Begin
+                Move iTable to aResult[SizeOfArray(aResult)]
+            End
+        Loop
+        Function_Return aResult
+    End_Function
+    
+    Function RemoveSystemTablesFromArray tTableAttributes[] astTables Integer[] aTables Returns Integer[]
+        Integer iMax iIndex iTable iIsSystem
+        Integer[] aResult
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aTables[iIndex] to iTable
+            Get TableAttribute of oAttributeFunctions astTables DF_FILE_IS_SYSTEM_FILE iTable to iIsSystem
+            If (iIsSystem=0) Begin
+                Move iTable to aResult[SizeOfArray(aResult)]
+            End
+        Loop
+        Function_Return aResult
+    End_Function
+    
+            Function TableFieldIndex tTableField[] astFields tTableField strField Returns Integer
+                Integer iFieldIndex iFieldMax
+                Move (SizeOfArray(astFields)-1) to iFieldMax
+                For iFieldIndex from 0 to iFieldMax
+                    If (strField.iTable=astFields[iFieldIndex].iTable and strField.iField=astFields[iFieldIndex].iField) Function_Return iFieldIndex
+                Loop
+                Function_Return -1
+            End_Function
+            
+            Function FindFieldWithOffset tTableAttributes[] astTables Integer iTable Integer iOffset Returns Integer
+                Integer iField iFieldMax iFieldType iFieldOffset
+                Get TableAttribute astTables DF_FILE_NUMBER_FIELDS iTable to iFieldMax
+                For iField from 1 to iFieldMax
+                    Get TableAttribute astTables DF_FIELD_OFFSET iTable iField to iFieldOffset
+                    If (iFieldOffset=iOffset) begin
+                        Get TableAttribute astTables DF_FIELD_TYPE iTable iField to iFieldType
+                        If (iFieldType<>DF_OVERLAP) Function_Return iField
+                    End
+                Loop
+                Function_Return -1
+            End_Function 
+
+            Procedure BuildTableRelationsConnectedFieldsChildren tTableAttributes[] astTables tTableRelation[] astRelations tTableField stRelField tTableField[] ByRef astConnectedFields Integer[] aChildTables
+                Integer iMaxField iField
+                Integer iRelationMax iRelationIndex
+                Integer iRelationSegmentMax iRelationSegmentIndex
+                Integer iFieldOffSet iOverlapFieldOffset iRelFieldOffset
+                Integer iChildTableMax iChildTableIndex
+                tTableField strField
+            
+                Get TableAttribute astTables DF_FIELD_OFFSET stRelField.iTable stRelField.iField to iRelFieldOffset
+                
+                Move (SizeOfArray(aChildTables)-1) to iChildTableMax
+                For iChildTableIndex from 0 to iChildTableMax
+
+                    // Now go through astRelations to find connected fields (rather than going through the table fields themselves)
+                    Move (SizeOfArray(astRelations)-1) to iRelationMax
+                    For iRelationIndex from 0 to iRelationMax
+                        If (astRelations[iRelationIndex].iToTable=stRelField.iTable) Begin
+                            
+                            // Fact: this is a relation to the table that we are currently examining (stRelField.iTable)
+                            Move (SizeOfArray(astRelations[iRelationIndex].aToFields)-1) to iRelationSegmentMax
+                            For iRelationSegmentIndex from 0 to iRelationSegmentMax
+                                If (astRelations[iRelationIndex].aToFields[iRelationSegmentIndex].iField=stRelField.iField) Begin
+                                    Move astRelations[iRelationIndex].aFromFields[iRelationSegmentIndex].iTable to strField.iTable
+                                    Move astRelations[iRelationIndex].aFromFields[iRelationSegmentIndex].iField to strField.iField
+                                    Send BuildTableRelationsConnectedFields astTables astRelations strField (&astConnectedFields)  
+                                End
+                            Loop
+                            
+                        End
+                    Loop
+                    
+                    // Now we will go through all the fields of strField.iTable to see if we are overlapped by fields
+                    // that relates themselves (and thereby indirectly may link strField to something)
+                    Get TableAttribute astTables DF_FILE_NUMBER_FIELDS strField.iTable to iMaxField
+                    For iField from 1 to iMaxField
+                        If (iField<>strField.iField) Begin // We will skip ourself
+                            If (TableAttribute(Self,astTables,DF_FIELD_TYPE,strField.iTable,iField)=DF_OVERLAP) Begin
+                                Get TableAttribute astTables DF_FIELD_RELATED_FILE strField.iTable iField to stRelField.iTable
+                                If (stRelField.iTable<>0) Begin
+                                    Get TableAttribute astTables DF_FIELD_RELATED_FIELD strField.iTable iField to stRelField.iField
+                                
+                                    // It's an overlap field! Does it overlap strField?
+                                    If (Integer(TableAttribute(Self,astTables,DF_FIELD_OVERLAP,strField.iTable,strField.iField,iField))) Begin
+                                        // OK! We know that they overlap. Now we have to figure out
+                                        // which field in the related file corresponds to our strField
+                                        Get TableAttribute astTables DF_FIELD_OFFSET strField.iTable iField to iOverlapFieldOffset
+
+                                        // Now we calculate the offset of our strField clone (remember: it's NOT the overlap
+                                        // field that we currently have in our hand).
+                                        Move (iRelFieldOffset-iOverlapFieldOffset+iFieldOffSet) to iRelFieldOffset
+                                        Get FindFieldWithOffset astTables stRelField.iTable iRelFieldOffset to stRelField.iField
+                                        If (iRelFieldOffset>0) begin
+                                            Send BuildTableRelationsConnectedFields astTables astRelations stRelField (&astConnectedFields)
+                                        End
+                                        Else begin
+                                            Error 813 "Overlap structure mis-match"
+                                        End
+                                    End
+                                End
+                            End
+                        End
+                    Loop
+                Loop
+            End_Procedure
+
+    Procedure BuildTableRelationsConnectedFields tTableAttributes[] astTables ;
+                                                 tTableRelation[] astRelations ;
+                                                 tTableField strField ;
+                                                 tTableField[] ByRef astConnectedFields
+        Integer iMaxField iField
+        Integer iRelationMax iRelationIndex
+        Integer iRelationSegmentMax iRelationSegmentIndex
+        Integer iFieldOffSet iOverlapFieldOffset iRelFieldOffset
+        Integer iAliasMax iAliasIndex
+        Integer[] aChildTables aAliasTables
+        tTableField strRelField
+
+        Get TableAttribute astTables DF_FIELD_OFFSET strField.iTable strField.iField to iFieldOffSet // We *may* need it later
+        If (TableFieldIndex(Self,astConnectedFields,strField)=-1) Begin
+            Move strField to astConnectedFields[SizeOfArray(astConnectedFields)] // Add field to result set
+            
+            // Now go through astRelations to find connected fields (rather than going through the table fields themselves)
+            Move (SizeOfArray(astRelations)-1) to iRelationMax
+            For iRelationIndex from 0 to iRelationMax
+                If (astRelations[iRelationIndex].iFromTable=strField.iTable) Begin
+                    
+                    // Fact: this is a relation from the table that we are currently examining (strField.iTable)
+                    Move (SizeOfArray(astRelations[iRelationIndex].aFromFields)-1) to iRelationSegmentMax
+                    For iRelationSegmentIndex from 0 to iRelationSegmentMax
+                        If (astRelations[iRelationIndex].aFromFields[iRelationSegmentIndex].iField=strField.iField) Begin
+                            Move astRelations[iRelationIndex].aFromFields[iRelationSegmentIndex].iTable to strRelField.iTable
+                            Move astRelations[iRelationIndex].aFromFields[iRelationSegmentIndex].iField to strRelField.iField
+                            Send BuildTableRelationsConnectedFields astTables astRelations strRelField (&astConnectedFields)  
+                        End
+                    Loop
+                    
+                End
+            Loop
+            
+            // Now we will go through all the fields of strField.iTable to see if we are overlapped by fields
+            // that relates themselves (and thereby indirectly may link strField to something)
+            Get TableAttribute astTables DF_FILE_NUMBER_FIELDS strField.iTable to iMaxField
+            For iField from 1 to iMaxField
+                If (iField<>strField.iField) Begin // We will skip ourself
+                    If (TableAttribute(Self,astTables,DF_FIELD_TYPE,strField.iTable,iField)=DF_OVERLAP) Begin
+                        Get TableAttribute astTables DF_FIELD_RELATED_FILE strField.iTable iField to strRelField.iTable
+                        If (strRelField.iTable<>0) Begin
+                            Get TableAttribute astTables DF_FIELD_RELATED_FIELD strField.iTable iField to strRelField.iField
+                        
+                            // It's an overlap field! Does it overlap strField?
+                            If (Integer(TableAttribute(Self,astTables,DF_FIELD_OVERLAP,strField.iTable,strField.iField,iField))) Begin
+                                // OK! We know that they overlap. Now we have to figure out
+                                // which field in the related file corresponds to our strField
+                                Get TableAttribute astTables DF_FIELD_OFFSET strField.iTable iField to iOverlapFieldOffset
+                                Get TableAttribute astTables DF_FIELD_OFFSET strRelField.iTable strRelField.iField to iRelFieldOffset
+                                
+                                // Now we calculate the offset of our strField clone (remember: it's NOT the overlap
+                                // field that we currently have in our hand).
+                                Move (iRelFieldOffset-iOverlapFieldOffset+iFieldOffSet) to iRelFieldOffset
+                                Get FindFieldWithOffset astTables strRelField.iTable iRelFieldOffset to strRelField.iField
+                                If (iRelFieldOffset>0) Send BuildTableRelationsConnectedFields astTables astRelations strRelField (&astConnectedFields)
+                                Else Error 812 "Overlap structure mis-match"
+                            End
+                        End
+                    End
+                End
+            Loop                     
+            
+            // Here comes the branch that takes care of searching for connected field in child direction:
+            Get ChildTableArray astRelations strField.iTable to aChildTables
+            Send BuildTableRelationsConnectedFieldsChildren astTables astRelations strField (&astConnectedFields) aChildTables
+            
+            Get AliasTableArray astTables strField.iTable to aAliasTables
+            Move (SizeOfArray(aAliasTables)-1) to iAliasMax
+            For iAliasIndex from 0 to iAliasMax
+                Move aAliasTables[iAliasMax] to strField.iTable
+                Send BuildTableRelationsConnectedFields astTables astRelations strField (&astConnectedFields)
+            Loop
+
+        End
+    End_Procedure
+    
+    // -------------------------------------------------------------------------------------------------
+    
+    // Returns an integer value representing the driver used for iTable as 
+    // enumerated in TableDriverFunctions.pkg
+    Function TableDriverIntegerId tTableAttributes[] astTables Integer iTable Returns Integer
+        Integer iDriver
+        String sDriver
+        Get TableAttribute astTables DF_FILE_DRIVER iTable 0 0 to sDriver
+        Get DriverDllToId of oTableDriverFunctions sDriver to iDriver
+        Function_Return iDriver
+    End_Function
+
+    // Filters away all tables that do not use the driver passed in the iDriver argument.
+    Function TableArrayFilterDriver tTableAttributes[] astTables Integer[] aTables Integer iDriver Returns Integer[]
+        Integer iTableDriver iTable iMax iIndex
+        Integer[] aResult
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aTables[iIndex] to iTable
+            Get TableDriverIntegerId astTables iTable to iTableDriver
+            If (iTableDriver=iDriver) Begin
+                Move iTable to aResult[SizeOfArray(aResult)]
+            End
+        Loop
+        Function_Return aResult
+    End_Function
+    
+    Function TableRootNameStripDriver String sRootName Returns String
+        Integer iPos
+        Move (Pos(":",sRootName)) to iPos
+        If (iPos>2) Begin
+            Move (Remove(sRootName,1,iPos)) to sRootName
+        End
+        Function_Return sRootName
+    End_Function
+    
+    Function TableRootNameStripAll String sRootName Returns String
+        Get TableRootNameStripDriver sRootName to sRootName
+        Get PathToFileRootName of oFileFunctions sRootName to sRootName
+        Function_Return sRootName
+    End_Function
+    
+    Function TableColumnName tTableAttributes[] astTables Integer iTable Integer iColumn Boolean bInclTableName Returns String
+        String sColumnName sTableName
+        If (iColumn<0) Begin
+            Function_Return ""
+        End
+        Get TableAttribute astTables DF_FIELD_NAME iTable iColumn 0 to sColumnName
+
+        If (sColumnName="") Begin
+            If (iColumn=0) Begin
+                Move "Recnum" to sColumnName
+            End
+            Else Begin
+                Move ("Column"+IntegerToStringRzf(oStringFunctions,iColumn,3)) to sColumnName
+            End
+        End
+        If (bInclTableName and sColumnName<>"") Begin
+            Get TableAttribute astTables DF_FILE_LOGICAL_NAME iTable to sTableName
+            If (sTableName="") Begin
+                Move ("Table"+String(iTable)) to sTableName
+            End
+            Move (sTableName+"."+sColumnName) to sColumnName
+        End
+        Function_Return sColumnName
+    End_Function
+    
+    Function TableColumnNameToNumber tTableAttributes[] astTables Integer iTable String sColumnName Returns Integer
+        Integer iFieldMax iFieldIndex
+        String sTest
+        
+        Move (Uppercase(sColumnName)) to sColumnName
+        If (sColumnName="RECNUM") Begin
+            Function_Return 0
+        End
+        
+        Get TableAttribute astTables DF_FILE_NUMBER_FIELDS iTable to iFieldMax
+        
+        For iFieldIndex from 1 to iFieldMax
+            Get TableAttribute astTables DF_FIELD_NAME iTable iFieldIndex to sTest
+            If (sColumnName=Uppercase(sTest)) Begin
+                Function_Return iFieldIndex
+            End
+        Loop
+        
+        Function_Return -1 // Not Found
+    End_Function
+    
+    Function TableColumnTypeAndLength tTableAttributes[] astTables Integer iTable Integer iColumn Returns String
+        Integer iColumnType iLen iPrecision
+        String sRval
+        Get TableAttribute astTables DF_FIELD_TYPE iTable iColumn to iColumnType
+        Get AttributeDisplayValue DF_FIELD_TYPE iColumnType to sRval
+        Get TableAttribute astTables DF_FIELD_LENGTH iTable iColumn to iLen
+        Get TableAttribute astTables DF_FIELD_PRECISION iTable iColumn to iPrecision
+        If (iColumnType=DF_BCD) Begin
+            Move (sRval+", "+String(iLen)+"."+String(iPrecision)) to sRval
+        End 
+        Else Begin
+            Move (sRval+", "+String(iLen)) to sRval
+        End
+        Function_Return sRval
+    End_Function
+    
+    Function TableNameToNumber tTableAttributes[] astTables String sLogicalName Returns Integer
+        Integer iTableMax iTableIndex
+        String sTest
+        Move (Uppercase(sLogicalName)) to sLogicalName
+        Move (SizeOfArray(astTables)-1) to iTableMax
+        For iTableIndex from 0 to iTableMax
+            Get TableAttribute astTables DF_FILE_LOGICAL_NAME astTables[iTableIndex].iReadFromFileListEntryNo to sTest
+            If (sLogicalName=Uppercase(sTest)) Begin
+                Function_Return astTables[iTableIndex].iReadFromFileListEntryNo
+            End
+        Loop
+        Function_Return -1
+    End_Function
+
+        Procedure _TablesCallbackRelatingUpwards Boolean[] aVisitedTables tTableAttributes[] astTables Integer iRootTable Integer hMsg Integer hObj
+            Integer iColumn iColumnMax iRelTable
+
+            If (SizeOfArray(aVisitedTables)<=iRootTable or aVisitedTables[iRootTable]=False) Begin
+                Move True to aVisitedTables[iRootTable]
+                Send hMsg of hObj iRootTable
+
+                Get TableAttribute astTables DF_FILE_NUMBER_FIELDS iRootTable 0 0 to iColumnMax
+                For iColumn from 1 to iColumnMax
+                    Get TableAttribute astTables DF_FIELD_RELATED_FILE iRootTable iColumn 0 to iRelTable
+                    If (iRelTable<>0) Begin
+                        Send _TablesCallbackRelatingUpwards aVisitedTables astTables iRelTable hMsg hObj
+                    End
+                Loop
+
+            End
+        End_Procedure
+    
+    Procedure TablesCallbackRelatingUpwards tTableAttributes[] astTables Integer iRootTable Integer hMsg Integer hObj
+        Boolean[] aVisitedTables
+        Send _TablesCallbackRelatingUpwards aVisitedTables astTables iRootTable hMsg hObj
+    End_Procedure
+    
+    // -- Index functions -----------------------------------------------------------------------------
+    
+    Function IsIndexUnique tTableAttributes[] astTables Integer iTable Integer iIndex Returns Boolean
+        Integer iSegmentMax iField
+        Get TableAttribute astTables DF_INDEX_NUMBER_SEGMENTS iTable iIndex 0 0 to iSegmentMax
+        If (iSegmentMax>0) Begin
+            Get TableAttribute astTables DF_INDEX_SEGMENT_FIELD iTable iIndex iSegmentMax to iField
+            Function_Return (iField<>0)
+        End                                                                                                          
+        Function_Return False
+    End_Function
+    
+    Function IsIndexOnline tTableAttributes[] astTables Integer iTable Integer iIndex Returns Boolean
+        Integer iSegmentMax iType
+        Get TableAttribute astTables DF_INDEX_NUMBER_SEGMENTS iTable iIndex 0 0 to iSegmentMax
+        If (iSegmentMax>0) Begin
+            Get TableAttribute astTables DF_INDEX_TYPE iTable iIndex 0 to iType
+            Function_Return (iType=DF_INDEX_TYPE_ONLINE)
+        End                                                                                                          
+        Function_Return False
+    End_Function
+    
+    // Code: 0=All 1:Unique 2:Off-line 3:On-line
+    Function IndexArray tTableAttributes[] astTables Integer iTable Integer iCode Returns Integer[]
+        Integer iIndex iSegments
+        Integer[] aIndices
+        Boolean bOnLine
+        For iIndex from 1 to 15
+            Get TableAttribute astTables DF_INDEX_NUMBER_SEGMENTS iTable iIndex 0 to iSegments
+            If (iSegments>0) Begin
+                If (iCode=0) Begin // All
+                    Move iIndex to aIndices[SizeOfArray(aIndices)]
+                End
+                If (iCode=1) Begin // Unique
+                    If (IsIndexUnique(Self,astTables,iTable,iIndex)) Begin
+                        Move iIndex to aIndices[SizeOfArray(aIndices)]
+                    End
+                End
+                If (iCode=2) Begin // Off-line
+                    If (not(IsIndexOnline(Self,astTables,iTable,iIndex))) Begin
+                        Move iIndex to aIndices[SizeOfArray(aIndices)]
+                    End
+                End
+                If (iCode=3) Begin // On-line
+                    If (IsIndexOnline(Self,astTables,iTable,iIndex)) Begin
+                        Move iIndex to aIndices[SizeOfArray(aIndices)]
+                    End
+                End
+            End
+        Loop
+        Function_Return aIndices
+    End_Function
+    
+    Function IndexAsSegments tTableAttributes[] astTables Integer iTable Integer iIndex Returns tTableField[]
+        Integer iSegmentIndex iSegmentMax iVal
+        tTableField[] aSegments
+        Get TableAttribute astTables DF_INDEX_NUMBER_SEGMENTS iTable iIndex 0 0 to iSegmentMax
+        If (iSegmentMax>0) Begin
+            For iSegmentIndex from 1 to iSegmentMax
+                Move iTable to aSegments[iSegmentIndex-1].iTable
+                Get TableAttribute astTables DF_INDEX_SEGMENT_FIELD iTable iIndex iSegmentIndex to aSegments[iSegmentIndex-1].iField
+                Get TableAttribute astTables DF_INDEX_SEGMENT_CASE iTable iIndex iSegmentIndex to iVal
+                Move (iVal=DF_CASE_IGNORED) to aSegments[iSegmentIndex-1].bCapslock
+                Get TableAttribute astTables DF_INDEX_SEGMENT_DIRECTION iTable iIndex iSegmentIndex to iVal
+                Move (iVal=DF_DESCENDING) to aSegments[iSegmentIndex-1].bDescending
+            Loop
+        End
+        Function_Return aSegments
+    End_Function
+    
+    // Calling this function only has meaning if all iTable members of aSegments AND aFields are identical. The
+    // function just assumes this is the case, but does not check for it.
+    Function IndexSegmentsMatch tTableField[] aSegments tTableField[] aFields Returns Integer
+        Integer iSegmentIndex iSegmentMax
+        Integer iFieldIndex iFieldMax
+        Integer iRval
+        Move (SizeOfArray(aSegments)-1) to iSegmentMax
+        Move (SizeOfArray(aFields)-1) to iFieldMax
+        
+        For iSegmentIndex from 0 to iSegmentMax
+            For iFieldIndex from 0 to iFieldMax
+                If (aSegments[iSegmentIndex].iField=aFields[iFieldIndex].iField) Begin
+                    Move -1 to aSegments[iSegmentIndex].iTable // Mark as matched
+                    Move iFieldMax to iFieldIndex // Break the loop.
+                End
+            Loop
+        Loop
+        
+        Move 0 to iRval
+        
+        For iSegmentIndex from 0 to iSegmentMax
+            If (aSegments[iSegmentIndex].iTable>-1) Begin
+                Function_Return iRval
+            End
+            Increment iRval
+        Loop
+        
+        Function_Return iRval // All segments matched
+    End_Function
+    
+    // This function returns the number of the an index that is fully specified by the fields listed in the 
+    // aFields parameter.
+    Function FindIndexUnique tTableAttributes[] astTables Integer iTable tTableField[] aFields Returns Integer
+        Integer iIndexIndex iIndexMax iMatchCount
+        Integer[] aIndices
+        tTableField[] aSegments 
+        
+        Get FieldArrayReplaceOverlaps astTables aFields to aFields
+
+        Get IndexArray astTables iTable 1 to aIndices // Get array of unique indices on table iTable
+        Move (SizeOfArray(aIndices)-1) to iIndexMax
+        For iIndexIndex from 0 to iIndexMax
+            Get IndexAsSegments astTables iTable aIndices[iIndexIndex] to aSegments
+            Get FieldArrayReplaceOverlaps astTables aSegments to aSegments
+            Get IndexSegmentsMatch aSegments aFields to iMatchCount
+            If (iMatchCount=SizeOfArray(aSegments)) Begin
+                Function_Return aIndices[iIndexIndex]
+            End
+        Loop
+        Function_Return -1 // No index found
+    End_Function
+    
+    Function ConstrainIndexArray tTableAttributes[] astTables Integer iTable tTableField[] aConstrainFields Returns Integer[]
+        Integer[] aIndices aRval
+        Integer iIndexIndex iIndexMax iMatchCount
+        tTableField[] aSegments
+
+        Get FieldArrayReplaceOverlaps astTables aConstrainFields to aConstrainFields
+        Get IndexArray astTables iTable 0 to aIndices // Get array of all indices on table iTable
+
+        Move (SizeOfArray(aIndices)-1) to iIndexMax
+        For iIndexIndex from 0 to iIndexMax
+            Get IndexAsSegments astTables iTable aIndices[iIndexIndex] to aSegments
+            Get FieldArrayReplaceOverlaps astTables aSegments to aSegments
+            Get IndexSegmentsMatch aSegments aConstrainFields to iMatchCount
+            If (iMatchCount=SizeOfArray(aConstrainFields)) Begin
+                Move aIndices[iIndexIndex] to aRval[SizeOfArray(aRval)]
+            End
+        Loop
+
+        Function_Return aRval
+    End_Function
+    
+    Function IndexColumnNames tFileList strFilelist Integer iTable Integer iIndex Boolean bMinusOnDescending String sSep Returns String
+        Integer iMax iSegment iDir iColumn
+        Boolean bDesc
+        String sColumnName sRval
+        Get Attrib strFilelist DF_INDEX_NUMBER_SEGMENTS iTable iIndex 0 to iMax
+        For iSegment from 1 to iMax
+            Get Attrib strFilelist DF_INDEX_SEGMENT_FIELD iTable iIndex iSegment to iColumn
+            Get Attrib strFilelist DF_FIELD_NAME iTable iColumn 0 to sColumnName
+            If (sColumnName="" and iColumn=0) Begin
+                Move "Recnum" to sColumnName
+            End
+            If (bMinusOnDescending) Begin
+                Get Attrib strFilelist DF_INDEX_SEGMENT_DIRECTION iTable iIndex iSegment to iDir
+                If (iDir=DF_DESCENDING) Begin
+                    Move ("-"+sColumnName) to sColumnName
+                End
+            End
+            If (iSegment<>1) Begin
+                Move (sRval+sSep) to sRval
+            End
+            Move (sRval+sColumnName) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+// -------------- Build "character graphical" representation of table relationships -----------------
+
+                Global_Variable Integer[]          __gaTablesVisited
+                Global_Variable tTableRelation[]   __gaRelations
+                Global_Variable Boolean[]          __gaVerticalLines
+
+                Function _AlreadyMappedAtRow Integer iTable tRelationsDrawingMapItem[] aMap Returns Integer
+                    Integer iMax iIndex
+                    Move (SizeOfArray(aMap)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (iTable=aMap[iIndex].iItemId) Begin
+                            Function_Return iIndex // hDDO already mapped at row iIndex
+                        End
+                    Loop
+                    Function_Return -1 // not mapped
+                End_Function
+
+                Function _RemoveValueFromArray Integer iValue Integer[] aValues Returns Integer[]
+                    Integer iMax iIndex
+                    Integer[] aRval
+                    Move (SizeOfArray(aValues)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (iValue<>aValues[iIndex]) Begin
+                            Move aValues[iIndex] to aRval[SizeOfArray(aRval)]
+                        End
+                    Loop
+                    Function_Return aRval
+                End_Function
+
+                Procedure _DmrAddToVisited Integer iTable
+                    Move iTable to __gaTablesVisited[SizeOfArray(__gaTablesVisited)]
+                End_Procedure
+
+                Function _DmrAlreadyVisited Integer iTable Returns Boolean
+                    Integer iMax iIndex
+                    Move (SizeOfArray(__gaTablesVisited)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (iTable=__gaTablesVisited[iIndex]) Begin
+                            Function_Return True
+                        End
+                    Loop
+                    Function_Return False
+                End_Function
+
+        Procedure _doTableRelationsMap Integer iTable Integer iIgnoreTable Integer iLevel tRelationsDrawingMapItem[] ByRef aMap Boolean bFirst Boolean bLast Boolean bParent Boolean bChild
+            Integer iMax iIndex
+            Integer iAlreadyMappedAtRow
+            Boolean bUp bDown bLeft bRight
+            Integer[] aParentTables aChildTables
+            String sValue
+            Boolean bAlreadyVisited
+
+            Get _AlreadyMappedAtRow iTable aMap to iAlreadyMappedAtRow //Has the DDO already been mapped?
+
+            Get _DmrAlreadyVisited iTable to bAlreadyVisited
+            If (not(bAlreadyVisited)) Begin
+                Send _DmrAddToVisited iTable
+            End
+
+            If (not(bAlreadyVisited)) Begin
+                Get ParentTableArray __gaRelations iTable to aParentTables              // If not already visited we get the relations
+                Get ChildTableArray __gaRelations iTable to aChildTables                // to and from this table (iTable)
+                Get _RemoveValueFromArray iIgnoreTable aParentTables to aParentTables   // We should remove the table that sent us here (iIgnoreTable)
+                Get _RemoveValueFromArray iIgnoreTable aChildTables to aChildTables
+            End
+
+            Move (SizeOfArray(aMap)-1) to iIndex
+            
+            Move False to __gaVerticalLines[iLevel]   // <-----------------------------------------------------------
+            
+            If (not(bAlreadyVisited)) Begin
+                Move (SizeOfArray(aParentTables)-1) to iMax
+                For iIndex from 0 to iMax
+                    Send _doTableRelationsMap aParentTables[iIndex] iTable (iLevel+1) (&aMap) (iIndex=0) (iIndex=iMax) True False
+                Loop
+            End
+            If (bParent and bFirst and iLevel>0) Begin
+                Move True to __gaVerticalLines[iLevel-1] // Turn on parent vertical line
+            End
+            
+            Send BooleanDrop of oStackFunctions (&__gaVerticalLines) // <----------------------------------------
+
+            Move (SizeOfArray(aMap)) to iIndex // Point to next available entry in aMap array.
+            Move iTable to aMap[iIndex].iItemId
+            Move iLevel to aMap[iIndex].iLevel
+            Move __gaVerticalLines to aMap[iIndex].aVerticalLines
+            
+            If (iAlreadyMappedAtRow=-1 and bAlreadyVisited) Begin
+                Move -2 to iAlreadyMappedAtRow // Means that we don't yet know in what row the it "was" mapped in (may be fixed in a second pass)
+            End
+
+            Move iAlreadyMappedAtRow to aMap[iIndex].iAlreadyMappedAtRow
+            Move bFirst  to aMap[iIndex].bFirst
+            Move bLast   to aMap[iIndex].bLast
+            Move bParent to aMap[iIndex].bParent
+            Move bChild  to aMap[iIndex].bChild
+
+            If (bChild and bLast and iLevel>0) Begin
+                Move False to __gaVerticalLines[iLevel-1]
+            End
+
+            If (not(bAlreadyVisited)) Begin
+                Move True to __gaVerticalLines[iLevel] // <-----------------------------------------------------------------
+                Move (SizeOfArray(aChildTables)-1) to iMax
+                For iIndex from 0 to iMax
+                    Send _doTableRelationsMap aChildTables[iIndex] iTable (iLevel+1) (&aMap) (iIndex=0) (iIndex=iMax) False True
+                Loop
+                Send BooleanDrop of oStackFunctions (&__gaVerticalLines) // <----------------------------------------
+            End
+       End_Procedure // _doTableRelationsMap
+
+
+    Function TableRelationsDrawingMap tTableRelation[] aRelations Integer iTable Returns tRelationsDrawingMapItem[]
+        tRelationsDrawingMapItem[] aMap
+        Move aRelations to __gaRelations
+        Move (ResizeArray(__gaTablesVisited,0)) to __gaTablesVisited
+        Move (ResizeArray(__gaVerticalLines,0)) to __gaVerticalLines
+        Send _doTableRelationsMap iTable 0 0 (&aMap) False False False False
+        Function_Return aMap
+    End_Function
+
+// -------------------- Aux functions ----------------------------------------------------------------------------
+
+    Function DriversListedInFilelistCfg tFileList strFilelist Returns Integer[]
+        Integer iMax iIndex iDriver
+        Integer[] aTables aDrivers
+        String sDriver
+        Get FilelistNavigationTableArray strFilelist.aTables DF_FILE_NEXT_USED to aTables
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iIndex from 0 to iMax
+            Get Attrib strFilelist DF_FILE_DRIVER aTables[iIndex] 0 0 to sDriver
+            Get DriverDllToId of oTableDriverFunctions sDriver to iDriver
+            If (not(IntegerIsOnStack(oStackFunctions,iDriver,aDrivers))) Begin
+                Send IntegerPush of oStackFunctions iDriver (&aDrivers)
+            End
+        Loop
+        Function_Return aDrivers
+    End_Function
+
+    Function AttributeNameToID Integer iAttrType String sName Boolean bDisplayName Returns Integer
+        Integer iAttrMax iAttr
+        Move (SizeOfArray(gaAttributes)-1) to iAttrMax
+        For iAttr from 0 to iAttrMax
+            If (iAttrType=gaAttributes[iAttr].iAttrType) Begin
+                If ((bDisplayName and sName=gaAttributes[iAttr].sDisplayName) or ;
+                    (not(bDisplayName) and sName=gaAttributes[iAttr].sName)) Begin
+                        Function_Return iAttr   
+                    End
+            End
+        Loop
+        Function_Return -1
+    End_Function
+
+End_Class // _cAttributeFunctions
+
+Object _oAttributeFunctions is a _cAttributeFunctions
+    Move Self to oAttributeFunctions
+End_Object
+
+

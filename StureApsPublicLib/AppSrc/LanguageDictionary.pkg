@@ -1,0 +1,553 @@
+// Use LanguageDictionary.pkg // cLanguageDictionary class and oLanguageFunctions object
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+Use Language.pkg
+
+Struct tTranslateResult // The return type of a symbol translation
+    String  sResult          // The translated value to print or display
+    Boolean bOptimize        // TRUE if symbol should be updated
+    String  sOptimizedLookup // An optimized symbol (faster to translate)
+End_Struct
+
+Struct tSupLng // Supported language. Which language is determined by its position in an array
+    Boolean bActive // TRUE if the language is supported by the application
+    Integer iIndex  // Index value to use in language dictionaries for retrieving translated value
+End_Struct
+
+Struct tLngDictListItem // An array of elements of this type holds a list of all language dictionaries in the application.
+    Integer hDictionary    // A handle for a alnguage dictionary object
+    String  sDictionaryId  // A copy of the unique id that identifies the language dictionary object.
+End_Struct
+
+Struct tLngDictSymbol // Type of a symbol in a language dictionary object
+    String sSymbol             // Symbol to be translated ("save")
+    String sDefaultTranslation // Default translation if LNG_DEFAULT is not part of the compressed array defined by oSupportedLanguages
+    String[] sTranslations     // Array of translations.
+End_Struct
+
+//> Language.pkg defines a global integer called giLanguage that identifies the language currently
+//> "spoken" by the application. The cLanguageDictionary class defined in this package internally needs to
+//> translate the value of giLanguage into a "compressed index" value (it is compressed because it can only
+//> point to the languages supported by this particular application). This compressed value is stored in the
+//> global integer gi$CmprLngIdx
+#IFNDEF gi$CmprLngIdx
+  Global_Variable Integer gi$CmprLngIdx
+#ENDIF
+
+Class _cLanguageFunctions is a cObject
+    Procedure construct_object
+        Forward Send Construct_Object
+
+        // After the first cLanguageDictionary object has been declared, it is no longer
+        // possible to add languages that should be supported (via DoAddLanguage).
+        Property Boolean _StopForAddingLanguages False
+
+        // The paLanguages property determines what languages are supported in the
+        // application at hand. The purpose of this is to compress the arrays that holds
+        // language dependant values and to make sure that un-needed values aren't loaded.
+        Property tSupLng[] paLanguages
+
+        Property Integer _piCounter 0
+
+        // This property holds references to all cLanguageDictionary objects
+        // declared in the application. It is because of this property that the function
+        // translate_value is able to find the correct dictionary to handle a given translation.
+        Property tLngDictListItem[] _paLngDictList
+
+        Send _OnInitializeObject
+    End_Procedure
+
+            Procedure _OnInitializeObject
+                Integer iLng
+                tSupLng sLanguage
+                tSupLng[] aLanguages
+                Move False to sLanguage.bActive
+                Move -1 to sLanguage.iIndex
+                Move (ResizeArray(aLanguages,LNG_MAX,sLanguage)) to aLanguages
+                Set paLanguages to aLanguages
+                Send DoAddLanguage LNG_DEFAULT
+                Set CurrentLanguage to LNG_DEFAULT
+            End_Procedure
+
+    //> All languages that must be supported by the application at hand msut be added by this method. And this must be done before
+    //> the first translation is done. The reason is that only the languages supposed to be supported by the application are read
+    //> into memory on calling OnDefineSymbols.
+    Procedure DoAddLanguage Integer iLng
+        Integer iCount iSize
+        tSupLng[] aLanguages
+        If (_StopForAddingLanguages(Self)) Error 783 "Languages cannot be added after cLanguageDictionary objects has been added"
+        Else Begin
+            Get paLanguages to aLanguages
+            Move (SizeOfArray(aLanguages)) to iSize
+            If (iLng>=iSize or aLanguages[iLng].bActive=False) Begin
+                 Get _piCounter to iCount
+                 Move iCount to aLanguages[iLng].iIndex
+                 Move True to aLanguages[iLng].bActive
+                 Set _piCounter to (iCount+1)
+                 Set paLanguages to aLanguages
+             End
+         End
+    End_Procedure
+
+    //
+    Procedure Set CurrentLanguage Integer iLng
+        Move iLng to giLanguage
+        Get _IndexToCompressedIndex iLng to gi$CmprLngIdx
+    End_Procedure
+
+    Function CurrentLanguage Returns Integer
+        Integer iMax iIndex
+        tSupLng[] aLanguages
+        Get paLanguages to aLanguages
+        Move (SizeOfArray(aLanguages)-1) to iMax
+        For iIndex from 0 to iMax
+            If (aLanguages[iIndex].iIndex=gi$CmprLngIdx) Function_Return iIndex
+        Loop
+        Function_Return -1
+    End_Function
+
+    // This may be used by a language selector or by a page where it's possible
+    // to edit the values in a database.
+    Procedure CallbackSupportedLanguages Integer hMsg Integer hObj
+        Integer iMax iLng
+        tSupLng[] aLanguages
+        Get paLanguages to aLanguages
+        Move (SizeOfArray(aLanguages)-1) to iMax
+        For iLng from 0 to iMax
+            If (aLanguages[iLng].bActive) Send hMsg of hObj iLng
+        Loop
+    End_Procedure
+
+    Procedure CallbackDictionaries Integer hMsg Integer hObj
+        Integer iMax iIndex
+        tLngDictListItem[] aLngDictList
+        Get _paLngDictList to aLngDictList
+        Move (SizeOfArray(aLngDictList)-1) to iMax
+        For iIndex from 0 to iMax
+            Send hMsg of hObj aLngDictList[iIndex].sDictionaryId aLngDictList[iIndex].hDictionary
+        Loop
+    End_Procedure
+
+            Function _IndexToCompressedIndex Integer iLng Returns Integer
+                tSupLng[] aLanguages
+                Get paLanguages to aLanguages
+                if (SizeOfArray(aLanguages)>iLng) Function_Return aLanguages[iLng].iIndex
+                Function_Return 0
+            End_Function
+
+                     Function _Compare_LngDictListItem tLngDictListItem sVal1 tLngDictListItem sVal2 Returns Integer
+                         If (sVal1.sDictionaryId>sVal2.sDictionaryId) Function_Return (GT)
+                         If (sVal1.sDictionaryId=sVal2.sDictionaryId) Function_Return (EQ)
+                         Function_Return (LT)
+                     End_Function
+
+            Function _Search_LngDictListItem_Array tLngDictListItem[] aLngDictList String sDictionaryId Returns Integer
+                tLngDictListItem sVal
+                Move sDictionaryId to sVal.sDictionaryId
+                Function_Return (SearchArray(sVal,aLngDictList,Self,GET__Compare_LngDictListItem))
+            End_Function
+
+                     Function _Compare_LngDictSymbols tLngDictSymbol sVal1 tLngDictSymbol sVal2 Returns Integer
+                         If (sVal1.sSymbol>sVal2.sSymbol) Function_Return (GT)
+                         If (sVal1.sSymbol=sVal2.sSymbol) Function_Return (EQ)
+                         Function_Return (LT)
+                     End_Function
+
+            Function _Search_LngDictSymbol_Array tLngDictSymbol[] aLngDictSymbols String sSymbol Returns Integer
+                tLngDictSymbol sVal
+                Move sSymbol to sVal.sSymbol
+                Function_Return (BinarySearchArray(sVal,aLngDictSymbols,Self,GET__Compare_LngDictSymbols))
+            End_Function
+
+            Procedure _Sort_LngDictSymbols tLngDictSymbol[] ByRef aLngDictSymbols
+                Move (SortArray(aLngDictSymbols,Self,GET__Compare_LngDictSymbols)) to aLngDictSymbols
+            End_Procedure
+
+            // Called automatically when defining cLaguageDictionaryObjects
+            Procedure _Add_Dictionary_Object Integer hDictionary
+                Integer iRow
+                String sDictionaryId
+                tLngDictListItem[] aLngDics
+                Get _paLngDictList to aLngDics
+                Get psDictionaryId of hDictionary to sDictionaryId
+                If (sDictionaryId<>"") Begin
+                    Move (SizeOfArray(aLngDics)) to iRow
+                    Move (lowercase(sDictionaryId)) to aLngDics[iRow].sDictionaryId
+                    Move hDictionary to aLngDics[iRow].hDictionary
+                    Set _paLngDictList to aLngDics
+                End
+            End_Procedure
+
+    // Examples:
+    // "ls.button.save"    ->  "Save", TRUE, "lv.23.3"    (not so fast)
+    // "lv.23.3"           ->  "Save", FALSE, ""          (fast)
+    // "Save"              ->  "Save", FALSE, ""          (fastest, but no point)
+    Function TranslateValue String sValue Returns tTranslateResult
+        Integer iRow hDictionary iSymbolId
+        String sDictionaryId sSymbol
+        tTranslateResult sRval
+        tLngDictListItem[] aLngDics
+
+        Get _paLngDictList to aLngDics
+
+        Move False to sRval.bOptimize
+
+        If (left(sValue,3)="ls.") Begin // Value could be: "ls.buttons.save"
+            // It's a "language symbol" and we must translate it into a language value
+            Move (replace("ls.",sValue,"")) to sValue // "buttons.save"
+            Move (left(sValue,pos(".",sValue)-1)) to sDictionaryId // "buttons"
+            //get iFindRow.s sDictionaryId to iRow
+            Get _Search_LngDictListItem_Array aLngDics sDictionaryId to iRow
+            If (iRow>=0) Begin
+                Move aLngDics[iRow].hDictionary to hDictionary
+                Move (Replace(sDictionaryId+".",sValue,"")) to sSymbol // "save"
+                Get _SymbolToId of hDictionary sSymbol to iSymbolId // The number we're going to use when asking for this value in the future
+                Move True to sRval.bOptimize
+                Move ("lv."+String(iRow)+"."+String(iSymbolId)) to sRval.sOptimizedLookup
+                Get _TranslateItem of hDictionary iSymbolId to sValue // Get actual return value
+            End
+        End
+        Else Begin
+            If (left(sValue,3)="lv.") Begin // Value is: "lv.23.3" (23rd dictionary, 3rd item)
+                Move (replace("lv.",sValue,"")) to sValue // "23.3"
+                Move (left(sValue,pos(".",sValue)-1)) to iRow // "23"
+                Move aLngDics[iRow].hDictionary to hDictionary
+                Move (replace(String(iRow)+".",sValue,"")) to iSymbolId // "3"
+                Get _TranslateItem of hDictionary iSymbolId to sValue // Get actual return value
+            End
+        End
+        Move sValue to sRval.sResult
+        Function_Return sRval
+    End_Function
+
+    Function Translate String sSymbol Returns String
+        tTranslateResult stResult
+        Get TranslateValue sSymbol to stResult
+        Function_Return stResult.sResult
+    End_Function
+
+    Function DictionaryHandle String sDictionaryId Returns Integer
+        Integer iIndex
+        tLngDictListItem[] aLngDics
+
+        Get _paLngDictList to aLngDics
+        Get _Search_LngDictListItem_Array aLngDics sDictionaryId to iIndex
+        If (iIndex>=0) Function_Return aLngDics[iIndex].hDictionary
+        Function_Return 0
+    End_Function
+
+End_Class // cLanguageFunctions
+
+Global_Variable Integer oLanguageFunctions
+
+Object _oLanguageFunctions is a _cLanguageFunctions
+    Move Self to oLanguageFunctions
+End_Object
+
+Class cLanguageDictionary is a cObject
+    Procedure construct_object
+        Forward Send construct_object
+
+        Property String  psDictionaryId "" // Name of the dictionary,
+
+        //> If a value returns blank, the default behavior is to try the default
+        //> language (LNG_DEFAULT).
+        Property Integer piDefaultLanguage LNG_DEFAULT // -1: No default languages (=blank values are OK)
+
+                 Property Boolean pbLoadData True
+
+                 // These are used internally to optimize the process of adding
+                 Property String  _PreviousSymbol ""
+                 Property Integer _PreviousIndex 0
+
+        Property tLngDictSymbol[] paSymbols
+    End_Procedure
+
+    Procedure OnDefineSymbols
+    End_Procedure
+
+    // Translate symbol into a unique item id (item no in array or other integer id)
+    Function _SymbolToId String sSymbol Returns Integer
+        Integer iItem
+        tLngDictSymbol[] aSymbols
+        Get paSymbols to aSymbols
+        If (pbLoadData(Self)) Begin // If array is empty
+            Set pbLoadData to False
+            Set _StopForAddingLanguages of oLanguageFunctions to True
+            Send OnDefineSymbols // Fill array
+            Get paSymbols to aSymbols
+            Send _Sort_LngDictSymbols of oLanguageFunctions (&aSymbols) // Prepare for BinarySearchArray
+            Set paSymbols to aSymbols
+        End
+        Get _Search_LngDictSymbol_Array of oLanguageFunctions aSymbols sSymbol to iItem
+        Function_Return iItem
+    End_Function
+
+    Function _TranslateItem Integer iSymbolId Returns String
+        Integer iCmprLngIdx iMaxIndex
+        String sValue
+        tLngDictSymbol[] aSymbols
+        Get paSymbols to aSymbols
+
+        Move (SizeOfArray(aSymbols[iSymbolId].sTranslations)-1) to iMaxIndex
+
+        // First we try the straight way:
+        If (gi$CmprLngIdx<=iMaxIndex) Move aSymbols[iSymbolId].sTranslations[gi$CmprLngIdx] to sValue
+        Else Move "" to sValue
+
+        If (sValue="") Begin // This didn't give us a value to return
+            // We'll therefore try to get a value using the default language of the application:
+            Get _IndexToCompressedIndex of oLanguageFunctions LNG_DEFAULT to iCmprLngIdx
+            If (iCmprLngIdx>=0) Begin
+                If (iCmprLngIdx<=iMaxIndex) Move aSymbols[iSymbolId].sTranslations[iCmprLngIdx] to sValue
+                Else Move "" to sValue
+            End
+
+            If (sValue="") Begin // This didn't give us a value either.
+                  // We will therefore now try to get the value of default language of the dictionary:
+                  If (piDefaultLanguage(Self)>=0) Begin
+                      Get _IndexToCompressedIndex of oLanguageFunctions (piDefaultLanguage(Self)) to iCmprLngIdx
+                      If (iCmprLngIdx>=0) begin
+                          If (iCmprLngIdx<=iMaxIndex) Move aSymbols[iSymbolId].sTranslations[iCmprLngIdx] to sValue
+                          Else Move "" to sValue
+                      End
+                  End
+
+                  If (sValue="") Begin // The default language of this LanguageDictionary is not part of the supported languages
+                      // As a last resort we will therefore try to get the value from the default column of the object
+                      Move aSymbols[iSymbolId].sDefaultTranslation to sValue
+                  End
+            End
+        End
+
+        Function_Return sValue
+    End_Function
+
+            Function _SymbolToIdOrCreate String sSymbol Returns Integer // Private
+                Integer iSymbolId iItem
+                tLngDictSymbol[] aSymbols
+
+                Get _SymbolToId sSymbol to iSymbolId
+                If (iSymbolId=-1) Begin
+                    Get paSymbols to aSymbols
+                    Move (SizeOfArray(aSymbols)) to iSymbolId
+                    Move sSymbol to aSymbols[iSymbolId].sSymbol
+                    Set paSymbols to aSymbols
+                End
+                Function_Return iSymbolId
+            End_Function
+
+    Procedure Set Language_Value String sSymbol Integer iLng String sValue
+        Integer iCmprLngIdx iSymbolId
+        tLngDictSymbol[] aSymbols
+        Get paSymbols to aSymbols
+
+        Get _IndexToCompressedIndex of oLanguageFunctions iLng to iCmprLngIdx
+        If (iCmprLngIdx>=0) Begin // If language is supported by this application
+            Move (lowercase(sSymbol)) to sSymbol
+            If (sSymbol=_PreviousSymbol(Self)) Begin // It's the same symbol => we reuse its position
+                Get _PreviousIndex to iSymbolId
+            End
+            Else Begin
+                Get _SymbolToIdOrCreate sSymbol to iSymbolId
+                Move sSymbol to aSymbols[iSymbolId].sSymbol
+                Set _PreviousIndex to iSymbolId
+                Set _PreviousSymbol to sSymbol
+            End
+            Move sValue to aSymbols[iSymbolId].sTranslations[iCmprLngIdx]
+        End
+        Else Begin // The language is not supported by the application.
+            // However, if the language passed is the default language of the
+            // language dictionary, we'll put the value in the default column.
+            If (iLng=piDefaultLanguage(Self)) begin
+                Move sSymbol to aSymbols[iSymbolId].sSymbol
+                Move sValue to aSymbols[iSymbolId].sDefaultTranslation
+            End
+        End
+        Set paSymbols to aSymbols
+    End_Procedure
+
+    Procedure CallbackSymbols Integer hMsg Integer hObj
+        Integer iMax iIndex
+        String sSymbol sValue
+        tLngDictSymbol[] aSymbols
+
+        If (pbLoadData(Self)) Get _SymbolToId "dummy" to iIndex // Load symbols if not already loaded
+
+        Get paSymbols to aSymbols
+        Move (SizeOfArray(aSymbols)-1) to iMax
+        For iIndex from 0 to iMax
+            Move ("ls."+psDictionaryId(Self)+"."+aSymbols[iIndex].sSymbol) to sSymbol
+            Get Translate of oLanguageFunctions sSymbol to sValue
+            Send hMsg of hObj sSymbol sValue
+        Loop
+    End_Procedure
+
+    Procedure end_construct_object
+        Forward Send end_construct_object
+        Send _Add_Dictionary_Object of oLanguageFunctions Self // Register with global list of language dictionaries
+    End_Procedure
+End_Class // cLanguageDictionary
+
+Global_Variable Integer oLanguageLD
+
+Object _oLanguageLD is a cLanguageDictionary
+    Move Self to oLanguageLD
+    Set psDictionaryId to "lng"
+    Set piDefaultLanguage to LNG_ENGLISH
+
+    Procedure OnDefineSymbols
+        Set Language_Value "language"   LNG_DUTCH      to "Taal"
+      //Set Language_Value "language"   LNG_ITALIAN    to
+      //Set Language_Value "language"   LNG_SPANISH    to
+        Set Language_Value "language"   LNG_ENGLISH    to "Language"
+        Set Language_Value "language"   LNG_DANISH     to "Sprog"
+        Set Language_Value "language"   LNG_SWEDISH    to "Spr†k"
+        Set Language_Value "language"   LNG_NORWEGIAN  to "Sprog"
+        Set Language_Value "language"   LNG_GERMAN     to "Sprache"
+      //Set Language_Value "language"   LNG_PORTUGUESE to
+      //Set Language_Value "language"   LNG_FRENCH     to
+
+        Set Language_Value "dutch"      LNG_DUTCH      to "Nederlands"
+      //Set Language_Value "dutch"      LNG_ITALIAN    to
+      //Set Language_Value "dutch"      LNG_SPANISH    to
+        Set Language_Value "dutch"      LNG_ENGLISH    to "Dutch"
+        Set Language_Value "dutch"      LNG_DANISH     to "Hollandsk"
+        Set Language_Value "dutch"      LNG_SWEDISH    to "Hollandska"
+      //Set Language_Value "dutch"      LNG_NORWEGIAN  to ""
+      //Set Language_Value "dutch"      LNG_GERMAN     to ""
+      //Set Language_Value "dutch"      LNG_PORTUGUESE to ""
+      //Set Language_Value "dutch"      LNG_FRENCH     to ""
+
+      //Set Language_Value "danish"     LNG_DUTCH      to ""
+      //Set Language_Value "danish"     LNG_ITALIAN    to
+      //Set Language_Value "danish"     LNG_SPANISH    to
+        Set Language_Value "danish"     LNG_ENGLISH    to "Danish"
+        Set Language_Value "danish"     LNG_DANISH     to "Dansk"
+        Set Language_Value "danish"     LNG_SWEDISH    to "Danska"
+      //Set Language_Value "danish"     LNG_NORWEGIAN  to ""
+      //Set Language_Value "danish"     LNG_GERMAN     to ""
+      //Set Language_Value "danish"     LNG_PORTUGUESE to ""
+      //Set Language_Value "danish"     LNG_FRENCH     to ""
+
+      //Set Language_Value "english"    LNG_DUTCH      to ""
+      //Set Language_Value "english"    LNG_ITALIAN    to
+      //Set Language_Value "english"    LNG_SPANISH    to
+        Set Language_Value "english"    LNG_ENGLISH    to "English"
+        Set Language_Value "english"    LNG_DANISH     to "Engelsk"
+        Set Language_Value "english"    LNG_SWEDISH    to "Engelska"
+      //Set Language_Value "english"    LNG_NORWEGIAN  to ""
+      //Set Language_Value "english"    LNG_GERMAN     to ""
+      //Set Language_Value "english"    LNG_PORTUGUESE to ""
+      //Set Language_Value "english"    LNG_FRENCH     to ""
+
+      //Set Language_Value "french"     LNG_DUTCH      to ""
+      //Set Language_Value "french"     LNG_ITALIAN    to
+      //Set Language_Value "french"     LNG_SPANISH    to
+        Set Language_Value "french"     LNG_ENGLISH    to "French"
+        Set Language_Value "french"     LNG_DANISH     to "Fransk"
+        Set Language_Value "french"     LNG_SWEDISH    to "Franska"
+      //Set Language_Value "french"     LNG_NORWEGIAN  to ""
+      //Set Language_Value "french"     LNG_GERMAN     to ""
+      //Set Language_Value "french"     LNG_PORTUGUESE to ""
+      //Set Language_Value "french"     LNG_FRENCH     to ""
+
+      //Set Language_Value "german"     LNG_DUTCH      to ""
+      //Set Language_Value "german"     LNG_ITALIAN    to
+      //Set Language_Value "german"     LNG_SPANISH    to
+        Set Language_Value "german"     LNG_ENGLISH    to "German"
+        Set Language_Value "german"     LNG_DANISH     to "Tysk"
+        Set Language_Value "german"     LNG_SWEDISH    to "Tyska"
+      //Set Language_Value "german"     LNG_NORWEGIAN  to ""
+      //Set Language_Value "german"     LNG_GERMAN     to ""
+      //Set Language_Value "german"     LNG_PORTUGUESE to ""
+      //Set Language_Value "german"     LNG_FRENCH     to ""
+
+      //Set Language_Value "italian"    LNG_DUTCH      to ""
+      //Set Language_Value "italian"    LNG_ITALIAN    to
+      //Set Language_Value "italian"    LNG_SPANISH    to
+        Set Language_Value "italian"    LNG_ENGLISH    to "Italian"
+        Set Language_Value "italian"    LNG_DANISH     to "Italiensk"
+        Set Language_Value "italian"    LNG_SWEDISH    to "Italienska"
+      //Set Language_Value "italian"    LNG_NORWEGIAN  to ""
+      //Set Language_Value "italian"    LNG_GERMAN     to ""
+      //Set Language_Value "italian"    LNG_PORTUGUESE to ""
+      //Set Language_Value "italian"    LNG_FRENCH     to ""
+
+      //Set Language_Value "norwegian"  LNG_DUTCH      to ""
+      //Set Language_Value "norwegian"  LNG_ITALIAN    to
+      //Set Language_Value "norwegian"  LNG_SPANISH    to
+        Set Language_Value "norwegian"  LNG_ENGLISH    to "Norwegian"
+        Set Language_Value "norwegian"  LNG_DANISH     to "Norsk"
+        Set Language_Value "norwegian"  LNG_SWEDISH    to "Norska"
+      //Set Language_Value "norwegian"  LNG_NORWEGIAN  to ""
+      //Set Language_Value "norwegian"  LNG_GERMAN     to ""
+      //Set Language_Value "norwegian"  LNG_PORTUGUESE to ""
+      //Set Language_Value "norwegian"  LNG_FRENCH     to ""
+
+      //Set Language_Value "portuguese" LNG_DUTCH      to ""
+      //Set Language_Value "portuguese" LNG_ITALIAN    to
+      //Set Language_Value "portuguese" LNG_SPANISH    to
+        Set Language_Value "portuguese" LNG_ENGLISH    to "Portuguese"
+        Set Language_Value "portuguese" LNG_DANISH     to "Portugisisk"
+        Set Language_Value "portuguese" LNG_SWEDISH    to "Portugisiska"
+      //Set Language_Value "portuguese" LNG_NORWEGIAN  to ""
+      //Set Language_Value "portuguese" LNG_GERMAN     to ""
+      //Set Language_Value "portuguese" LNG_PORTUGUESE to ""
+      //Set Language_Value "portuguese" LNG_FRENCH     to ""
+
+      //Set Language_Value "spanish"    LNG_DUTCH      to ""
+      //Set Language_Value "spanish"    LNG_ITALIAN    to
+      //Set Language_Value "spanish"    LNG_SPANISH    to
+        Set Language_Value "spanish"    LNG_ENGLISH    to "Spanish"
+        Set Language_Value "spanish"    LNG_DANISH     to "Spansk"
+        Set Language_Value "spanish"    LNG_SWEDISH    to "Spanska"
+      //Set Language_Value "spanish"    LNG_NORWEGIAN  to ""
+      //Set Language_Value "spanish"    LNG_GERMAN     to ""
+      //Set Language_Value "spanish"    LNG_PORTUGUESE to ""
+      //Set Language_Value "spanish"    LNG_FRENCH     to ""
+
+      //Set Language_Value "swedish"    LNG_DUTCH      to ""
+      //Set Language_Value "swedish"    LNG_ITALIAN    to
+      //Set Language_Value "swedish"    LNG_SPANISH    to
+        Set Language_Value "swedish"    LNG_ENGLISH    to "Swedish"
+        Set Language_Value "swedish"    LNG_DANISH     to "Svensk"
+        Set Language_Value "swedish"    LNG_SWEDISH    to "Svenska"
+      //Set Language_Value "swedish"    LNG_NORWEGIAN  to ""
+      //Set Language_Value "swedish"    LNG_GERMAN     to ""
+      //Set Language_Value "swedish"    LNG_PORTUGUESE to ""
+      //Set Language_Value "swedish"    LNG_FRENCH     to ""
+    End_Procedure
+
+    Function LanguageSymbolId Integer iLng Returns String
+        If (iLng=LNG_DUTCH)      Function_Return "ls.lng.dutch"
+        If (iLng=LNG_FRENCH)     Function_Return "ls.lng.french"
+        If (iLng=LNG_SPANISH)    Function_Return "ls.lng.spanish"
+        If (iLng=LNG_ITALIAN)    Function_Return "ls.lng.italian"
+        If (iLng=LNG_ENGLISH)    Function_Return "ls.lng.english"
+        If (iLng=LNG_DANISH)     Function_Return "ls.lng.danish"
+        If (iLng=LNG_SWEDISH)    Function_Return "ls.lng.swedish"
+        If (iLng=LNG_NORWEGIAN)  Function_Return "ls.lng.norwegian"
+        If (iLng=LNG_GERMAN)     Function_Return "ls.lng.german"
+        If (iLng=LNG_PORTUGUESE) Function_Return "ls.lng.portuguese"
+    End_Function
+End_Object // oLanguageLD
+
+Class cStringConstantsArray is an Array
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Delegation_Mode to Delegate_To_Parent
+    End_Procedure
+    Function Value Integer iItem Returns String
+        String sValue
+        tTranslateResult stTranslateResult
+
+        Forward Get value iItem to sValue
+
+        Get TranslateValue of oLanguageFunctions sValue to stTranslateResult
+
+        If (stTranslateResult.bOptimize) Set Value iItem to stTranslateResult.sOptimizedLookup
+        Function_Return stTranslateResult.sResult
+    End_Function
+End_Class

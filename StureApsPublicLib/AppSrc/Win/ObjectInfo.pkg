@@ -1,0 +1,473 @@
+Use DfAllEnt.pkg
+Use Windows.pkg
+
+Enum_List
+    Define OIC_unknown
+    
+    // Controls
+    Define OIC_Button
+    Define OIC_Form
+    Define OIC_CheckBox
+    Define OIC_ComboForm
+    Define OIC_SpinForm
+    Define OIC_Grid
+    Define OIC_List
+    Define OIC_Edit
+    
+    // dbControls
+    Define OIC_dbForm
+    Define OIC_dbCheckBox
+    Define OIC_dbComboForm
+    Define OIC_dbSpinForm
+    Define OIC_dbGrid
+    Define OIC_dbList
+    Define OIC_dbEdit
+    
+    // Containers
+    Define OIC_Group
+    Define OIC_Container
+    Define OIC_Container3d
+    Define OIC_View
+    Define OIC_ModalPanel
+    
+    // dbContainers
+    Define OIC_dbGroup
+    Define OIC_dbContainer
+    Define OIC_dbContainer3d
+    Define OIC_dbView
+    Define OIC_dbModalPanel
+    
+    Define OIC_DataDictionary
+End_Enum_List
+
+Struct _tOIClass
+    Boolean bControl
+    Boolean bContainer
+    Boolean bDbAware
+    String  sName
+End_Struct
+
+Struct tOIDeoInfo
+    Integer hObject         // Focusable object that was examined
+    Boolean bDataAware
+    Boolean bEnabled
+    Integer iCurrentItem
+    Integer iTable
+    Integer iColumn
+    Boolean bShouldSave
+    Integer iIndex
+    Integer hServer         // DDO attached by (perhaps parent-) DEO object (equivalent to the DDO of the table in which a record is deleted if Shift+F2 is pressed)
+    Integer hDirectServer   // DDO handling iTable
+    Integer hPanelMainDD    // Main DD of the panel (if any)
+    Integer hScopedParent
+    Boolean bScopedParentModal
+    String  sItemValue
+    Integer iClass
+    Boolean bDateEntry
+    String  sLabel
+    Integer hDeoWithServer
+End_Struct
+
+Global_Variable _tOIClass[] gaOIClassInfo 
+
+Global_Variable Integer oObjectInfo
+
+Object _oObjectInfo is a cObject
+    Move Self to oObjectInfo
+                Procedure _InitializeClassInfo Integer iClass String sName Boolean bControl Boolean bContainer Boolean bDbAware
+                    Move bControl to gaOIClassInfo[iClass].bControl
+                    Move bContainer to gaOIClassInfo[iClass].bContainer
+                    Move bDbAware to gaOIClassInfo[iClass].bDbAware
+                    Move sName to gaOIClassInfo[iClass].sName
+                End_Procedure
+                //                                                            Ctrl? Cont? Db?
+                Send _InitializeClassInfo OIC_Button         "Button"         True  False False
+                Send _InitializeClassInfo OIC_Form           "Form"           True  False False
+                Send _InitializeClassInfo OIC_CheckBox       "CheckBox"       True  False False
+                Send _InitializeClassInfo OIC_ComboForm      "ComboForm"      True  False False
+                Send _InitializeClassInfo OIC_SpinForm       "SpinForm"       True  False False
+                Send _InitializeClassInfo OIC_Grid           "Grid"           True  False False
+                Send _InitializeClassInfo OIC_List           "List"           True  False False
+                Send _InitializeClassInfo OIC_Edit           "Edit"           True  False False
+        
+                Send _InitializeClassInfo OIC_dbForm         "dbForm"         True  False True
+                Send _InitializeClassInfo OIC_dbCheckBox     "dbCheckBox"     True  False True
+                Send _InitializeClassInfo OIC_dbComboForm    "dbComboForm"    True  False True
+                Send _InitializeClassInfo OIC_dbSpinForm     "dbSpinForm"     True  False True
+                Send _InitializeClassInfo OIC_dbGrid         "dbGrid"         True  False True
+                Send _InitializeClassInfo OIC_dbList         "dbList"         True  False True
+                Send _InitializeClassInfo OIC_dbEdit         "dbEdit"         True  False True
+        
+                Send _InitializeClassInfo OIC_Group          "Group"          False True  False
+                Send _InitializeClassInfo OIC_Container      "Container"      False True  False
+                Send _InitializeClassInfo OIC_Container3d    "Container3d"    False True  False
+                Send _InitializeClassInfo OIC_View           "View"           False True  False
+                Send _InitializeClassInfo OIC_ModalPanel     "ModalPanel"     False True  False
+                Send _InitializeClassInfo OIC_dbGroup        "dbGroup"        False True  False
+                Send _InitializeClassInfo OIC_dbContainer    "dbContainer"    False True  False
+                Send _InitializeClassInfo OIC_dbContainer3d  "dbContainer3d"  False True  False
+                Send _InitializeClassInfo OIC_dbView         "dbView"         False True  False
+                Send _InitializeClassInfo OIC_dbModalPanel   "dbModalPanel"   False True  False
+                                                                
+                Send _InitializeClassInfo OIC_DataDictionary "DataDictionary" False False False
+        
+                Property Integer[] _paChildObjects
+                Property Integer   _piFilterCtrlMode
+                Property Integer   _piFilterContMode
+                Property Integer   _piFilterDbMode  
+
+    Function ObjectClassName Integer iClass Returns String
+        Function_Return gaOIClassInfo[iClass].sName
+    End_Function
+
+    Function ObjectClass Integer hObj Returns Integer
+        Integer iDM iClass
+        Get Delegation_Mode of hObj to iDM
+        Set Delegation_Mode of hObj to No_Delegate_Or_Error
+        Get _IO_Class of hObj to iClass
+        Set Delegation_Mode of hObj to iDM            
+        Function_Return iClass
+    End_Function
+    
+                Procedure _Ay Integer hObj
+                    Integer iCtrlMode iContMode iDbMode iClass
+                    Integer[] aObjects
+                    Get _piFilterCtrlMode to iCtrlMode
+                    Get _piFilterContMode to iContMode
+                    Get _piFilterDbMode   to iDbMode
+                    Get ObjectClass hObj to iClass
+                    
+                    If (iCtrlMode<>-1 and iCtrlMode<>gaOIClassInfo[iClass].bControl) Procedure_Return
+                    If (iContMode<>-1 and iContMode<>gaOIClassInfo[iClass].bContainer) Procedure_Return
+                    If (iDbMode<>-1 and iDbMode<>gaOIClassInfo[iClass].bDbAware) Procedure_Return
+                    
+                    Get _paChildObjects to aObjects
+                    Move hObj to aObjects[SizeOfArray(aObjects)]
+                    Set _paChildObjects to aObjects
+                End_Procedure
+                
+    Function ChildObjectCollection Integer hParent Boolean bRecursive Integer iCtrlMode Integer iContMode Integer iDbMode Returns Integer[]
+        Integer[] aEmpty
+        Set _paChildObjects to aEmpty
+        Set _piFilterCtrlMode to iCtrlMode
+        Set _piFilterContMode to iContMode
+        Set _piFilterDbMode   to iDbMode
+        If (bRecursive) Begin
+            Broadcast Recursive Send _OI_Identify of hParent
+        End
+        Else Begin
+            Broadcast Send _OI_Identify to hParent
+        End
+        Function_Return (_paChildObjects(Self))
+    End_Function
+    
+    // Note that iClass is of the class enumeration done by the Define_IO_Class_Function command at the bottom of
+    // this file. This means that if you want all child objects of the DataDictionary class the call to this
+    // function should be like this: 
+    //
+    //         Get ChildObjectCollectionOfClass of oObjectInfo oSomeView True OIC_DataDictionary to aDDO
+
+    Function ChildObjectCollectionOfClass Integer hParent Boolean bRecursive Integer iClass Returns Integer[]
+        Integer iMax iIndex hObj
+        Integer[] aObjects aResult
+        Get ChildObjectCollection hParent bRecursive -1 -1 -1 to aObjects
+        Move (SizeOfArray(aObjects)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aObjects[iIndex] to hObj
+            If (iClass=ObjectClass(Self,hObj)) Begin
+                Move hObj to aResult[SizeOfArray(aResult)]
+            End
+        Loop
+        Function_Return aResult
+    End_Function
+    
+        Function _FindScopedParent Integer hObj Returns Integer
+            Boolean bState
+            Repeat
+                Get Scope_State of hObj to bState
+                If (not(bState)) Get Parent of hObj to hObj
+            Until (bState or hObj=Desktop)
+            Function_Return hObj
+        End_Function
+        
+        Function _FindImplicitServer Integer hObj Returns Integer
+            Integer iServer iDM
+            Get Delegation_Mode of hObj to iDm
+            Set Delegation_Mode of hObj to NO_DELEGATE_OR_ERROR
+            Get server of hObj to iServer
+            Set Delegation_Mode of hObj to iDm
+            If (iServer=0) Begin
+                If (hObj<>_FindScopedParent(Self,hObj)) Begin
+                    Function_Return (_FindImplicitServer(Self,Parent(hObj)))
+                End
+                Function_Return 0 // none found!
+            End
+            Function_Return hObj
+        End_Function
+        
+        Function _FindDeoWithServer Integer hDEO Returns Integer
+            If (should_delegate(hDEO)) Begin
+                Function_Return (_FindDeoWithServer(Self,Parent(hDEO)))
+            End
+            Function_Return hDEO
+        End_Function
+
+    Function DeoInfo Integer hObj Returns tOIDeoInfo
+        Integer iDM iDataType iIndex 
+        Boolean bAnyItemsAtAll
+        tOIDeoInfo stRval
+        
+        Move hObj to stRval.hObject
+        
+        Get _FindScopedParent hObj to stRval.hScopedParent // (db)View or (db)ModalPanel or the like
+        If (stRval.hScopedParent<>Desktop) begin
+            Get Modal_State of stRval.hScopedParent to stRval.bScopedParentModal
+            Get Delegation_Mode of stRval.hScopedParent to iDm
+            Set Delegation_Mode of stRval.hScopedParent to NO_DELEGATE_OR_ERROR
+            Get Main_DD of stRval.hScopedParent to stRval.hPanelMainDD
+            Set Delegation_Mode of stRval.hScopedParent to iDm
+        End
+
+        Get ObjectClass hObj to stRval.iClass
+
+        Get Delegation_Mode of hObj to iDm
+        Set Delegation_Mode of hObj to NO_DELEGATE_OR_ERROR
+        
+        If (stRval.iClass=OIC_Grid or stRval.iClass=OIC_List) Begin
+            Move (Item_Count(hObj)>0) to bAnyItemsAtAll
+        End
+        Else Begin
+            Move True to bAnyItemsAtAll
+        End
+        
+        Get Server of hObj to stRval.hServer
+        Get Current_Item of hObj to stRval.iCurrentItem
+        
+        Get Data_File of hObj stRval.iCurrentItem to stRval.iTable
+        Get Data_Field of hObj stRval.iCurrentItem to stRval.iColumn
+        Get Enabled_State of hObj to stRval.bEnabled
+        
+        Get Form_Datatype of hObj stRval.iCurrentItem to iDataType
+        Move (iDataType=Date_Window or iDataType=Mask_Date_Window) to stRval.bDateEntry
+        
+        If (stRval.iTable<>0 and stRval.iColumn<>0) Begin
+            If (stRval.hServer=0) Get_Attribute DF_FIELD_INDEX of stRval.iTable stRval.iColumn to stRval.iIndex
+            Else Get File_Field_Index of stRval.hServer stRval.iTable stRval.iColumn to stRval.iIndex
+        End
+
+        Set Delegation_Mode of hObj to iDm
+        If (bAnyItemsAtAll) Begin
+            Get Value of hObj stRval.iCurrentItem to stRval.sItemValue
+        End
+
+        If (stRval.hServer<>0) Begin
+            Get Data_Set of stRval.hServer stRval.iTable to stRval.hDirectServer
+            Get Should_Save of stRval.hServer to stRval.bShouldSave
+        End
+        
+        Get ObjectClass hObj to stRval.iClass
+        Move stRval.iClass  to iIndex
+        Move gaOIClassInfo[iIndex].bDbAware to stRval.bDataAware
+        
+        If (not(stRval.bDataAware)) Begin
+            
+        End
+            
+//            If (stRval.iClass=OIC_Grid) Begin
+        Get Label of hObj to stRval.sLabel
+//            End
+
+        If (stRval.bDataAware) Begin
+            Get _FindDeoWithServer stRval.hObject to stRval.hDeoWithServer
+        End
+        Else Begin
+            Get _FindImplicitServer stRval.hObject to stRval.hDeoWithServer
+        End
+            
+        Function_Return stRval
+    End_Function
+
+    Function IsForeign tOIDeoInfo stInfo Returns Boolean
+        If (stInfo.hServer<>0 and stInfo.iTable<>main_file(stInfo.hServer)) Begin
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Function FocusInfo Returns tOIDeoInfo
+        Integer hFocus
+        Get Focus of Desktop to hFocus
+        Function_Return (DeoInfo(Self,hFocus))
+    End_Function
+
+    Procedure ShowChildren Integer hObj
+        Integer iIndex iMax hObj2 iClass
+        Integer[] aChildren
+
+        Showln ("Children of "+Name(hObj))
+        Get ChildObjectCollection hObj True -1 -1 -1 to aChildren
+        Move (SizeOfArray(aChildren)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aChildren[iIndex] to hObj2
+            Get ObjectClass hObj2 to iClass
+            
+            Showln ("   "+Name(hObj2)+"  "+ObjectClassName(Self,iClass))
+        Loop
+    End_Procedure
+    
+    Procedure ShowPanel tOIDeoInfo stObject
+        Send Show of oObjectInfoPanel stObject
+    End_Procedure
+    
+End_Object
+
+Object oObjectInfoPanel is a ModalPanel
+    Set Size to 240 438
+    Set Location to 23 41
+    Set Label to "Object Info Panel"
+    Set Border_Style to Border_Thick
+    Set Locate_Mode to CENTER_ON_PANEL
+    On_Key kCancel Send Close_Panel
+
+    Object oGrid is a Grid
+        Set Location to 11 11
+    
+        Set Size to 204 413
+    
+        Set Line_Width to 2 0 // size and Line_width MUST be set before any column properties
+    
+        Set Form_Width 0 to 83
+        Set Header_Label  0 to "Name"
+    
+        Set Form_Width 1 to 315
+        Set Header_Label  1 to "Value"
+        Set peAnchors to anAll
+        Set Select_Mode to No_Select
+        
+            Procedure _AddItem String sName String sValue
+                Integer iBase
+                Get Item_Count to iBase
+                Send Add_Item MSG_NONE (sName+":")
+                Send Add_Item MSG_NONE sValue
+                Set Entry_State iBase to False
+                Set Entry_State (iBase+1) to False
+            End_Procedure
+            
+            Procedure _AddItemBool String sName Boolean bValue
+                Send _AddItem sName (If(bValue,"True","False"))
+            End_Procedure
+            
+            Procedure _AddItemObject String sName Integer hObj
+                If (hObj<>"") Begin
+                    Send _AddItem sName (String(hObj)+" ("+Name(hObj)+")")
+                End
+                Else Begin
+                    Send _AddItem sName "0 (no object)"
+                End
+            End_Procedure
+        
+        Procedure FillList tOIDeoInfo stObjectInfo
+            Boolean bForeign
+            String sValue
+            Send Delete_Data
+            Send _AddItemObject "Object Id (of DEO)"    stObjectInfo.hObject
+            Send _AddItem "Current Item"                stObjectInfo.iCurrentItem      
+            Send _AddItem "Class"                       gaOIClassInfo[stObjectInfo.iClass].sName  
+            Send _AddItemBool "Data aware"              stObjectInfo.bDataAware
+            Send _AddItemBool "Enabled State"           stObjectInfo.bEnabled          
+            Move stObjectInfo.iTable to sValue
+            If (stObjectInfo.iTable<>0) Begin
+                Get_Attribute DF_FILE_LOGICAL_NAME of stObjectInfo.iTable to sValue
+                Move (String(stObjectInfo.iTable)+" ("+sValue+")") to sValue
+            End
+            Send _AddItem "Table id"            sValue
+
+            Move stObjectInfo.iColumn to sValue
+            If (stObjectInfo.iTable<>0) Begin
+                If (stObjectInfo.iColumn<>0) Begin
+                    Get_Attribute DF_FIELD_NAME of stObjectInfo.iTable stObjectInfo.iColumn to sValue
+                    Move (String(stObjectInfo.iColumn)+" ("+sValue+")") to sValue
+                End
+                Else Begin
+                    Move "recnum" to sValue
+                End
+            End
+            Send _AddItem "Column"                      sValue
+            
+            Send _AddItemBool "Should Save"             stObjectInfo.bShouldSave       
+            Send _AddItem "Index"                       stObjectInfo.iIndex            
+            Send _AddItemObject "Server"                stObjectInfo.hServer           
+            Send _AddItemObject "Direct server"         stObjectInfo.hDirectServer
+            Send _AddItemBool "Is foreign"              (IsForeign(oObjectInfo,stObjectInfo))
+            Send _AddItemObject "Main DD of panel"      stObjectInfo.hPanelMainDD
+            Send _AddItemObject "Scoped Parent"         stObjectInfo.hScopedParent     
+            Send _AddItemBool "Is parent modal"         stObjectInfo.bScopedParentModal
+            Send _AddItem     "DEO value"               stObjectInfo.sItemValue        
+            Send _AddItemBool "Date entry"              stObjectInfo.bDateEntry        
+            Send _AddItem "Control label"               stObjectInfo.sLabel
+            Send _AddItemObject "DEO with server set"   stObjectInfo.hDeoWithServer
+        End_Procedure
+    
+    End_Object
+
+    Object oButton is a Button
+        Set Location to 220 374
+        Set Label to "Close"
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel            
+        End_Procedure
+    End_Object
+    
+    Procedure Show tOIDeoInfo stObjectInfo
+        Send FillList of oGrid stObjectInfo
+        Send Popup
+    End_Procedure
+End_Object
+
+Procedure _OI_Identify for cObject
+    Send _Ay of oObjectInfo Self
+End_Procedure
+
+#COMMAND Define_IO_Class_Function
+    Function _IO_Class for !1 Returns Integer
+        Function_Return OIC_!1
+    End_Function
+#ENDCOMMAND
+
+
+
+// Controls
+Define_IO_Class_Function Button
+Define_IO_Class_Function Form
+Define_IO_Class_Function CheckBox
+Define_IO_Class_Function ComboForm
+Define_IO_Class_Function SpinForm
+Define_IO_Class_Function Grid
+Define_IO_Class_Function List
+Define_IO_Class_Function Edit
+
+// dbControls
+Define_IO_Class_Function dbForm
+Define_IO_Class_Function dbCheckBox
+Define_IO_Class_Function dbComboForm
+Define_IO_Class_Function dbSpinForm
+Define_IO_Class_Function dbGrid
+Define_IO_Class_Function dbList
+Define_IO_Class_Function dbEdit
+
+// Containers
+Define_IO_Class_Function Group
+Define_IO_Class_Function Container
+Define_IO_Class_Function Container3d
+Define_IO_Class_Function View
+Define_IO_Class_Function ModalPanel
+
+// dbContainers
+Define_IO_Class_Function dbGroup
+Define_IO_Class_Function dbContainer
+Define_IO_Class_Function dbContainer3d
+Define_IO_Class_Function dbView
+Define_IO_Class_Function dbModalPanel
+
+Define_IO_Class_Function DataDictionary

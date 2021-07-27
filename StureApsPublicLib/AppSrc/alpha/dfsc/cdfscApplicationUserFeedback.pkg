@@ -1,0 +1,91 @@
+Use VdfBase.pkg
+
+//Use TestProjects\alpha\cWSTicketLockV1.pkg
+Use cWSUserApplicationFeedbackV1.pkg
+
+Use WebServiceClientFunctions.pkg
+Use WebAppGlobalObjectHandles.pkg
+
+Use alpha\dfsc\dfscWsStructs.pkg
+
+//  Struct tFeedbackLock_WebApplicationState
+//      DateTime dtWebAppExe
+//      String   sActiveView
+//  End_Struct
+//
+//  Struct tFeedbackLock_New_Req
+//      String sApplicationUUID
+//      String sUserID
+//      tFeedbackLock_WebApplicationState strApplicationState
+//  End_Struct
+//
+//  Struct tFeedbackLock_New_Resp
+//      String sUUID
+//      Number nTicketID
+//      Boolean bSuccess
+//      String sStatusText
+//  End_Struct
+
+Global_Variable Integer ghoApplicationUserFeedback
+
+Class cdfscApplicationUserFeedback is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Move Self to ghoApplicationUserFeedback
+        Property String psServiceURL // ticketlockv1.wso
+        Property String psApplicationUUID
+        Property String psUserID "anonymous"
+        Object oFeedbackService is a cWSUserApplicationFeedbackV1
+        End_Object
+    End_Procedure
+
+    Function OnGetApplicationState Returns tWStFeedbackLock_WebApplicationState
+        Integer hFocus
+        tWStFeedbackLock_WebApplicationState strApplicationState
+        Get FocusObject of ghoWebApp to hFocus
+        Move (Name(hFocus)) to strApplicationState.sActiveView
+
+        Function_Return strApplicationState
+    End_Function
+
+    Function OnGetUserId Returns String
+        String sUserID
+#IFDEF Is$WebApp
+        Get psLoginName of ghoWebSessionManager to sUserID
+#ELSE
+        Get psUserID to sUserID
+#ENDIF
+        Move (Rtrim(sUserID)) to sUserID
+        Function_Return sUserId
+    End_Function
+
+    Function PrepareNewTicket Returns tFeedbackLock_New_Resp
+        tWStFeedbackLock_New_Req strReq
+        tWStFeedbackLock_New_Resp strResp
+        Get psApplicationUUID     to strReq.sApplicationUUID
+        Get OnGetUserId           to strReq.sUserId
+        Get OnGetApplicationState to strReq.strApplicationState
+
+        Set ServiceApplicationURL of oWebServiceClientFunctions oFeedbackService to (psServiceURL(Self))
+
+        Get wsNewTicket of oFeedbackService strReq to strResp
+        Function_Return strResp
+    End_Function
+
+    Procedure RequestNewTicketPanel
+        String sExternalLink
+        tWStFeedbackLock_New_Resp strResp
+
+        Get PrepareNewTicket to strResp
+        If (strResp.bSuccess) Begin
+            Get psServiceURL to sExternalLink
+
+            Move (sExternalLink+"?feedbacklock="+strResp.sUUID) to sExternalLink
+            Send NavigateNewWindow of ghoWebApp sExternalLink 800 600
+        End
+        Else Begin
+            Error DFERR_PROGRAM ("Link to the Feedback service could not be established ("+sExternalLink+")")
+        End
+    End_Procedure
+End_Class
+

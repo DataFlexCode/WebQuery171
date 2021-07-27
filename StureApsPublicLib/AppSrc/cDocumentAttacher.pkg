@@ -1,0 +1,326 @@
+// WARNING: Not much in this package is up to date.
+
+Use FileFunctions.pkg // Define oFileFunctions object
+
+// You want to attach a number of documents for each record in a table, the "document parent table", and you want
+// to save all these documents in a single folder (or possibly in a folder structure).
+//
+// Even if this sounds simple enough, you will probably end up trying to
+// figure out how to avoid conflicting file names and how to copy these
+// documents (files) around your disk system.
+//
+// The cDocumentAttacher class defined in this package helps you get around
+// this problem.
+//
+// First you need to create a table that relates to the 'document parent table'
+// and that will hold one record for each attached document.
+
+// Implementation template:
+//
+// object oMyDocumentAttacher is a cDocumentAttacher
+//
+//   // If you do not set the psHomeDirectory property it will default
+//   // a subdirectory called "attach" found under your data directory.
+//   set psHomeFolder to "k:\documents"
+//
+//   // This function must return the root name of a record (no path
+//   // and *WITHOUT* extension)
+//   function CurrentRecordRootName returns string //
+//     function_return (IntToStrRzf(VmAttach.Udsted_Aar,4)+"-"+IntToStrRzf(VmAttach.Loebe_Nr,4)+"-"+IntToStrRzf(VmAttach.Nr,2))
+//   end_function
+//
+//   function CurrentRecordOriginalFileName returns string
+//     function_return Trex021.original_name
+//   end_function
+//
+//   procedure set CurrentRecordOriginalFileName string lsValue
+//     move lsValue to Trex021.original_name
+//   end_procedure
+//
+// end_object
+//
+// class Trex021_DataDictionary is a DataDictionary
+//   procedure request_save_document string lsExternalFileName
+//     integer lhDoc lbCheckIn lbExists lbSuccess
+//     string lsErrorMsg
+//     move (oMyDocumentAttacher(self)) to lhDoc
+//     // Does the document exist?
+//     if (SEQ_FileExists(lsExternalFileName)=SEQIT_FILE) begin
+//       // If so, make sure we have a record:
+//       set field_changed_Value field Trex021.original_name to Trex021.original_name
+//       send request_save
+//       ifnot (should_save(self)) begin // If it saved OK
+//         get Doc_Exists of lhDoc to lbExists // Do we already have it in the database?
+//         if lbExists get MB_Verify "Document already exists, overwrite?" DFTRUE to lbCheckIn
+//         else move DFTRUE to lbCheckIn
+//         if lbCheckIn begin
+//           get Doc_CheckIn of lhDoc lsExternalFileName to lbSuccess
+//           ifnot lbSuccess begin
+//             move ("Error saving document Source: "+lsExternalFileName+" Internal target: "+CurrentRecordAbsoluteFileName(lhDoc)) to lsErrorMsg
+//             send error 224 lsErrorMsg
+//           end
+//           else begin
+//             set field_changed_Value field Trex021.original_name to (SEQ_RemovePathFromFileName(lsExternalFileName))
+//             send request_save
+//           end
+//         end
+//       end
+//     end
+//     else error 221 "Document not found"
+//   end_procedure
+//
+//   procedure delete_main_file
+//     integer lhDoc liGrb lbSuccess
+//     string lsInternalFileName
+//     if (current_record(self)) begin
+//       move (oMyDocumentAttacher(self)) to lhDoc
+//       if (Doc_Exists(lhDoc)) begin
+//         get Doc_Delete of lhDoc to lbSuccess
+//       end
+//       else move 1 to lbSuccess
+//       ifnot lbSuccess error 223 "Document could not be deleted"
+//     end
+//     forward send delete_main_file
+//   end_procedure
+//
+//   procedure save_main_file
+//     if (Trex021.filename="") move trex021.original_name to Trex021.filename
+//     forward send save_main_file
+//   end_procedure
+// end_class
+//
+// From within a dbGrid:
+//
+//   procedure DoAddFile
+//     string lsFileName
+//     if (should_save(self)) send obs "Changes must be saved before document can be added"
+//     else begin
+//       if (current_record(self)) send add_or_remove_row
+//       ifnot (current_record(self)) begin
+//         get SEQ_SelectFile "Select document to attach" "All files|*.*" to lsFileName
+//         if (lsFileName<>"") ;
+//           send request_save_document to (server(self)) lsFileName
+//         else send add_or_remove_row
+//       end
+//     end
+//   end_procedure
+//
+//   procedure DoLaunchFile
+//     integer lbOK
+//     string lsFileName
+//     if (current_record(server(self))) begin
+//       get Doc_Exists of oMyDocumentAttacher to lbOK
+//       if lbOK begin
+//         send Doc_Execute of oMyDocumentAttacher
+//       end
+//       else error 222 "Document not found"
+//     end
+//   end_procedure
+//
+
+
+//> Class for storing files attached to records.
+Class cDocumentAttacher is a cObject
+    Procedure Construct_Object
+        Forward Send construct_object
+        Property String  psHomeFolder ""
+        Property Integer priv.pbHomeFolderOK -1 // -1: not checked yet
+        Property String  priv.RenFrom ""
+    End_Procedure
+
+             Function pbHomeFolderOK Returns Boolean
+                 Integer iHomeFolder 
+                 Boolean bCreateOk
+                 String sPath
+                 Get priv.pbHomeFolderOK to iHomeFolder
+                 If (iHomeFolder=-1) Begin // Not checked yet
+                     Get psHomeFolder to sPath
+                     If (FileExists(oFileFunctions,sPath)=0) Begin
+                         Get CreateFolderNew of oFileFunctions sPath to bCreateOk
+                         If (bCreateOk) begin
+                            Move 1 to iHomeFolder
+                         End
+                         Else begin
+                            Move 0 to iHomeFolder
+                         End
+                     End
+                     Else begin
+                        Move 1 to iHomeFolder // ok
+                     End
+                     Set priv.pbHomeFolderOK to iHomeFolder
+                 End
+                 Function_Return (iHomeFolder<>0)
+             End_Function 
+
+    Procedure Set psHomeFolderRelative String sFolder
+        String sFileListPath
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFileListPath
+        Get AppendPath of oFileFunctions sFileListPath sFolder to sFolder
+        Set psHomeFolder to sFolder
+    End_Procedure
+
+    // If there is any dynamic "addition" to the home directory for the current
+    // record function CurrentRecordSubDirectory should return the segment to
+    // be added. Standard return value for this function is "".
+    Function CurrentRecordSubFolder Returns String
+        Function_Return ""
+    End_Function
+
+    // To be filled out at the instantiation level. Should return the 'root
+    // name' of the file for the current record (without any extension).
+    Function CurrentRecordRootName Returns String
+    End_Function
+
+    // To be filled out at the instantiation level. Should return the 'root
+    // name' of the file for the current record.
+    Function CurrentRecordOriginalFileName Returns String
+      // To be filled out
+    End_Function
+
+    Procedure Set CurrentRecordOriginalFileName String sValue
+      // To be filled out
+    End_Procedure
+
+             // Returns the extension of the original filename
+             Function CurrentRecordOriginalExtension Returns String
+                 String sFile sType
+                 Get CurrentRecordOriginalFileName to sFile
+                 Get PathToType of oFileFunctions (trim(sFile)) to sType
+                 Function_Return sType
+             End_Function
+
+    // This function returns the full path and filename of
+    // the attached file as named by this system.
+    Function CurrentRecordAbsoluteFileName Returns String
+        Boolean bCreateOk
+        String sDir sSubdir sFile sRval sExt sCheckPath
+        If (pbHomeFolderOK(Self)) Begin
+            Get psHomeFolder to sDir
+
+            Get CurrentRecordSubFolder to sSubdir
+            If (sSubdir<>"") Begin
+                Get AppendPath of oFileFunctions sDir sSubdir to sCheckPath
+                If (FileExists(oFileFunctions,sCheckPath)=0) Begin
+                    // Doesn't exist, let's create it:
+                    Get CreateFolderNew of oFileFunctions sCheckPath to bCreateOk
+                    If (not(bCreateOk)) Function_Return ""
+                End
+            End
+
+            Get CurrentRecordRootName to sFile
+            If (sFile="") Function_Return "" // Supposedly an error condition!
+            If (sSubdir<>"") Begin
+                Get AppendPath of oFileFunctions sDir sSubdir to sRval
+                Get AppendPath of oFileFunctions sRval sFile to sRval 
+            End
+            Else begin
+                Get AppendPath of oFileFunctions sDir sFile to sRval
+            End
+            Get CurrentRecordOriginalExtension to sExt
+            If (sExt<>"") Move (sRval+"."+sExt) to sRval
+        End
+        Else Move "" to sRval
+        Function_Return sRval
+    End_Function
+
+    Function Doc_Exists Returns Boolean
+        String sFileName
+        If (pbHomeFolderOK(Self)) Begin
+            Get CurrentRecordAbsoluteFileName to sFileName
+            Function_Return (FileExists(oFileFunctions,sFileName)=1) // 1:file
+        End
+        Function_Return False
+    End_Function
+
+    Function Doc_CheckIn String sExtFileName Returns Boolean
+        Boolean bSuccess
+        String sRoot sOrigName sIntFileName
+        If (pbHomeFolderOK(Self)) Begin
+            // Remove the path from the incoming file name:
+            Get PathToFileName of oFileFunctions sExtFileName to sOrigName
+            
+            // Have the class descendant store the name in the record buffer:
+            Set CurrentRecordOriginalFileName to sOrigName
+            // Now, let's have the inseide file name:
+            Get CurrentRecordAbsoluteFileName to sIntFileName
+            // And now copy it:
+            Get CopyFileNew of oFileFunctions sExtFileName sIntFileName to bSuccess
+        End
+        Else begin
+            Move False to bSuccess
+        End
+        Function_Return bSuccess //
+    End_Function
+
+    Function Doc_CopyOut String sExtFileName Returns Boolean
+        Boolean bSuccess
+        String sIntFileName
+        If (pbHomeFolderOK(Self)) Begin
+            Get CurrentRecordAbsoluteFileName to sIntFileName
+            Get CopyFileNew of oFileFunctions sIntFileName sExtFileName to bSuccess
+        End
+        Else begin
+            Move False to bSuccess
+        End
+        Function_Return bSuccess
+    End_Function
+
+#IFNDEF IS$WEBAPP
+    Procedure Doc_Execute
+        String sIntFileName
+        If (pbHomeFolderOK(Self)) Begin
+            Get CurrentRecordAbsoluteFileName to sIntFileName
+            Send ShellExecuteDocument of oFileFunctions sIntFileName
+        End
+    End_Procedure
+#ENDIF
+
+    // Delete document of the current record from the file system
+    Function Doc_Delete Returns Boolean
+        Boolean bSuccess
+        String sIntFileName
+        If (pbHomeFolderOK(Self)) Begin
+            Get CurrentRecordAbsoluteFileName to sIntFileName
+            Get DeleteFileNew of oFileFunctions sIntFileName to bSuccess
+        End
+        Else begin
+            Move False to bSuccess
+        End
+        Function_Return bSuccess
+    End_Function
+
+    //> The Doc_Rename procedure works like this:
+    //>
+    //>  1. Find record
+    //>  2. Doc_Rename_Setup_From // Setup source path
+    //>  3. Rename the record and save
+    //>  4. Call Doc_Rename
+
+    Procedure Doc_Rename_Setup_From
+        String sFrom
+        Get CurrentRecordAbsoluteFileName to sFrom
+        Set priv.RenFrom to sFrom
+    End_Procedure
+
+    Procedure Doc_Rename
+        Boolean bOk
+        String sFrom sTo
+        Get priv.RenFrom to sFrom
+        Get CurrentRecordAbsoluteFileName to sTo
+        If (FileExists(oFileFunctions,sFrom)=1) Begin
+            // We only attempt this if the source document exists
+            Get MoveFileNew of oFileFunctions sFrom sTo to bOk
+            If (not(bOk)) begin
+                Error 225 "Document could not be renamed!"
+            End
+        End
+    End_Procedure
+
+    Procedure End_Construct_Object // Assign a standard value to psHomeFolder
+        String sFileListPath
+        Forward Send end_construct_object
+        If (psHomeFolder(Self)="") Begin
+            Set psHomeFolderRelative to "Attach"
+        End
+    End_Procedure
+End_Class // cDocumentAttacher

@@ -1,0 +1,39 @@
+Use Windows.pkg
+Use RgbFunctions.pkg
+Use FileFunctions.pkg
+
+Class cfreeYellowText is a Edit
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        Set Object_Shadow_State to True
+        Set Border_Style to Border_None
+        Set Color to (Brighten(oRgbFunctions,clYellow,92))
+        Set Scroll_Bar_Visible_State to False
+        Property Integer piTextImage
+    End_Procedure
+    
+    Procedure UpdateValue
+        Integer iImage iMax iIndex
+        String sImageText
+        String[] aLines
+        Get piTextImage to iImage
+        If (iImage<>0) Begin
+            Get ImageTextAsString of oFileFunctions iImage to sImageText
+            Send SplitString of oStringFunctions sImageText (Character(10)) False False (&aLines)
+            Move (SizeOfArray(aLines)-1) to iMax
+            For iIndex from 0 to iMax
+                Set Value iIndex to aLines[iIndex]
+            Loop
+        End
+    End_Procedure
+
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+        Send UpdateValue
+    End_Procedure
+
+    // Create and augment procedures and functions
+
+End_Class

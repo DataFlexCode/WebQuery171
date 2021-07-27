@@ -1,0 +1,666 @@
+Use ErrorEventHandlerClass.pkg //
+Use AttributeFunctions.pkg
+Use TableAccessFunctions.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+Use TableDriverFunctions.pkg
+Use TableExplicitFunctions.pkg
+Use FilelistFunctions.pkg
+Use StackFunctions.pkg // Define oStackFunctions object
+//Use Win\TableStructureErrorPanel.dg
+
+Use TableStructureErrorStruct.pkg
+
+Class _cTableStructureFunctionsErrorHandler is a cErrorEventHandler
+    Procedure DoReset // Prevent each activation from resetting the error data
+    End_Procedure
+    Procedure _NewDoReset // Sent by function Structure_Start of cTableStructure class
+        tErrorEvent[] aEvents
+        tRestructureError[] aErrorLog
+        Set paErrors to (ResizeArray(aEvents,0))
+        Set paErrorLog to (ResizeArray(aErrorLog,0))
+    End_Procedure
+    Procedure OnError Integer iError String sErrorText Integer iErrorLine
+        Forward Send OnError iError sErrorText iErrorLine
+        Move iError to _gstTempRestructureError.stError.iError
+        Move sErrorText to _gstTempRestructureError.stError.sErrorText
+        Move iErrorLine to _gstTempRestructureError.stError.iErrorLine
+        Set _pbWasError to True
+//        Send Popup of oTableStructureErrorPanel // Du'r desv‘rre ikke
+        Send Info_Box (_gstTempRestructureError.sOperation+Character(10)+ExplicitTabelToString(oTableExplicitFunctions,_gstTempRestructureError.stTableDefInitial)) "Structure error"
+    End_Procedure
+End_Class
+
+Class cTableStructure is a cObject
+
+    Procedure Construct_Object
+        Forward send Construct_Object
+        Property tRestructureError[] paErrorLog
+
+        Property Integer _phTable      // Private
+        Property Boolean _pbWasError  // Private
+
+        Property Integer piStructureEndOptions DF_STRUCTEND_OPT_NONE
+
+        Object _oErrorHandler is a _cTableStructureFunctionsErrorHandler
+        End_Object
+
+        Property Integer _piWriteSourceChannel
+        Property Boolean[] _paWriteSourceSuspended
+        Property Integer _piSourceIndent
+    End_Procedure
+
+    Function _IsSuspended Returns Boolean
+        Boolean bWriteSuspend
+        Boolean[] aWriteSourceSuspended
+        Get _paWriteSourceSuspended to aWriteSourceSuspended
+        If (BooleanIsEmpty(oStackFunctions,aWriteSourceSuspended)) Begin
+            Function_Return False
+        End
+        Get BooleanCopy of oStackFunctions aWriteSourceSuspended to bWriteSuspend
+        Function_Return bWriteSuspend
+    End_Function
+    
+    Procedure WriteSource String sValue
+        Integer iChannel
+        If (not(_IsSuspended(Self))) Begin
+            Get _piWriteSourceChannel to iChannel
+            If (iChannel>=0) Begin
+                Write channel iChannel (Repeat("    ",_piSourceIndent(Self)))
+                Writeln sValue
+            End
+        End
+    End_Procedure
+    
+    Procedure SuspendWriteSource
+        Boolean[] aWriteSourceSuspended
+        Get _paWriteSourceSuspended to aWriteSourceSuspended
+        Send BooleanPush of oStackFunctions True (&aWriteSourceSuspended)
+        Set _paWriteSourceSuspended to aWriteSourceSuspended
+    End_Procedure
+    
+    Procedure UnsuspendWriteSource 
+        Boolean[] aWriteSourceSuspended
+        Get _paWriteSourceSuspended to aWriteSourceSuspended
+        Send BooleanDrop of oStackFunctions (&aWriteSourceSuspended)
+        Set _paWriteSourceSuspended to aWriteSourceSuspended
+    End_Procedure 
+    
+    Procedure IndentSource
+        Set _piSourceIndent to (_piSourceIndent(Self)+1)
+    End_Procedure
+
+    Procedure UnindentSource
+        Set _piSourceIndent to (_piSourceIndent(Self)-1)
+    End_Procedure
+
+    Procedure OnOperationBegin String sOperation // called before each modification of the structure (for each changing of an attribute value)
+        tTableAttributes strTable
+        Set _pbWasError to False
+        Move sOperation to _gstTempRestructureError.sOperation
+        Send GetTableAttributes of oAttributeFunctions (&strTable) (_phTable(Self))
+        Get TableAttributesToExplicit of oAttributeFunctions strTable to _gstTempRestructureError.stTableDefInitial
+        Send Activate of _oErrorHandler
+      //If (Left(sOperation,5)<>"Struc") Begin
+      //    Error 789 "Tudse i suppen"
+      //End
+    End_Procedure
+
+    Procedure OnOperationEnd // Called immediately after each modification
+        Boolean bWasSuspended
+        Integer iMax iIndex
+        String[] aValues
+        tRestructureError[] aErrorLog
+        Send Deactivate of _oErrorHandler
+        If (_pbWasError(Self)) Begin
+
+//            Send GetTableAttributes of oAttributeFunctions (&_gstTempRestructureError.stTableDefResult) (_phTable(Self))
+            Get paErrorLog to aErrorLog
+            Move _gstTempRestructureError to aErrorLog[SizeOfArray(aErrorLog)]
+            Set paErrorLog to aErrorLog
+            
+            Get _IsSuspended to bWasSuspended
+            If (bWasSuspended) Begin
+                Send UnsuspendWriteSource
+            End
+
+            Send WriteSource ("// ERROR: "+String(_gstTempRestructureError.stError.iError)+" "+_gstTempRestructureError.stError.sErrorText+" on line "+String(_gstTempRestructureError.stError.iErrorLine))
+            Send WriteSource ("// Occurred while executing this instruction on the definition below: "+_gstTempRestructureError.sOperation)
+            Get ExplicitTabelToStringArray of oTableExplicitFunctions _gstTempRestructureError.stTableDefInitial to aValues
+            Move (SizeOfArray(aValues)-1) to iMax
+            For iIndex from 0 to iMax
+                Send WriteSource ("// "+aValues[iIndex])
+            Loop
+            
+            If (bWasSuspended) Begin
+                Send SuspendWriteSource
+            End
+
+        End
+    End_Procedure
+    
+        Procedure _MakeFinalLogEntry String sFinalRemark
+            tRestructureError[] aErrorLog
+          
+            Get paErrorLog to aErrorLog
+            
+//            Send GetTableAttributes of oAttributeFunctions (&_gstTempRestructureError.stTableDefResult) (_phTable(Self))
+            Move "Structure on exit" to _gstTempRestructureError.sOperation
+            Move 0 to _gstTempRestructureError.stError.iError
+            Move 0 to _gstTempRestructureError.stError.iErrorLine
+            Move sFinalRemark to _gstTempRestructureError.stError.sErrorText
+ 
+            Move _gstTempRestructureError to aErrorLog[SizeOfArray(aErrorLog)]
+            Set paErrorLog to aErrorLog
+        End_Procedure
+    
+    Function ErrorCount Returns Integer
+        Function_Return (SizeOfArray(paErrors(_oErrorHandler)))
+    End_Function
+    
+    Function ErrorEventArray Returns tErrorEvent[]
+        Function_Return (paErrors(_oErrorHandler))
+    End_Function
+
+    Function Structure_Start Integer hTable String sDriver Returns Boolean
+        Send _NewDoReset of _oErrorHandler
+        If (sDriver<>"") Begin
+            Send WriteSource ('Get Structure_Start hTable "'+sDriver+'" to bSucces')
+            Send OnOperationBegin ("Structure_Start hTable: "+String(hTable)+" driver: "+sDriver)
+            Structure_Start hTable sDriver
+        End
+        Else Begin
+            Send WriteSource ("Get Structure_Start "+hTable+" to bSucces")
+            Send OnOperationBegin ("Get Structure_Start "+String(hTable)+" to bSucces")
+            Structure_Start hTable
+        End
+        Send OnOperationEnd
+        Set _phTable to hTable
+        Function_Return (ErrorCount(Self)=0)
+    End_Function
+
+    Function Structure_Start_New_Table String sTableName String sFolder String sDriver Returns Boolean
+        Integer hTable
+        Boolean bSuccess
+
+        If (sFolder="") Begin // If folder is not specified, we will use the data folder (where filelist.cfg most likely resides)
+            Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        End
+
+        Move 0 to hTable // This is a signal to the Structure_Start command to create a new table.
+
+        Get Structure_Start hTable sDriver to bSuccess
+        If (bSuccess) Begin
+            Set Table_Attribute DF_FILE_MULTIUSER     to DF_FILE_USER_MULTI
+            Set Table_Attribute DF_FILE_REUSE_DELETED to DF_FILE_DELETED_REUSE
+            Send SuspendWriteSource
+            Set Table_Attribute DF_FILE_PHYSICAL_NAME to (ToAnsi(AppendPath(oFileFunctions,sFolder,sTableName)))
+            Send UnsuspendWriteSource
+//            Send WriteSource ('Set_Attribute DF_FILE_PHYSICAL_NAME of hTable to (ToAnsi(AppendPath(oFileFunctions,sFolder,"'+sTableName+'")))')
+            Send WriteSource ('Set Table_Attribute DF_FILE_PHYSICAL_NAME to (ToAnsi(AppendPath(oFileFunctions,sFolder,"'+sTableName+'")))')
+        End
+        Function_Return bSuccess
+    End_Function
+
+    //> Table can be opened or closed on call
+    Function Structure_Start_Filelist_Table Integer iFilelistNumber Returns Boolean
+        Integer hTable
+        Boolean bSuccess bOpen
+
+        Get_Attribute DF_FILE_OPENED of iFilelistNumber to bOpen
+        If (not(bOpen)) Begin
+            Get OpenTable of oTableAccessFunctions iFilelistNumber DF_SHARE 0 to bSuccess
+        End
+
+        Move iFilelistNumber to hTable
+
+        Get Structure_Start hTable "" to bSuccess
+        Function_Return bSuccess
+    End_Function
+
+    //> Table must be closed on call
+    Function Structure_Start_Existing_Table String sAbsoluteFileName Returns Boolean
+        Integer hTable
+        Boolean bSuccess
+
+        Get TempFilelistEntry of oTableAccessFunctions 2000 to hTable // First available entry GE 2000
+        Get OpenTableAs of oTableAccessFunctions sAbsoluteFileName hTable DF_SHARE 0 to bSuccess
+
+        If (bSuccess) Begin
+            Get Structure_Start hTable to bSuccess
+        End
+
+        Function_Return bSuccess
+    End_Function
+    
+    Function Structure_End Returns Boolean
+        Boolean bSuccess
+        Integer hTable iHandleType
+        String sValue
+        tErrorEvent[] aErrors
+        
+        Get _phTable to hTable
+        Send WriteSource ("Get Structure_End to bSucces")
+        Send OnOperationBegin ("Structure_End options: "+String(piStructureEndOptions(Self)))
+            Structure_End hTable (piStructureEndOptions(Self)) "."
+        Send OnOperationEnd
+        
+         
+        Move (ErrorCount(Self)=0) to bSuccess
+        
+        Move "Exiting" to sValue
+        
+        If (not(bSuccess)) Begin
+            Get ErrorEventArray to aErrors
+            Move (sValue+" (errors occurred)") to sValue
+        End
+        
+        Send _MakeFinalLogEntry sValue
+        Set _phTable to 0 //hTable
+        Get_Attribute DF_FILE_HANDLE_TYPE of hTable to iHandleType
+        If (iHandleType<>DF_FILE_HANDLE_BAD) Begin
+            Close hTable
+        End
+        Function_Return bSuccess
+    End_Function
+    
+    Procedure Structure_Abort
+        Integer hTable
+        Get _phTable to hTable
+        Send WriteSource "Structure_Abort hTable"
+        Send OnOperationBegin ("Structure_Abort "+String(hTable))
+            Structure_Abort hTable
+        Send OnOperationEnd
+        Set _phTable to hTable
+        Send _MakeFinalLogEntry "Restructure aborted"
+    End_Procedure
+    
+    Procedure Structure_Copy Integer hSourceTable
+        Integer hTable
+        Get _phTable to hTable
+        Send WriteSource "Structure_Copy hSourceTable to hTable"
+        Send OnOperationBegin ("Structure_Copy source-table: "+String(hSourceTable))
+            Structure_Copy hSourceTable to hTable
+        Send OnOperationEnd
+    End_Procedure
+    
+    Procedure Load_Def String sDefFile
+        Integer hTable
+        Get _phTable to hTable
+        Send WriteSource ("Load_Def "+sDefFile+" Onto hTable")
+        Send OnOperationBegin ("Load_Def def-file: "+String(sDefFile))
+            Load_Def sDefFile Onto hTable
+        Send OnOperationEnd
+    End_Procedure
+
+    Procedure Create_Field Integer iPosition // iPosition=0 => Field is appended
+        Integer hTable
+        Get _phTable to hTable
+        Send WriteSource ("Send Create_Field "+String(iPosition))
+        Send OnOperationBegin ("Create_Field position: "+String(iPosition))
+            Create_Field hTable At iPosition
+        Send OnOperationEnd
+    End_Procedure
+
+    Function Append_Field Returns Integer
+        Integer hTable iPosition
+        Get _phTable to hTable
+        Send WriteSource
+        Send WriteSource ("Send Append_Field hTable 0 // Append")
+        Send OnOperationBegin  "Create_Field position: 0 (append)"
+            Move 0 to iPosition // 0 means: append
+            Create_Field hTable At iPosition
+        Send OnOperationEnd
+        Function_Return iPosition
+    End_Function
+
+    Procedure Delete_Field Integer iPosition
+        Integer hTable
+        Get _phTable to hTable
+        Send WriteSource ("Send Delete_Field "+String(iPosition))
+        Send OnOperationBegin  ("Delete_Field position: "+String(iPosition))
+            Delete_Field hTable iPosition
+        Send OnOperationEnd
+    End_Procedure
+
+    Procedure Create_Index Integer iIndexNumber
+        Integer hTable
+        Integer iIndexHandle iMax
+        Boolean[] aTempIndices
+        Get _phTable to hTable
+        Move iIndexNumber to iIndexHandle
+
+        Send WriteSource ("Send Create_Index "+String(iIndexNumber))
+        Send OnOperationBegin ("Create_Index index: "+String(iIndexNumber))
+            Repeat
+                Create_Index hTable at iIndexNumber
+                If (iIndexNumber<>iIndexHandle) Begin
+                    Move True to aTempIndices[iIndexNumber]
+                End
+            Until (iIndexHandle=iIndexNumber)
+            Move (SizeOfArray(aTempIndices)-1) to iMax
+            For iIndexNumber from 1 to iMax
+                If (aTempIndices[iIndexNumber]) Begin
+                    Send SuspendWriteSource
+                    Send Delete_Index iIndexNumber
+                    Send UnsuspendWriteSource
+                End
+            Loop
+        Send OnOperationEnd
+    End_Procedure
+
+    Procedure Delete_Index Integer iIndexNumber
+        Integer hTable
+        Get _phTable to hTable
+        Send WriteSource ('Send Delete_Index '+String(iIndexNumber))
+        Send OnOperationBegin ("Delete_Index index: "+String(iIndexNumber))
+            Delete_Index hTable iIndexNumber
+        Send OnOperationEnd
+    End_Procedure
+
+    Procedure Set Table_Attribute Integer iAttribute String sValue
+        Boolean bQuotes
+        Integer hTable iAttrType
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_FILE) Begin
+            Move (gaAttributes[iAttribute].iValueType=DF_ASCII) to bQuotes
+            Send WriteSource ("Set Table_Attribute "+gaAttributes[iAttribute].sName+" to "+If(bQuotes,'"','')+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue)+If(bQuotes,'"',''))
+            Send OnOperationBegin ("Set_Attribute "+gaAttributes[iAttribute].sName+" to "+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue))
+            Set_Attribute iAttribute of hTable to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 814 "Attribute must be of type table"
+        End
+    End_Procedure
+
+    Function Table_Attribute Integer iAttribute Returns String
+        Integer hTable iAttrType
+        String sValue
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_FILELIST or iAttrType=ATYPE_FILE) Begin // You may get filelist attributes (but you can't set them)
+            Send WriteSource ("Get Table_Attribute "+gaAttributes[iAttribute].sName+" to sValue")
+            Send OnOperationBegin ("Get_Attribute "+gaAttributes[iAttribute].sName)
+            Get_Attribute iAttribute of hTable to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 815 "Attribute must be of type table"
+        End
+        Function_Return sValue
+    End_Function
+
+    Procedure Set Field_Attribute Integer iAttribute Integer iField String sValue
+        Integer hTable iAttrType
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_FIELD) Begin
+            Send WriteSource ("Set Field_Attribute "+gaAttributes[iAttribute].sName+" "+String(iField)+" to "+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue))
+            Send OnOperationBegin ("Set_Attribute "+gaAttributes[iAttribute].sName+" field: "+String(iField)+" to "+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue))
+            Set_Attribute iAttribute of hTable iField to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 816 "Attribute must be of type field"
+        End
+    End_Procedure
+
+    Function Field_Attribute Integer iAttribute Integer iField Returns String
+        Integer hTable iAttrType
+        String sValue
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_FIELD) Begin
+            Send WriteSource ("Get Field_Attribute "+gaAttributes[iAttribute].sName+" "+String(iField)+" to sValue")
+            Send OnOperationBegin ("Get_Attribute "+gaAttributes[iAttribute].sName+" field: "+String(iField))
+            Get_Attribute iAttribute of hTable iField to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 815 "Attribute must be of type field"
+        End
+        Function_Return sValue
+    End_Function
+
+    Procedure Set Index_Attribute Integer iAttribute Integer iIndex String sValue
+        Integer hTable iAttrType
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_INDEX) Begin
+            Send WriteSource ("Set Index_Attribute "+gaAttributes[iAttribute].sName+" "+String(iIndex)+" to "+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue))
+            Send OnOperationBegin ("Set_Attribute "+gaAttributes[iAttribute].sName+" index: "+String(iIndex)+" to "+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue))
+            Set_Attribute iAttribute of hTable iIndex to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 817 "Attribute must be of type index"
+        End
+    End_Procedure
+
+    Function Index_Attribute Integer iAttribute Integer iIndex Returns String
+        Integer hTable iAttrType
+        String sValue
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_INDEX) Begin
+            Send WriteSource ("Get Index_Attribute "+gaAttributes[iAttribute].sName+" "+String(iIndex)+" to sValue")
+            Send OnOperationBegin ("Get_Attribute "+gaAttributes[iAttribute].sName+" index: "+String(iIndex))
+            Get_Attribute iAttribute of hTable iIndex to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 818 "Attribute must be of type index"
+        End
+        Function_Return sValue
+    End_Function
+
+    Procedure Set Index_Segment_Attribute Integer iAttribute Integer iIndex Integer iSegment String sValue
+        Integer hTable iAttrType
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_IDXSEG) Begin
+            Send WriteSource ("Set Index_Segment_Attribute "+gaAttributes[iAttribute].sName+" "+String(iIndex)+" "+String(iSegment)+" to "+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue))
+            Send OnOperationBegin ("Set_Attribute "+gaAttributes[iAttribute].sName+" index: "+String(iIndex)+" segment: "+String(iSegment)+" to "+AttributeSymbolicValue(oAttributeFunctions,iAttribute,sValue))
+            Set_Attribute iAttribute of hTable iIndex iSegment to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 819 "Attribute must be of type index-segment"
+        End
+    End_Procedure
+
+    Function Index_Segment_Attribute Integer iAttribute Integer iIndex Integer iSegment Returns String
+        Integer hTable iAttrType
+        String sValue
+        Get _phTable to hTable
+        Get AttributeType of oAttributeFunctions iAttribute to iAttrType
+        If (iAttrType=ATYPE_IDXSEG) Begin
+            Send WriteSource ("Get Index_Segment_Attribute "+gaAttributes[iAttribute].sName+" "+String(iIndex)+" "+String(iSegment)+" to sValue")
+            Send OnOperationBegin ("Get_Attribute "+gaAttributes[iAttribute].sName+" index: "+String(iIndex)+" segment: "+String(iSegment))
+            Get_Attribute iAttribute of hTable iIndex iSegment to sValue
+            Send OnOperationEnd
+        End
+        Else Begin
+            Error 820 "Attribute must be of type index-segment"
+        End
+        Function_Return sValue
+    End_Function
+
+    Function Field_Map String sFieldName Returns Integer
+        Integer hTable iPos
+        Get _phTable to hTable
+        Send Activate of oErrorSilence // We do not want an error message if the field name is not present
+        Field_Map hTable sFieldName to iPos
+        Send Deactivate of oErrorSilence
+        If (ErrorEventCount(oErrorSilence)<>0) Begin
+            Move -1 to iPos
+        End
+        Function_Return iPos
+    End_Function
+
+    Function Append_Field_2 String sColumnName Integer iType Integer iLen Integer iPrecision Returns Integer
+        Integer iPosition
+
+        Send WriteSource ('Get Append_Field_2 "'+sColumnName+'" '+FieldTypeText(oTableAccessFunctions,iType,2)+' '+String(iLen)+' '+String(iPrecision)+' to iPosition')
+
+        Send SuspendWriteSource
+        Get Append_Field to iPosition
+        Set Field_Attribute DF_FIELD_NAME iPosition to sColumnName
+        Set Field_Attribute DF_FIELD_TYPE iPosition to iType
+        If (iType<>DF_DATE) Begin
+            If (iType=DF_BCD) Begin
+                Set Field_Attribute DF_FIELD_LENGTH iPosition to iLen
+            End
+            Else Begin
+                Set Field_Attribute DF_FIELD_LENGTH iPosition to iLen
+            End
+            If (iType=DF_BCD) Begin
+                Set Field_Attribute DF_FIELD_PRECISION iPosition to iPrecision
+            End
+        End
+        Send UnsuspendWriteSource
+        Function_Return iPosition
+    End_Function
+
+    Function Append_Field_3 String sColumnName Integer iType Integer iLen Integer iPrecision Integer iRelFile Integer iRelField Returns Integer
+        Integer iPosition
+
+        Send WriteSource ('Get Append_Field_3 "'+sColumnName+'" '+FieldTypeText(oTableAccessFunctions,iType,2)+' '+String(iLen)+' '+String(iPrecision)+' '+String(iRelFile)+' '+String(iRelField)+' to iPosition')
+
+        Send SuspendWriteSource
+        Get Append_Field to iPosition
+        Set Field_Attribute DF_FIELD_NAME iPosition to sColumnName
+        Set Field_Attribute DF_FIELD_TYPE iPosition to iType
+        If (iType<>DF_DATE) Begin
+            If (iType=DF_BCD) Begin
+                Set Field_Attribute DF_FIELD_LENGTH iPosition to iLen
+            End
+            Else Begin
+                Set Field_Attribute DF_FIELD_LENGTH iPosition to iLen
+            End
+            If (iType=DF_BCD) Begin
+                Set Field_Attribute DF_FIELD_PRECISION iPosition to iPrecision
+            End
+        End
+        If (iRelFile<>0) Begin
+            Set Field_Attribute DF_FIELD_RELATED_FILE iPosition to iRelFile
+            Set Field_Attribute DF_FIELD_RELATED_FIELD iPosition to iRelField
+        End
+        Send UnsuspendWriteSource
+        Function_Return iPosition
+    End_Function
+    
+    Procedure _AppendTableFieldExplicit tTableFieldExplicit strField 
+        Integer iColumn
+        Get Append_Field_3 strField.sName strField.iType strField.iLen strField.iPrecision strField.iRelFile strField.iRelField to iColumn
+//        Set Field_Attribute DF_FIELD_RELATED_FILE iColumn to strField.iRelFile
+//        Set Field_Attribute DF_FIELD_RELATED_FIELD iColumn to strField.iRelField
+    End_Procedure
+
+//    Function Append_Field_2 String sColumnName Integer iType Integer iLen Integer iPrecision Returns Integer
+//    Function Append_Field_3 String sColumnName Integer iType Integer iLen Integer iPrecision Integer iRelFile Integer iRelField Returns Integer
+
+    Procedure _DefineIndexExplicit tTableIndexExplicit strIndex Integer iIndex
+        Integer iSegmentIndex iSegmentMax
+        Move (SizeOfArray(strIndex.aFields)-1) to iSegmentMax
+        If (SizeOfArray(strIndex.aFields)<>0) Begin
+            Send WriteSource ''
+            Send WriteSource ('// Index '+String(iIndex)+":")
+            Send Create_Index iIndex
+            Set Index_Attribute DF_INDEX_NUMBER_SEGMENTS iIndex to iSegmentMax
+            For iSegmentIndex from 1 to iSegmentMax
+                Send WriteSource ''
+                Set Index_Segment_Attribute DF_INDEX_SEGMENT_FIELD iIndex iSegmentIndex to strIndex.aFields[iSegmentIndex]
+                Set Index_Segment_Attribute DF_INDEX_SEGMENT_DIRECTION iIndex iSegmentIndex to (If(strIndex.aDescending[iSegmentIndex],DF_DESCENDING,DF_ASCENDING))
+                Set Index_Segment_Attribute DF_INDEX_SEGMENT_CASE iIndex iSegmentIndex to (If(strIndex.aCaseInsensitive[iSegmentIndex],DF_CASE_IGNORED,DF_CASE_USED))
+            Loop
+            Set Index_Attribute DF_INDEX_TYPE iIndex to strIndex.iType
+        End
+    End_Procedure
+
+        Function _FieldRangeNativeLengthSum Integer iFieldStart Integer iFieldEnd Returns Integer
+            Integer iField iLen iLenSum hTable iType
+            Move 0 to iLenSum
+            Get _phTable to hTable
+            For iField from iFieldStart to iFieldEnd
+                Get_Attribute DF_FIELD_TYPE of hTable iField to iType
+                If (iType<>DF_OVERLAP) Begin
+                    Get_Attribute DF_FIELD_NATIVE_LENGTH of hTable iField to iLen
+                    Move (iLenSum+iLen) to iLenSum
+                End
+            Loop
+            Function_Return iLenSum
+        End_Function
+    
+    Function CreateTableExplicit tTableExplicit strTable String sFolder Returns Boolean
+        Integer iColumnIndex iColumnMax
+        Integer iIndexIndex iIndexMax
+        Integer iOffSet iLength
+        Integer hTable
+        Boolean bSucces
+        String sTableName
+
+        // Prepare root- and physical table names
+        Move strTable.sRootName to sTableName
+        Get TableRootNameStripDriver of oAttributeFunctions sTableName to sTableName
+        Get PathToFileRootName of oFileFunctions sTableName to sTableName
+        Move sTableName to strTable.sRootName
+
+        // We must fork certain parameters to abide with the driver (most notably the embedded database, max records etc...)
+        Get TrimTableDefinitionToDriver of oTableExplicitFunctions (&strTable) to bSucces
+        If (bSucces) Begin
+            If (Structure_Start_New_Table(Self, strTable.sRootName, sFolder, strTable.sDriver)) Begin
+                Set Table_Attribute DF_FILE_MAX_RECORDS to strTable.nMaxRecords
+                Set Table_Attribute DF_FILE_INTEGRITY_CHECK to strTable.iIntegrityCheck
+                Set Table_Attribute DF_FILE_IS_SYSTEM_FILE to (If(strTable.bSystemFile,1,0))
+                Move (SizeOfArray(strTable.aFields)-1) to iColumnMax
+
+                // Create columns
+                For iColumnIndex from 1 to iColumnMax
+                    Send _AppendTableFieldExplicit strTable.aFields[iColumnIndex]
+                Loop
+                
+                // Create indices
+                Move (SizeOfArray(strTable.aIndices)-1) to iIndexMax
+                For iIndexIndex from 1 to iIndexMax
+                    Send _DefineIndexExplicit strTable.aIndices[iIndexIndex] iIndexIndex
+                Loop
+
+                // Update overlap boundaries
+                Get _phTable to hTable
+                For iColumnIndex from 1 to iColumnMax
+                    If (strTable.aFields[iColumnIndex].iType=DF_OVERLAP) Begin
+                        Get_Attribute DF_FIELD_OFFSET of hTable strTable.aFields[iColumnIndex].iOverlapFieldStart to iOffSet
+                        Set Field_Attribute DF_FIELD_OFFSET iColumnIndex to iOffSet
+                        Get _FieldRangeNativeLengthSum strTable.aFields[iColumnIndex].iOverlapFieldStart strTable.aFields[iColumnIndex].iOverlapFieldEnd to iLength
+                        Set Field_Attribute DF_FIELD_LENGTH iColumnIndex to iLength
+                    End
+                Loop
+
+                // Set field main index:
+                For iColumnIndex from 1 to iColumnMax
+                    If (strTable.aFields[iColumnIndex].iMainIndex<>0) Begin
+                        Set Field_Attribute DF_FIELD_INDEX iColumnIndex to strTable.aFields[iColumnIndex].iMainIndex
+                    End
+                Loop
+
+                Get Structure_End to bSucces
+                If (not(bSucces)) Begin
+//                    Error 492 "Structure_End unsuccessful!"
+//                    Send WriteSource '// There were errors during the creation of this table'
+                End
+            End
+            Else Begin
+                Move False to bSucces
+            End
+        End
+        Function_Return bSucces
+    End_Function
+End_Class // cTableStructureFunctions
+
+Object _oTableStructureFunctions is a cTableStructure
+    Move Self to oTableStructureFunctions
+End_Object
+
+

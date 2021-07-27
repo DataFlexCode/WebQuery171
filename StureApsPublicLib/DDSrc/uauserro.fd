@@ -1,0 +1,4 @@
+#REPLACE FILE1019 uauserro
+#REPLACE uauserro.Recnum |FN1019,0
+#REPLACE uauserro.UserID |FN1019,1
+#REPLACE uauserro.RoleID |FN1019,2

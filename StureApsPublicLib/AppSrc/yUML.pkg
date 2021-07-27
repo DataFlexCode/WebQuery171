@@ -1,0 +1,189 @@
+// yuml.me (Create and share simple UML diagrams in your blogs, wikis, forums, bug-trackers and emails.)
+// http://yuml.me/diagram/class/samples
+
+// To do:
+//
+// * Dotted lines between alias tables
+
+Use cHttpTransfer.pkg
+
+Use VdfBase.pkg
+Use UrlFunctions.pkg
+
+Struct tYumlClass
+    String sLabel // Label of the entity
+    String sColor // Although faithfully carried around it is used for nothing
+End_Struct
+
+Struct tYumlClassRelation
+    Integer iType // 0=1:N, 1=1:N dotted, 2=1:1
+    Integer iFrom // From class (array index)
+    Integer iTo   // To class (array index)
+    Boolean bMark // Mark the relation with an *. I use that to mark constrained relations
+End_Struct
+
+Struct tYumlClassDiagram
+    Integer iScalePct
+    Integer iForceDirection  // 0=no force, 1=left-right, 2=top-down
+    Integer iImageType       // 1=jpg 2=pdf
+    Boolean bScruffy         // makes it look a little hand drawn. but just a little
+    String sNote             // A note that is inserted into the diagram
+    tYumlClass[] aClasses            // The classes (entities)
+    tYumlClassRelation[] aRelations  // And the relations between them.
+End_Struct
+
+Class cYumlFunctions is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Object oHttpTransfer is a cHttpTransfer
+            Set psRemoteHost to "yuml.me"
+        End_Object
+    End_Procedure
+    
+    Function NewDiagram Returns tYumlClassDiagram
+        tYumlClassDiagram strDiagram
+        Move 100 to strDiagram.iScalePct
+        Move 0 to strDiagram.iForceDirection
+        Move 0 to strDiagram.iImageType
+        Move False to strDiagram.bScruffy
+        Function_Return strDiagram
+    End_Function
+    
+        Function _FindClassLabelIndex tYumlClassDiagram strDiagram String sLabel Returns Integer
+            Integer iMax iIndex
+            Move (SizeOfArray(strDiagram.aClasses)-1) to iMax
+            For iIndex from 0 to iMax
+                If (sLabel=strDiagram.aClasses[iIndex].sLabel) Begin
+                    Function_Return iIndex
+                End
+            Loop
+            Function_Return -1
+        End_Function
+        
+    Procedure SetClassColor tYumlClassDiagram ByRef strDiagram String sLabel String sColor
+        Integer iIndex
+        Get _FindClassLabelIndex strDiagram sLabel to iIndex
+        If (iIndex<>-1) Begin
+            Move sColor to strDiagram.aClasses[iIndex].sColor
+        End
+        Else Begin
+            Error DFERR_PROGRAM ("yUML class label not found ("+sLabel+")")
+        End
+    End_Procedure
+    
+    Procedure AddClass tYumlClassDiagram ByRef strDiagram String sLabel
+        Integer iIndex
+        Get _FindClassLabelIndex strDiagram sLabel to iIndex
+        If (iIndex=-1) Begin
+            Move (SizeOfArray(strDiagram.aClasses)) to iIndex
+            Move sLabel to strDiagram.aClasses[iIndex].sLabel
+        End
+    End_Procedure
+    
+    Procedure AddRelation tYumlClassDiagram ByRef strDiagram String sFrom String sTo Boolean bMark
+        Integer iFromIndex iToIndex iIndex
+        Send AddClass (&strDiagram) sFrom
+        Send AddClass (&strDiagram) sTo
+        Get _FindClassLabelIndex strDiagram sFrom to iFromIndex
+        Get _FindClassLabelIndex strDiagram sTo to iToIndex
+        Move (SizeOfArray(strDiagram.aRelations)) to iIndex
+        Move iFromIndex to strDiagram.aRelations[iIndex].iFrom
+        Move iToIndex to strDiagram.aRelations[iIndex].iTo
+        If (num_arguments>3) Begin
+            Move bMark to strDiagram.aRelations[iIndex].bMark
+        End
+    End_Procedure
+    
+//        Function _DiagramUrlRelation tYumlClassDiagram strDiagram Integer iRelIndex Returns String
+//            String sLabelFrom sLabelTo sRval
+//
+//            Move ("["+strDiagram.aClasses[strDiagram.aRelations[iRelIndex].iFrom].sLabel+"]") to sRval
+//
+//            If (strDiagram.aRelations[iRelIndex].iType=0) Begin // 1:N
+//                Move (sRval+"->") to sRval
+//            End
+//            Else If (strDiagram.aRelations[iRelIndex].iType=1) Begin // 1:N dotted
+//                Move (sRval+"-.->") to sRval
+//            End
+//
+//            Move (sRval+"["+strDiagram.aClasses[strDiagram.aRelations[iRelIndex].iTo].sLabel+"]") to sRval
+//
+//            Function_Return sRval
+//        End_Function
+    
+        Function _DiagramUrlRelation tYumlClassDiagram strDiagram Integer iRelIndex Returns String
+            String sLabelFrom sLabelTo sRval
+
+
+            Move ("["+strDiagram.aClasses[strDiagram.aRelations[iRelIndex].iTo].sLabel+"]") to sRval
+
+            If (strDiagram.aRelations[iRelIndex].iType=0) Begin // 1:N
+                Move (sRval+"^-") to sRval
+            End
+            Else If (strDiagram.aRelations[iRelIndex].iType=1) Begin // 1:N dotted
+//                Move (sRval+"-.->") to sRval
+            End
+            If (strDiagram.aRelations[iRelIndex].bMark) Begin
+                Move (sRval+"*") to sRval
+            End
+
+            Move (sRval+"["+strDiagram.aClasses[strDiagram.aRelations[iRelIndex].iFrom].sLabel+"]") to sRval
+
+            Function_Return sRval
+        End_Function
+    
+    Function DiagramUrl tYumlClassDiagram strDiagram Returns String
+        Integer iRelIndex iRelMax
+        String sUrl
+        
+        If (strDiagram.bScruffy) Begin
+            Move "http://yuml.me/diagram/scruffy/class/" to sUrl
+        End
+        Else Begin    
+            Move "http://yuml.me/diagram/dir:td/class/" to sUrl
+        End
+        
+        If (strDiagram.sNote<>"") Begin
+            Move (sUrl+"[note:"+strDiagram.sNote+"],") to sUrl
+        End
+        
+        // Add all relations
+        Move (SizeOfArray(strDiagram.aRelations)-1) to iRelMax
+        For iRelIndex from 0 to iRelMax
+            Move (sUrl+_DiagramUrlRelation(Self,strDiagram,iRelIndex)) to sUrl
+            If (iRelIndex<>iRelMax) Begin
+                Move (sUrl+",") to sUrl
+            End
+        Loop
+        
+        // Add alias file indications here
+        
+        
+        If (strDiagram.iImageType=1) Begin
+            Move (sUrl+".jpg") to sUrl
+        End
+        Else If (strDiagram.iImageType=2) Begin
+            Move (sUrl+".pdf") to sUrl
+        End
+        
+//        Get UrlCharacterEncode of oUrlFunctions sUrl to sUrl
+        
+        Function_Return sUrl
+    End_Function
+    
+    Function SaveJpgAs tYumlClassDiagram strDiagram String sJpgFileName Returns Boolean
+        Integer iVal
+        String sUrl
+        Set psSaveAsFile of oHttpTransfer to sJpgFileName
+        Get DiagramUrl strDiagram to sUrl
+        Get HTTPGetRequest of oHttpTransfer (Replace("http://yuml.me",sUrl,"")) to iVal
+        Function_Return (iVal<>0)
+    End_Function
+    
+End_Class // cYumlFunctions
+
+Global_Variable Integer oYumlFunctions
+
+Object _oYumlFunctions is a cYumlFunctions
+    Move Self to oYumlFunctions
+End_Object

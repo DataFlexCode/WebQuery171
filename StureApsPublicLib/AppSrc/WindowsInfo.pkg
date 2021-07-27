@@ -1,0 +1,107 @@
+//> The WindowsInfo object contains methods for querying Windows about this and that.
+//> pkg.doc.end
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use GlobalFunctionsProcedures.pkg
+
+External_Function wi_WNetGetUser "WNetGetUserA" MPR.DLL Pointer lpName Pointer lpUser_Name Pointer lpLength Returns DWord
+
+External_Function wi_InternetGetConnectedState "InternetGetConnectedState" WinInet.dll Pointer lpdwFlags Integer dwReserved Returns Integer
+
+External_Function wi_WinAPI_GetDefaultPrinter "GetDefaultPrinterA" Winspool.Drv Address pszBuffer UInteger pcchBuffer Returns Boolean
+External_Function wi_WinAPI_SetDefaultPrinter "SetDefaultPrinterA" Winspool.Drv Address pszBuffer Returns Boolean
+External_Function wi_WinAPI_GetComputerName   "GetComputerNameA"   Kernel32.dll Pointer lpBuffer Pointer lpnSize Returns Integer
+
+
+Global_Variable Integer oWindowsInfo
+
+Object _oWindowsInfo is a cObject
+    Move Self to oWindowsInfo
+
+    // All of the printer stuff has been copied (and modified) from Vincents: http://www.dataaccess.com/kbasepublic/KBPrint.asp?ArticleID=2322
+
+    Function Printer_Default Returns String
+        String sPrinterName
+        Integer iBufferSize
+        Boolean bSuccess
+
+        Move 0 to iBufferSize
+        Move (wi_WinAPI_GetDefaultPrinter(0,AddressOf(iBufferSize))) to bSuccess
+        If (not (bSuccess)) Begin
+            ZeroString iBufferSize to sPrinterName
+            Move (wi_WinAPI_GetDefaultPrinter(AddressOf(sPrinterName),AddressOf(iBufferSize))) to bSuccess
+        End
+
+        Move (CString(sPrinterName)) to sPrinterName
+        Move (ToOEM(sPrinterName)) to sPrinterName // Sture
+        Function_Return sPrinterName
+    End_Function
+
+    Function Printer_SetDefault String sPrinterName Returns Boolean
+        Boolean bSuccess
+        Move (ToANSI(sPrinterName)) to sPrinterName // Sture
+        Move (wi_WinAPI_SetDefaultPrinter(AddressOf(sPrinterName))) to bSuccess
+        Function_Return bSuccess
+    End_Function
+
+    Function NetworkUserName Returns String // Stolen from Dfabout.pkg
+        String sName
+        Integer iRetval iLength
+        ZeroString 255 to sName
+        Move 255 to iLength
+        Move (wi_WNetGetUser (0, AddressOf (sName), AddressOf (iLength))) to iRetval
+        If (iRetval = 0) Begin
+            Function_Return (CString (sName))
+        End
+        Else Begin
+            Function_Return "User unknown"
+        End
+    End_Function // Network_User_Name
+
+    Define wi_INTERNET_CONNECTION_MODEM        For 1
+    Define wi_INTERNET_CONNECTION_LAN          For 2
+    Define wi_INTERNET_CONNECTION_PROXY        For 4
+    Define wi_INTERNET_CONNECTION_MODEM_BUSY   For 8
+
+    Function InternetConnectedState Returns Integer
+        // Thanks to Raveen Ryan Sundram!
+
+        Integer iFlags iRet
+        Pointer lpdwFlags
+
+        Move 0 To iFlags
+        GetAddress Of iFlags To lpdwFlags
+        Move (wi_InternetGetConnectedState(lpdwFlags,0)) To iRet
+        If (iRet) Begin // Connected!
+          If (iFlags Iand wi_INTERNET_CONNECTION_MODEM) Begin
+              Function_Return wi_INTERNET_CONNECTION_MODEM      //  'Connection via MODEM'
+          End
+          If (iFlags Iand wi_INTERNET_CONNECTION_LAN) Begin
+              Function_Return wi_INTERNET_CONNECTION_LAN        //  'Connection via LAN'
+          End
+          If (iFlags Iand wi_INTERNET_CONNECTION_PROXY) Begin
+              Function_Return wi_INTERNET_CONNECTION_PROXY      //  'Connection via PROXY'
+          End
+          If (iFlags Iand wi_INTERNET_CONNECTION_MODEM_BUSY) Begin
+              Function_Return wi_INTERNET_CONNECTION_MODEM_BUSY //  'Connection via MODEM but modem is BUSY'
+          End
+        End
+        Function_Return 0 // Not connected
+    End_Function
+
+    Function ComputerName Returns String
+        String sMachineName
+        Integer iSize iResult
+
+        Move 16 to iSize //Maximum Computer name length + 1
+        Move (repeat(Character(0),iSize)) to sMachineName
+
+        Move (wi_WinAPI_GetComputerName(AddressOf(sMachineName), AddressOf(iSize))) to iResult
+        
+        Move (CString(sMachineName)) to sMachineName
+        
+        Function_Return sMachineName
+    End_Function
+
+
+End_Object

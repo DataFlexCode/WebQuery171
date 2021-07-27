@@ -1,0 +1,9 @@
+EventDate
+EventTime
+UserId
+SessionId
+EventSource
+EventText
+ErrorNumber
+ErrorLine
+TAC_Table

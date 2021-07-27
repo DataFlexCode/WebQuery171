@@ -1,0 +1,185 @@
+// Use DataDescriptionObj.pkg //
+
+//> This package defines the tBasicFieldType type that is used throughout many of the other packages. It also
+//> contains methods for extracting meta data from a DD object.
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+Enum_List // Basic field types
+    Define BFT_STRING
+    Define BFT_NUMBER
+    Define BFT_DATE
+    Define BFT_BOOLEAN
+    Define BFT_TEXT
+    Define BFT_BINARY
+    Define BFT_OVERLAP // obsolete
+End_Enum_List
+
+Struct tBasicFieldType
+    Integer iType // String/number/date (determines how the values should be treated when stored in the world outside this application)
+    Integer iLen
+    Integer iDecs
+End_Struct
+
+Struct tFieldValueOption
+    String sData
+    String sValue
+End_Struct
+
+Struct tFieldValueList
+    String sTitle
+    Boolean bStatic
+    Boolean bUseDataColumn
+    Boolean bAllowBlank
+    Boolean bAllowEdit
+    tFieldValueOption[] aOptions
+End_Struct
+
+Struct tFieldDescription
+    String sColumnName
+    Integer iFile
+    Integer iField
+    String sLabel
+    String sShortLabel
+    String sUnit
+    String sToolTip      // Tooltip or status help
+    String sMask
+    tBasicFieldType sBft // Basic field type
+    Boolean bCaps        // Capslocked?
+    Boolean bReadOnly    // Value may not be changed
+    Boolean bHidden      // Do not show this in
+    Boolean bValidate    // Validate message specified?
+    Boolean bEntry       // Entry?
+    Boolean bExit        // Exit?
+    tFieldValueList sValueList
+End_Struct
+
+Struct tTableDescription
+    String sDisplayName
+    tFieldDescription[] aColumns
+End_Struct
+
+Struct tDatabaseDescription
+    String sName
+    tTableDescription[] aTables
+End_Struct
+
+Global_Variable Integer DatabaseDescriptionObj
+
+Object _DatabaseDescriptionObj is a cObject
+    Move Self to DatabaseDescriptionObj
+    Property Integer[] paDDO_Classes // Private: Define what VDF class
+    Property Integer[] paDDO_Objects // Private:
+
+    Property tDatabaseDescription psDataBase // Private
+
+    // This method lets you decide the class of object to be queried when reading DatabaseBuilder settings.
+    Procedure Set DDO_Class Integer iFile Integer iClass
+        Integer[] aiClasses
+        Get paDDO_Classes to aiClasses
+        Move iClass to aiClasses[iFile]
+        Set paDDO_Classes to aiClasses
+    End_Procedure
+
+    Function DDO_Class Integer iFile Returns Integer
+        Integer[] aiClasses
+        Get paDDO_Classes to aiClasses
+        If (SizeOfArray(aiClasses)>iFile) Function_Return aiClasses[iFile]
+        Function_Return 0
+    End_Function
+
+    Procedure Set DDO_Object Integer iFile Integer hObject
+        Integer[] aiObjects
+        Get paDDO_Objects to aiObjects
+        Move hObject to aiObjects[iFile]
+        Set paDDO_Objects to aiObjects
+    End_Procedure
+
+    // Table must be open prior to calling this function
+    Function DDO_Object Integer iFile Returns Integer
+        Integer hDDO iClass
+        Integer[] aiObjects
+        Get paDDO_Objects to aiObjects
+        If (SizeOfArray(aiObjects)>iFile) Move aiObjects[iFile] to hDDO
+        Else Move 0 to hDDO
+        ifnot hDDO Begin // If the object isn't there...
+            Get DDO_Class iFile to iClass
+            If iClass Begin // And the class is...
+                Get Create iClass to hDDO // Create new DDO
+                Set DDO_Object iFile to hDDO
+                Move hDDO to aiObjects[iFile]
+                Set paDDO_Objects to aiObjects
+            End
+        End
+        Function_Return hDDO
+    End_Function
+
+    Function FieldValueListEmpty String sTitle Boolean bUseDataColumn Boolean bAllowBlank Boolean bAllowEdit Returns tFieldValueList
+        tFieldValueList sRval
+        Move sTitle to sRval.sTitle
+        Move bUseDataColumn to sRval.bUseDataColumn
+        Move bAllowBlank to sRval.bAllowBlank
+        Move bAllowEdit to sRval.bAllowEdit
+        Function_Return sRval
+    End_Function
+
+    Procedure FieldValueListAddOption tFieldValueList ByRef sFieldValueList String sData String sValue
+        Integer iSize
+        Move (SizeOfArray(sFieldValueList.aOptions)) to iSize
+        Move sData to sFieldValueList.aOptions[iSize].sData
+        Move sValue to sFieldValueList.aOptions[iSize].sValue
+    End_Procedure
+
+    //> Returns complex type tBasicFieldType composed of parameters passed.
+    Function BasicFieldType Integer iType Integer iLen Integer iDecs Returns tBasicFieldType
+        tBasicFieldType sRval
+        Move iType to sRval.iType
+        Move iLen to sRval.iLen
+        Move iDecs to sRval.iDecs
+        Function_Return sRval
+    End_Function
+
+    //> Returns complex type tBasicFieldType conrresponding to the table definition of the table/field passed. Table must be open.
+    Function BasicFieldTypeField Integer iFile Integer iField Returns tBasicFieldType
+        Integer iType
+        tBasicFieldType sRval
+        Get_Attribute DF_FIELD_LENGTH of iFile iField to sRval.iLen
+        Get_Attribute DF_FIELD_PRECISION of iFile iField to sRval.iDecs
+        Get_Attribute DF_FIELD_TYPE of iFile iField to iType
+        If (iType=DF_ASCII) Move BFT_STRING to sRval.iType
+        If (iType=DF_BCD) Move BFT_NUMBER to sRval.iType
+        If (iType=DF_DATE) Move BFT_DATE to sRval.iType
+        If (iType=DF_OVERLAP) Move BFT_OVERLAP to sRval.iType
+        If (iType=DF_TEXT) Move BFT_TEXT to sRval.iType
+        If (iType=DF_BINARY) Move BFT_BINARY to sRval.iType
+        Function_Return sRval
+    End_Function
+    
+    Function BasicFieldTypeToDF Integer iBftType Returns Integer
+        If (iBftType=BFT_STRING ) Function_Return DF_ASCII
+        If (iBftType=BFT_NUMBER ) Function_Return DF_BCD 
+        If (iBftType=BFT_DATE   ) Function_Return DF_DATE 
+        If (iBftType=BFT_BOOLEAN) Function_Return DF_BCD
+        If (iBftType=BFT_TEXT   ) Function_Return DF_TEXT 
+        If (iBftType=BFT_BINARY ) Function_Return DF_BINARY 
+        If (iBftType=BFT_OVERLAP) Function_Return DF_OVERLAP 
+        Function_Return -99
+    End_Function
+
+    // Table must be open prior to calling this procedure
+    Procedure ReadTableDescription Integer iFile
+        Integer hDD
+        tTableDescription sDescr
+
+
+
+        Get DDO_Object iFile to hDD
+        If (hDD<>0) Begin
+
+        End
+    End_Procedure
+
+    Function TableDescription Integer iFile Returns tTableDescription
+    End_Function
+End_Object // DatabaseDescriptionObj
+

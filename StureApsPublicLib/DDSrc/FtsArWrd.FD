@@ -1,0 +1,4 @@
+#REPLACE FILE1003 FtsArWrd
+#REPLACE FtsArWrd.Recnum |FN1003,0
+#REPLACE FtsArWrd.Article_Id |FN1003,1
+#REPLACE FtsArWrd.Word_Id |FN1003,2

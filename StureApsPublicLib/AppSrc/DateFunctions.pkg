@@ -1,0 +1,1585 @@
+// Use DateFunctions.pkg // Define oDateFunctions object
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+Use StringFunctions.pkg // Define oStringFunctions object
+
+Use DatesLD.pkg // Language dictionary for day and month names
+Use Windows.pkg
+Use DfLine.pkg
+Use RgbFunctions.pkg
+
+
+Define LargestPossibleDate for 913490 // December 31st 2500
+Define Jan1st1900          for 693975
+Define Jan1st2000          for 730500
+Define Jan1st1930          for 704933
+Define Jan1st1000          for 365250
+Define Jan1st105           for 38352
+Define Jan1st100           for 36525
+
+Enumeration_List // Date Segments. Sequence of definitions determined granularity
+    Define DS_SECOND
+    Define DS_MINUTE
+    Define DS_HOUR
+    Define DS_DAY
+    Define DS_WEEK
+    Define DS_MONTH
+    Define DS_QUARTER
+    Define DS_YEAR
+End_Enumeration_List
+
+//#IFNDEF TS_HOUR
+//    Enumeration_List // Time Segments. Sequence of definitions determined granularity
+//        Define TS_SECOND
+//        Define TS_MINUTE
+//        Define TS_HOUR
+//    End_Enumeration_List
+//#ENDIF
+
+Enumeration_List // Codes for date interval presets
+  Define DI_EXPLICIT
+  Define DI_NO_LIMIT
+  Define DI_LAST_WEEK
+  Define DI_LAST_MONTH
+  Define DI_LAST_YEAR
+  Define DI_WEEK_TO_DATE
+  Define DI_MONTH_TO_DATE
+  Define DI_YEAR_TO_DATE
+End_Enumeration_List
+
+
+External_Function do_GetSystemTime "GetSystemTime" kernel32.dll Pointer lpGST Returns VOID_TYPE
+
+Struct tSystemTimeMS
+    Short iYear
+    Short iMonth
+    Short iDayOfWeek
+    Short iDay
+    Short iHour
+    Short iMinute
+    Short iSecond
+    Short iMilliSeconds
+End_Struct
+
+Global_Variable String _gsDate$ModuleStartTime
+
+Class cDateFunctions is a cObject
+    Procedure Construct_Object
+        Integer iValue
+        Forward Send Construct_Object  
+        Property String  psDateSeparator //
+        Property Integer piDateFormat    //
+        Get_Attribute DF_DATE_SEPARATOR to iValue  
+        Set psDateSeparator to (character(iValue)) 
+        Get_Attribute DF_DATE_FORMAT to iValue 
+        Set piDateFormat to iValue 
+        
+        // The next cryptic objects enables the language dependent functions of this package to change
+        // their language on the fly in an efficient manner.
+        
+        Object oDayNames is a cStringConstantsArray 
+            Set Value 1 to "ls.date.monday"
+            Set Value 2 to "ls.date.tuesday"
+            Set Value 3 to "ls.date.wednesday"
+            Set Value 4 to "ls.date.thursday"
+            Set Value 5 to "ls.date.friday"
+            Set Value 6 to "ls.date.saturday"
+            Set Value 7 to "ls.date.sunday"
+        End_Object
+
+        Object oMonthNames is a cStringConstantsArray
+            Set Value  1 to "ls.date.january"
+            Set Value  2 to "ls.date.february"
+            Set Value  3 to "ls.date.march"
+            Set Value  4 to "ls.date.april"
+            Set Value  5 to "ls.date.may"
+            Set Value  6 to "ls.date.june"
+            Set Value  7 to "ls.date.july"
+            Set Value  8 to "ls.date.august"
+            Set Value  9 to "ls.date.september"
+            Set Value 10 to "ls.date.october"
+            Set Value 11 to "ls.date.november"
+            Set Value 12 to "ls.date.december"
+        End_Object
+        
+        Object oIntervalLabels is a cStringConstantsArray
+            Set Value DI_EXPLICIT      to "ls.date.int_userentry"
+            Set Value DI_NO_LIMIT      to "ls.date.int_nolimit"
+            Set Value DI_LAST_WEEK     to "ls.date.int_lastweek"
+            Set Value DI_LAST_MONTH    to "ls.date.int_lastmonth"
+            Set Value DI_LAST_YEAR     to "ls.date.int_lastyear"
+            Set Value DI_WEEK_TO_DATE  to "ls.date.int_weektodate"
+            Set Value DI_MONTH_TO_DATE to "ls.date.int_monthtodate"
+            Set Value DI_YEAR_TO_DATE  to "ls.date.int_yeartodate"
+        End_Object
+    End_Procedure
+   
+    Procedure DecomposeDate Date dValue Integer ByRef iDay Integer ByRef iMonth Integer ByRef iYear
+        Integer iValue iFormat 
+        String sValue sSep 
+        Integer[] aNumbers
+   
+        Move (Date(dValue)) to dValue  
+        Get_Attribute DF_DATE_FORMAT to iFormat
+        Get_Attribute DF_DATE_SEPARATOR to iValue // overload  
+        Move (character(iValue)) to sSep          // end overload  
+        Move dValue to sValue  
+   
+        Send SplitString of oStringFunctions sValue sSep False False (&aNumbers)  
+        Move (SizeOfArray(aNumbers)) to iValue 
+        If (iValue=3) Begin
+            If (iFormat=DF_DATE_EUROPEAN) Begin
+                Move aNumbers[0] to iDay
+                Move aNumbers[1] to iMonth 
+                Move aNumbers[2] to iYear
+            End
+            If (iFormat=DF_DATE_USA) Begin 
+                Move aNumbers[0] to iMonth 
+                Move aNumbers[1] to iDay   
+                Move aNumbers[2] to iYear  
+            End
+            If (iFormat=DF_DATE_MILITARY) Begin
+                Move aNumbers[0] to iYear  
+                Move aNumbers[1] to iMonth 
+                Move aNumbers[2] to iDay   
+            End
+        End
+        Else Begin 
+            Move 0 to iDay 
+            Move 0 to iMonth   
+            Move 0 to iYear
+        End
+    End_Procedure
+   
+    Function ComposeDate Integer iDay Integer iMonth Integer iYear Returns Date
+        Integer iFormat iDD iMM iYY
+        Date dValue
+        String sSep
+        ifnot (iDay*iMonth) Function_Return 0
+
+        Get_Attribute DF_DATE_SEPARATOR to iFormat // overload 
+        Move (character(iFormat)) to sSep          // end overload 
+   
+        Get_Attribute DF_DATE_FORMAT to iFormat
+        If (iDay>28) Begin 
+            If (iFormat=DF_DATE_EUROPEAN) Move (Date(String(iDay)+sSep+String(iMonth)+sSep+String(iYear))) to dValue // DMY
+            If (iFormat=DF_DATE_USA)      Move (Date(String(iMonth)+sSep+String(iDay)+sSep+String(iYear))) to dValue // MDY
+            If (iFormat=DF_DATE_MILITARY) Move (Date(String(iYear)+sSep+String(iMonth)+sSep+String(iDay))) to dValue // YMD
+            Send DecomposeDate dValue (&iDD) (&iMM) (&iYY)
+            If (iMM<>iMonth) Move (iDay-IDD) to iDay   
+        End
+        If (iFormat=DF_DATE_EUROPEAN) Function_Return (Date(String(iDay)+sSep+String(iMonth)+sSep+String(iYear))) // DMY   
+        If (iFormat=DF_DATE_USA) Function_Return (Date(String(iMonth)+sSep+String(iDay)+sSep+String(iYear))) // MDY
+        Function_Return (Date(String(iYear)+sSep+String(iMonth)+sSep+String(iDay))) // YMD 
+    End_Function
+    
+    // DecomposeTimeString / TimeStringDecompose
+    Procedure DecomposeTimeString String sTime Integer ByRef iHour Integer ByRef iMin Integer ByRef iSec
+        String[] aValues
+        Send SplitString of oStringFunctions (trim(sTime)) ":" False False (&aValues)
+        If (SizeOfArray(aValues)=2) Begin
+            Move aValues[0] to iHour
+            Move aValues[1] to iMin
+            Move 0 to iSec
+        End
+        Else If (SizeOfArray(aValues)=3) Begin
+            Move aValues[0] to iHour
+            Move aValues[1] to iMin
+            Move aValues[2] to iSec
+        End
+        Else If (length(sTime)=4) Begin
+            Move (Mid(sTime,2,1)) to iHour
+            Move (Mid(sTime,2,3)) to iMin
+            Move 0 to iSec
+        End
+        Else If (length(sTime)=6) Begin
+            Move (Mid(sTime,2,1)) to iHour
+            Move (Mid(sTime,2,3)) to iMin
+            Move (Mid(sTime,2,5)) to iSec            
+        End
+        Else Begin
+            Move 0 to iHour
+            Move 0 to iMin 
+            Move 0 to iSec 
+        End
+    End_Procedure
+    
+    // ComposeTimeString / TimeStringCompose
+    Function ComposeTimeString Integer iHour Integer iMin Integer iSec Returns String
+        Function_Return (If(iHour<10,"0","")+String(iHour)+":"+If(iMin<10,"0","")+String(iMin)+":"+If(iSec<10,"0","")+String(iSec))
+    End_Function
+    
+    // DecomposeTime / TimeDecompose
+    Procedure DecomposeTime Time tmTime Integer ByRef iHour Integer ByRef iMin Integer ByRef iSec
+        Move (DateGetHour(tmTime)) to iHour
+        Move (DateGetMinute(tmTime)) to iMin
+        Move (DateGetSecond(tmTime)) to iSec
+    End_Procedure
+    
+    // ComposeTime / TimeCompose
+    Function ComposeTime Integer iHour Integer iMin Integer iSec Returns Time
+        Time tRval
+        Move (DateSetHour(tRval,iHour)) to tRval
+        Move (DateSetMinute(tRval,iMin)) to tRval
+        Move (DateSetSecond(tRval,iSec)) to tRval
+        Function_Return tRval
+    End_Function
+        
+    // DecomposeDateTime / DateTimeDecompose
+    Procedure DecomposeDateTime DateTime dtValue Date ByRef dDate Time ByRef tmTime
+        Move (ComposeDate(Self,DateGetDay(dtValue),DateGetMonth(dtValue),DateGetYear(dtValue))) to dDate
+        Move (ComposeTime(Self,DateGetHour(dtValue),DateGetMinute(dtValue),DateGetSecond(dtValue))) to tmTime
+    End_Procedure
+    
+    // ComposeDateTime / DateTimeCompose
+    Function ComposeDateTime Date dDate Time tmTime Returns DateTime
+        Integer iHour iMin iSec
+        DateTime dtRval
+        Move dDate to dtRval
+        Move (DateGetHour(tmTime)) to iHour
+        Move (DateGetMinute(tmTime)) to iMin
+        Move (DateGetSecond(tmTime)) to iSec
+        If (iHour<>0) Move (DateSetHour(dtRval,iHour)) to dtRval
+        If (iMin<>0) Move (DateSetMinute(dtRval,iMin)) to dtRval
+        If (iSec<>0) Move (DateSetSecond(dtRval,iSec)) to dtRval
+        Function_Return dtRval
+    End_Function
+    
+    // DecomposeDateTimeString / DateTimeStringDecompose
+    Procedure DecomposeDateTimeString DateTime dtValue Date ByRef dDate String ByRef sTime
+        Move (ComposeDate(Self,DateGetDay(dtValue),DateGetMonth(dtValue),DateGetYear(dtValue))) to dDate
+        Move (ComposeTimeString(Self,DateGetHour(dtValue),DateGetMinute(dtValue),DateGetSecond(dtValue))) to sTime
+    End_Procedure
+    
+    // ComposeDateTimeString / DateTimeStringCompose
+    Function ComposeDateTimeString Date dDate String sTime Returns DateTime
+        Integer iHour iMin iSec
+        DateTime dtRval
+        Send DecomposeTimeString sTime (&iHour) (&iMin) (&iSec)
+        Move dDate to dtRval
+        Move (DateSetHour(dtRval,iHour)) to dtRval
+        Move (DateSetMinute(dtRval,iMin)) to dtRval
+        Move (DateSetSecond(dtRval,iSec)) to dtRval
+        Function_Return dtRval
+    End_Function
+    
+    Procedure DecomposeDateTimeAtoms DateTime dtValue Date ByRef dDate Integer ByRef iHour Integer ByRef iMin Integer ByRef iSec 
+        Time tmTime
+        Send DecomposeDateTime dtValue (&dDate) (&tmTime)
+        Send DecomposeTime tmTime (&iHour) (&iMin) (&iSec)
+    End_Procedure
+    
+    Function ComposeDateTimeAtoms Date dDate Integer iHour Integer iMin Integer iSec Returns DateTime
+        Time tmTime
+        DateTime dtValue
+        Get ComposeTime iHour iMin iSec to tmTime
+        Get ComposeDateTime dDate tmTime to dtValue
+        Function_Return dtValue
+    End_Function
+
+    Procedure DecomposeDateTimeQuarks DateTime dtValue Integer ByRef iYear Integer ByRef iMonth Integer ByRef iDay Integer ByRef iHour Integer ByRef iMin Integer ByRef iSec 
+        Date dDate
+        Time tmTime
+        Send DecomposeDateTime dtValue (&dDate) (&tmTime)
+        Send DecomposeDate dDate (&iDay) (&iMonth) (&iYear)
+        Send DecomposeTime tmTime (&iHour) (&iMin) (&iSec)
+    End_Procedure
+    
+    Function ComposeDateTimeQuarks Integer iYear Integer iMonth Integer iDay Integer iHour Integer iMin Integer iSec Returns DateTime
+        Time tmTime
+        Date dDate
+        DateTime dtValue
+        Get ComposeDate iDay iMonth iYear to dDate
+        Get ComposeTime iHour iMin iSec to tmTime
+        Get ComposeDateTime dDate tmTime to dtValue
+        Function_Return dtValue
+    End_Function
+
+    Function TimeToTimeString Time tmTime Returns String
+        Integer iHour iMin iSec
+        Send DecomposeTime tmTime (&iHour) (&iMin) (&iSec)
+        Function_Return (ComposeTimeString(Self,iHour,iMin,iSec))
+    End_Function
+    
+    Function TimeStringToTime String sTime Returns Time
+        Integer iHour iMin iSec
+        Send DecomposeTimeString sTime (&iHour) (&iMin) (&iSec)
+        Function_Return (ComposeTime(Self,iHour,iMin,iSec))
+    End_Function
+    
+    // The number returned is equivalent to the number of seconds between Jan 1st year 0 and the value of dtValue. This means that you may subtract two such values to get the number of seconds elapsed between the two.
+    Function DateTimeToNumber DateTime dtValue Returns Number
+        Date dValue
+        Move dtValue to dValue // Strip hours, minutes and seconds
+        Function_Return (Integer(dValue)*24.0+DateGetHour(dtValue)*60+DateGetMinute(dtValue)*60+DateGetSecond(dtValue))
+    End_Function
+
+    Function NumberToDateTime Number nValue Returns DateTime
+        Integer iSeconds iHours iMinutes
+        Date dValue
+        String sTime
+        Time tmTime
+        DateTime dtRval
+        Move (Date(Integer(nValue/86400))) to dValue
+        If (Integer(dValue)<>0) Begin
+            Move (nValue-(86400.0*Integer(dValue))) to iSeconds
+            Move (iSeconds/3600) to iHours
+            Move (iSeconds-(iHours*3600)) to iSeconds
+            Move (iSeconds/60) to iMinutes
+            Move (iSeconds-(iMinutes*60)) to iSeconds
+            Get ComposeTimeString iHours iMinutes iSeconds to sTime
+            Get TimeStringToTime sTime to tmTime
+            Get ComposeDateTime dValue tmTime to dtRval
+            
+            //Function_Return (DateTimeCompose(Self,dValue,TimeStringToTime(Self,sTime)))
+        End
+        Function_Return dtRval
+    End_Function
+   
+    Function SystemDate Returns Date
+        Date dDate
+        Sysdate4 dDate
+        Function_Return dDate
+    End_Function
+
+    Function SystemTimeString Returns String
+        Integer iHour iMin iSec
+        Sysdate4 iHour iHour iMin iSec
+        Function_Return (ComposeTimeString(Self,iHour,iMin,iSec))
+    End_Function
+    
+    Function SystemTimeStringMS Returns String
+        tSystemTimeMS strTime
+        String sValue
+        Get SystemTimeMilliSeconds to strTime
+        Get SystemTimeToString23 strTime to sValue
+        Function_Return (Right(sValue,12)) // Only the 'time' part
+    End_Function
+    
+    Function SystemDateTime Returns DateTime
+        Function_Return (CurrentDateTime())
+    End_Function
+    
+    Function SystemTime Returns Time // <-New
+        Date dValue
+        DateTime dtValue
+        Time tmResult
+        Move (CurrentDateTime()) to dtValue
+        Send DecomposeDateTime dtValue (&dValue) (&tmResult)
+        Function_Return tmResult
+    End_Function
+    
+    Function SystemTimeMilliSeconds Returns tSystemTimeMS
+        Integer iVoid
+        tSystemTimeMS stRval
+        Move (do_GetSystemTime(AddressOf(stRval))) to iVoid
+        Function_Return stRval
+    End_Function 
+    
+    Function ModuleStartTime Returns String // YYYY-MM-DDTHH:MM:SS.mmm
+        Function_Return _gsDate$ModuleStartTime 
+    End_Function
+    
+    Function SystemTimeMilliSecondsElapsed tSystemTimeMS strStart tSystemTimeMS strStop Returns Number
+        Integer iDays
+        tSystemTimeMS strStopX
+        If (num_arguments>1) Begin
+            Move strStop to strStopX
+        End
+        Else Begin
+            Get SystemTimeMilliSeconds to strStopX
+        End
+        Move (Integer(ComposeDate(Self,strStopX.iDay,strStopX.iMonth,strStopX.iYear))-Integer(ComposeDate(Self,strStart.iDay,strStart.iMonth,strStart.iYear))) to iDays
+        Function_Return (iDays*24.0+(strStopX.iHour-strStart.iHour)*60+(strStopX.iMinute-strStart.iMinute)*60+(strStopX.iSecond-strStart.iSecond)*1000+strStopX.iMilliSeconds-strStart.iMilliSeconds)
+    End_Function
+
+    Function SystemTimeToString tSystemTimeMS stTime Returns String
+        String sValue
+
+        Move stTime.iYear to sValue
+        Move (sValue+IntegerToStringRzf(oStringFunctions,stTime.iMonth,2)) to sValue
+        Move (sValue+IntegerToStringRzf(oStringFunctions,stTime.iDay,2)) to sValue
+        Move (sValue+IntegerToStringRzf(oStringFunctions,stTime.iHour,2)) to sValue
+        Move (sValue+IntegerToStringRzf(oStringFunctions,stTime.iMinute,2)) to sValue
+        Move (sValue+IntegerToStringRzf(oStringFunctions,stTime.iSecond,2)) to sValue
+        Move (sValue+IntegerToStringRzf(oStringFunctions,stTime.iMilliSeconds,3)) to sValue
+        
+        Function_Return sValue // 19991231135959999 (=length:17)
+    End_Function
+    
+    Function SystemTimeToString23 tSystemTimeMS stTime Returns String
+        String sValue 
+
+        Move stTime.iYear to sValue
+        Move (sValue+"-"+IntegerToStringRzf(oStringFunctions,stTime.iMonth,2)) to sValue
+        Move (sValue+"-"+IntegerToStringRzf(oStringFunctions,stTime.iDay,2)) to sValue
+        Move (sValue+"T"+IntegerToStringRzf(oStringFunctions,stTime.iHour,2)) to sValue
+        Move (sValue+":"+IntegerToStringRzf(oStringFunctions,stTime.iMinute,2)) to sValue
+        Move (sValue+":"+IntegerToStringRzf(oStringFunctions,stTime.iSecond,2)) to sValue
+        Move (sValue+"."+IntegerToStringRzf(oStringFunctions,stTime.iMilliSeconds,3)) to sValue
+        
+        Function_Return sValue // 1999-12-31T13:59:59.999 (=length:23)
+    End_Function               // 1    6  9  2  5  8  1
+    
+    Function String23ToSystemTime String sValue Returns tSystemTimeMS 
+        tSystemTimeMS strTime
+        Move (Integer(Mid(sValue,4,1))) to strTime.iYear
+        Move (Integer(Mid(sValue,2,6))) to strTime.iMonth
+        Move (Integer(Mid(sValue,2,9))) to strTime.iDay
+        Move (Integer(Mid(sValue,2,12))) to strTime.iHour
+        Move (Integer(Mid(sValue,2,15))) to strTime.iMinute
+        Move (Integer(Mid(sValue,2,18))) to strTime.iSecond
+        Move (Integer(Mid(sValue,3,21))) to strTime.iMilliSeconds
+        Function_Return strTime
+    End_Function
+    
+    Function SystemTimeString23 Returns String
+        Function_Return (SystemTimeToString23(Self,SystemTimeMilliSeconds(Self)))
+    End_Function
+
+    Function SystemTimeAsPathNameSegment Returns String
+        String sPathNameSegment
+        Get SystemTimeString23 to sPathNameSegment
+        Move (Replace(":",sPathNameSegment,"")) to sPathNameSegment
+        Move (Replace(":",sPathNameSegment,"")) to sPathNameSegment
+        Move (Replace(".",sPathNameSegment,"")) to sPathNameSegment
+        Function_Return sPathNameSegment
+    End_Function
+    
+
+    //> Use Increment to add or subtract a number of months, years, days or
+    //> weeks to/from a given date.
+    //>
+    //>  date dValue        is the date to which the time interval will be added or subtracted 
+    //>
+    //>  integer iSegment   may be one of these constants: DS_YEAR, DS_MONTH, DS_DAY or DS_WEEK
+    //>
+    //>  integer iAmount    is the (positive or negative) amount of units (indicated by iSegment) to be added.
+    Function DateIncrement Date dValue Integer iSegment Integer iAmount Returns Date   
+        Integer iDay iMonth iYear  
+        If (Integer(dValue)=0) Function_Return 0  
+        If (iSegment=DS_QUARTER) Function_Return (DateIncrement(Self,dValue,DS_MONTH,iAmount*3))   
+        If (iSegment=DS_WEEK) Function_Return (dValue+(iAmount*7)) //weeks 
+        If (iSegment<>DS_DAY) Begin // months or years 
+            Send DecomposeDate dValue (&iDay) (&iMonth) (&iYear)   
+            If (iSegment=DS_MONTH) Begin //months  
+                Move (iMonth+iAmount) to iMonth
+                If (iAmount>=0) Function_Return (ComposeDate(Self,iDay,iMonth-(((iMonth-1)/12)*12),iYear+((iMonth-1)/12))) 
+                Function_Return (ComposeDate(Self,iDay,iMonth-(((iMonth-12)/12)*12),iYear+((iMonth-12)/12)))   
+            End //years:   
+            If (iSegment=DS_YEAR) Function_Return (ComposeDate(Self,iDay,iMonth,iYear+iAmount))
+        End
+        Else Function_Return (dValue+iAmount) //days   
+    End_Function   
+   
+    Function DateSegment Date dValue Integer iSegment Returns Integer  
+        Integer iDay iMonth iYear iWeek
+        If (iSegment=DS_WEEK) Begin
+            Get WeekNumber dValue to iWeek
+            Function_Return iWeek
+        End
+        Else Begin
+            Send DecomposeDate dValue (&iDay) (&iMonth) (&iYear)   
+            If (iSegment=DS_DAY)     Function_Return iDay  
+            If (iSegment=DS_MONTH)   Function_Return iMonth
+            If (iSegment=DS_YEAR)    Function_Return iYear 
+            If (iSegment=DS_QUARTER) Function_Return (iMonth+2/3)
+        End
+        Function_Return 0 // Also covers DS_ETERNITY
+    End_Function
+    
+    Function TimeIncrement Time tmValue Integer iSegment Integer iAmount Integer ByRef iDays Returns Time
+        Integer iHour iMin iSec
+        Send DecomposeTime tmValue (&iHour) (&iMin) (&iSec)
+        If (iSegment=DS_HOUR) Begin
+            Move (iHour+iAmount) to iHour
+        End
+        If (iSegment=DS_MINUTE) Begin
+            Move (iMin+iAmount) to iMin
+        End
+        If (iSegment=DS_SECOND) Begin
+            Move (iSec+iAmount) to iSec
+        End
+        Move (iHour*60+iMin*60+iSec) to iSec
+        If (iSec>=0) Begin
+            Move (iSec/86400) to iDays
+        End
+        Else Begin
+            Move (iSec/86400) to iDays
+            Decrement iDays
+        End
+        Move (iSec-(iDays*86400)) to iSec
+        Move (iSec/3600) to iHour
+        Move (iSec-(iHour*3600)) to iSec
+        Move (iSec/60) to iMin
+        Move (iSec-(iMin*60)) to iSec
+        Get ComposeTime iHour iMin iSec to tmValue
+        Function_Return tmValue
+    End_Function
+
+    Function DateTimeIncrement DateTime dtValue Integer iSegment Integer iAmount Returns DateTime
+        Integer iDays
+        Date dValue
+        Time tmValue
+        Send DecomposeDateTime dtValue (&dValue) (&tmValue)
+        If (iSegment>=DS_DAY) Begin
+            Get DateIncrement dValue iSegment iAmount to dValue
+        End
+        Else Begin
+            Get TimeIncrement tmValue iSegment iAmount (&iDays) to tmValue
+            Move (dValue+iDays) to dValue
+        End
+        Function_Return (ComposeDateTime(Self,dValue,tmValue))
+    End_Function
+    
+    Function FirstDateIn Integer iDateSegment Date dValue Returns Date
+        Integer iQuarter iYear iMonth iWeek
+        If (iDateSegment=DS_MONTH) Begin
+            Get DateSegment dValue DS_MONTH to iMonth
+            Get DateSegment dValue DS_YEAR to iYear
+            Function_Return (ComposeDate(Self,1,iMonth,iYear))
+        End
+        If (iDateSegment=DS_QUARTER) Begin
+            Get DateSegment dValue DS_QUARTER to iQuarter
+            Get DateSegment dValue DS_YEAR to iYear
+            Function_Return (ComposeDate(Self,1,iQuarter-1*3+1,iYear))
+        End
+        If (iDateSegment=DS_YEAR) Begin
+            Get DateSegment dValue DS_YEAR to iYear
+            Function_Return (ComposeDate(Self,1,1,iYear))
+        End
+        If (iDateSegment=DS_WEEK) Begin
+            Get DateSegment dValue DS_WEEK to iWeek
+            Get DateSegment dValue DS_YEAR to iYear
+            Get MondayInWeek iYear iWeek to dValue
+            Function_Return dValue
+        End
+        Error 123 "Illegal iDateSegment value (Function FirstDateIn)"
+    End_Function
+
+    Function LastDateIn Integer iDateSegment Date dValue Returns Date
+        If (iDateSegment=DS_MONTH) Begin
+            Get DateIncrement dValue DS_MONTH 1 to dValue
+            Function_Return (FirstDateIn(Self,DS_MONTH,dValue)-1)
+        End
+        If (iDateSegment=DS_QUARTER) Begin
+            Get FirstDateIn DS_QUARTER dValue to dValue
+            Get DateIncrement dValue DS_QUARTER 1 to dValue
+            Function_Return (DateIncrement(Self,dValue,DS_DAY,-1))
+        End
+        If (iDateSegment=DS_YEAR) Begin
+            Get DateIncrement dValue DS_YEAR 1 to dValue   
+            Function_Return (FirstDateIn(Self,DS_YEAR,dValue)-1)
+        End
+        If (iDateSegment=DS_WEEK) Begin
+            Get FirstDateIn DS_WEEK dValue to dValue
+            Get DateIncrement dValue DS_DAY 6 to dValue
+            Function_Return dValue
+        End
+        Error 123 "Illegal iDateSegment value (Function LastDateIn)"
+    End_Function
+   
+    // This procedure calculates the date interval including dAnchor in the last interval and the previous iIntervals-1 intervals.
+    Procedure CalculateStartStopDates Date dAnchor Integer iDateSegment Integer iIntervals Date ByRef dBegin Date ByRef dEnd
+        If (iDateSegment=DS_DAY) Begin
+            Get DateIncrement dAnchor DS_DAY (1-iIntervals) to dBegin
+            Move dAnchor to dEnd
+        End
+        If (iDateSegment=DS_WEEK) Begin
+            Get MondayInWeek (DateSegment(Self,dAnchor,DS_YEAR)) (DateSegment(Self,dAnchor,DS_WEEK)) to dAnchor
+            Get DateIncrement dAnchor DS_DAY 6 to dEnd
+            Get DateIncrement dAnchor DS_WEEK (1-iIntervals) to dBegin
+        End
+        If (iDateSegment=DS_MONTH) Begin
+            Get FirstDateIn DS_MONTH dAnchor to dAnchor
+            Get DateIncrement dAnchor DS_MONTH (1-iIntervals) to dBegin
+            Get LastDateIn DS_MONTH dAnchor to dEnd
+        End
+        If (iDateSegment=DS_QUARTER) Begin
+            Get FirstDateIn DS_QUARTER dAnchor to dAnchor
+            Get DateIncrement dAnchor DS_QUARTER (1-iIntervals) to dBegin
+            Get LastDateIn DS_QUARTER dAnchor to dEnd
+        End
+        If (iDateSegment=DS_YEAR) Begin
+            Get FirstDateIn DS_YEAR dAnchor to dAnchor
+            Get DateIncrement dAnchor DS_YEAR (1-iIntervals) to dBegin
+            Get LastDateIn DS_YEAR dAnchor to dEnd
+        End
+    End_Procedure
+    
+    Function DatesDistance Date dValue1 Date dValue2 Integer iSegment Returns Integer   
+        Integer bNeg iDistance iDay iYear1 iYear2 iMonth1 iMonth2  
+        Date dTemp 
+        If (dValue1>dValue2) Begin 
+            Move dValue1 to dTemp  
+            Move dValue2 to dValue1
+            Move dTemp to dValue2  
+            Move True to bNeg  
+        End
+        Else Move False to bNeg
+        If (iSegment=DS_DAY) Move (Integer(dValue2)-Integer(dValue1)) to iDistance 
+        If (iSegment=DS_WEEK) Begin
+            Get DayNumber dValue1 to iDay  
+            Move (Date(Integer(dValue1)-iDay+1)) to dValue1 // Now a monday
+            Get DayNumber dValue2 to iDay  
+            Move (Date(Integer(dValue2)-iDay+1)) to dValue2 // Now a monday
+            Move (Integer(dValue2)-Integer(dValue1)) to iDistance  
+            Move (iDistance/7) to iDistance
+        End
+        If (iSegment=DS_MONTH) Begin   
+            Get DateSegment dValue1 DS_MONTH to iMonth1
+            Get DateSegment dValue1 DS_YEAR to iYear1
+            Get DateSegment dValue2 DS_MONTH to iMonth2
+            Get DateSegment dValue2 DS_YEAR to iYear2  
+            Move (iYear2-iYear1*12+iMonth2-iMonth1) to iDistance   
+        End
+        If (iSegment=DS_QUARTER) Begin
+            Get DateSegment dValue1 DS_QUARTER to iMonth1 // Overload  
+            Get DateSegment dValue1 DS_YEAR to iYear1  
+            Get DateSegment dValue2 DS_QUARTER to iMonth2 // Overload  
+            Get DateSegment dValue2 DS_YEAR to iYear2  
+            Move (iYear2-iYear1*4+iMonth2-iMonth1) to iDistance
+        End
+        If (iSegment=DS_YEAR) Begin
+            Get DateSegment dValue1 DS_YEAR to iYear1  
+            Get DateSegment dValue2 DS_YEAR to iYear2  
+            Move (iYear2-iYear1) to iDistance  
+        End
+        If bNeg Move (0-iDistance) to iDistance
+        Function_Return iDistance  
+    End_Function
+
+    Function WeekNumber Date dValue Returns Integer
+        Integer iWeek iFirstWeekDay iDayOfYear iYear iWeekDay  
+        If not (Integer(dValue)) Function_Return 0  
+   
+        Get DayNumber dValue to iWeekDay   
+        Get DateSegment (dValue-iWeekDay+1) DS_YEAR to iYear   
+   
+        Get DayNumber (FirstDateIn(Self,DS_YEAR,dValue)) to iFirstWeekDay   
+        Move (dValue-FirstDateIn(Self,DS_YEAR,dValue)) to iDayOfYear
+        Move (iDayOfYear-1-7+iFirstWeekDay) to iDayOfYear  
+        If ((iDayOfYear/7.0)>=0) Move (iDayOfYear/7+1) to iWeek
+        Else Move 0 to iWeek   
+        If (iFirstWeekDay<=4) Increment iWeek  
+        If (iWeek>52) Begin
+            Move 1 to iWeek
+            If (iFirstWeekDay=4) Move 53 to iWeek  
+            If (iFirstWeekDay=3) If (((iYear/4)*4)=iYear) If (((iYear/100)*100)<>iYear) Move 53 to iWeek   
+        End
+        If (iWeek=0) Begin 
+            // Week 52 or 53   
+            Get DayNumber (DateIncrement(Self,FirstDateIn(Self,DS_YEAR,dValue),DS_YEAR,-1)) to iFirstWeekDay 
+            Move 52 to iWeek   
+            If (iFirstWeekDay=4) Move 53 to iWeek  
+            If (iFirstWeekDay=3) If (((iYear/4)*4)=iYear) If (((iYear/100)*100)<>iYear) Move 53 to iWeek
+        End
+        Function_Return iWeek  
+    End_Function   
+
+    Function DayNumber Date dValue Returns Integer 
+        Integer iRval // 1=Monday, ... , 7=Sunday  
+        //get Date2to4 dValue to dValue
+        Move dValue to iRval   
+        If iRval Begin
+            If (iRval>693975) Move (iRval-2) to iRval  
+            Move (iRval-((iRval/7)*7)) to iRval
+            If (iRval=0) Move 7 to iRval   
+        End
+        Function_Return iRval  
+    End_Function   
+    
+    Function DayName Integer iDay Returns String
+        Function_Return (Value(oDayNames,iDay))
+    End_Function
+    
+    Function MonthName Integer iMonth Returns String
+        Function_Return (Value(oMonthNames,iMonth))
+    End_Function
+    
+    Function DateMonthName Date dValue Returns String
+        Integer iMonth
+        Get DateSegment dValue DS_MONTH to iMonth
+        Function_Return (MonthName(Self,iMonth))
+    End_Function
+    
+    Function DateDayName Date dValue Returns String
+        Integer iDay
+        Get DayNumber dValue to iDay
+        Function_Return (DayName(Self,iDay))
+    End_Function
+
+    Function WeekCountOfYear Integer iYear Returns Integer
+        Integer iWeek1 iWeek2  
+        Get WeekNumber (ComposeDate(Self,31,12,iYear)) to iWeek1   
+        Get WeekNumber (ComposeDate(Self,24,12,iYear)) to iWeek2   
+        Function_Return (iWeek1 max iWeek2)
+    End_Function   
+   
+    Function MondayInWeek Integer iYear Integer iWeek Returns Date
+        Date dVal
+        Get ComposeDate 1 1 iYear to dVal
+        If (WeekNumber(Self,dVal)<>1) Move (dVal+7) to dVal // week 52 or 53
+        Move (dVal-DayNumber(Self,dVal)+1) to dVal // Now it's a Monday
+        Function_Return (iWeek-1*7+dVal)
+    End_Function
+    
+    // May be used like this:
+    //  get DateToText of oDateFunctions 06/06/2008 "#D-#MN3-#Y4" to sValue
+    //  => sValue = 6-Jul-2008
+    Function DateToText Date dValue String sFormat Returns String
+        Integer iDay iMonth iYear iYearTmp
+        If (Integer(dValue)=0) Function_Return ""
+        Move (Replace("#DN3",sFormat,Left(DateDayName(Self,dValue),3)))   to sFormat
+        Move (Replace("#DN2",sFormat,Left(DateDayName(Self,dValue),2)))   to sFormat // Dutch request. 
+        Move (Replace("#MN3",sFormat,Left(DateMonthName(Self,dValue),3))) to sFormat
+        Move (Replace("#DN", sFormat,DateDayName(Self,dValue)))           to sFormat
+        Move (Replace("#MN", sFormat,DateMonthName(Self,dValue)))         to sFormat
+        Move (Replace("#WN", sFormat,WeekNumber(Self,dValue)))        to sFormat
+        Move (DateSegment(Self,dValue,DS_DAY))   to iDay
+        Move (DateSegment(Self,dValue,DS_MONTH)) to iMonth
+        Move (DateSegment(Self,dValue,DS_YEAR))  to iYear
+        Move (Replace("#D2", sFormat,If(iDay<10,"0"+String(iDay),String(iDay)))) to sFormat
+        Move (Replace("#D",  sFormat,String(iDay))) to sFormat
+                    
+        Move (Right(String(iYear),2)) to iYearTmp // Year 4 -> 2
+        Move (Replace("#Y2", sFormat,If(iYearTmp<10,"0"+String(iYearTmp),String(iYearTmp)))) to sFormat
+        
+//        Get Year2to4 iYear to iYearTmp
+        Move (Replace("#Y4", sFormat,String(iYear))) to sFormat
+
+        Move (Replace("#M2", sFormat,If(iMonth<10,"0"+String(iMonth),String(iMonth)))) to sFormat
+        Move (Replace("#M",  sFormat,String(iMonth))) to sFormat
+        Function_Return sFormat
+    End_Function
+
+    Function DateToString Date dValue Integer iFormat Boolean bLong String sSep Returns String
+        Integer iDay iMonth iYear
+        String sRval sDay sMonth sYear
+        If (Integer(dValue)) Begin
+            Send DecomposeDate dValue (&iDay) (&iMonth) (&iYear)
+            Get IntegerToStringRzf of oStringFunctions iDay 2 to sDay
+            Get IntegerToStringRzf of oStringFunctions iMonth 2 to sMonth
+            Move iYear to sYear
+            If (not(bLong)) Move (right(sYear,2)) to sYear
+            If (iFormat=DF_DATE_EUROPEAN) Move (sDay+sSep+sMonth+sSep+sYear) to sRval // DMY
+            If (iFormat=DF_DATE_USA)      Move (sMonth+sSep+sDay+sSep+sYear) to sRval // MDY
+            If (iFormat=DF_DATE_MILITARY) Move (sYear+sSep+sMonth+sSep+sDay) to sRval // YMD
+        End
+        Else Move "" to sRval
+        Function_Return sRval
+    End_Function
+
+    Function StringToDate String sDate Integer iFormat Returns Date
+        Integer iLen iPos iValIdx
+        Integer[3] aValues
+        Date dRval
+        String sChar
+        Move (Trim(sDate)) to sDate
+        Move (Length(sDate)) to iLen
+        Move 0 to iValIdx
+
+        For iPos from 1 to iLen
+            Move (mid(sDate,1,iPos)) to sChar
+            If ("0123456789" contains sChar) Move (aValues[iValIdx]*10+Integer(sChar)) to aValues[iValIdx]
+            Else Increment iValIdx
+        Loop
+
+        If (iValIdx=2 or (iValIdx=0 and (iLen=6 or iLen=8))) Begin // 3 values or 1
+            If (iValIdx=0) Begin
+                If (iLen=6) Begin
+                    Move (Left(sDate,2)) to aValues[0]
+                    Move (Mid(sDate,2,3)) to aValues[1]
+                    Move (Right(sDate,2)) to aValues[2]
+                End
+                Else Begin // iLen:8
+                    If (iFormat=DF_DATE_MILITARY) Begin // Year is first
+                        Move (Left(sDate,4)) to aValues[0]
+                        Move (Mid(sDate,2,5)) to aValues[1]
+                        Move (Right(sDate,2)) to aValues[2]
+                    End
+                    Else Begin // Year is last
+                        Move (Left(sDate,2)) to aValues[0]
+                        Move (Mid(sDate,2,3)) to aValues[1]
+                        Move (Right(sDate,4)) to aValues[2]
+                    End
+                End
+            End
+
+            // We have now done our utmost to produce 3 numbers. Make them into a date:
+            If (iFormat=DF_DATE_EUROPEAN) Get ComposeDate aValues[0] aValues[1] aValues[2] to dRval
+            If (iFormat=DF_DATE_USA)      Get ComposeDate aValues[1] aValues[0] aValues[2] to dRval
+            If (iFormat=DF_DATE_MILITARY) Get ComposeDate aValues[2] aValues[1] aValues[0] to dRval
+        End
+        Else Move 0 to dRval
+
+        Function_Return dRval
+    End_Function
+
+    Function DateTimeToString23 DateTime dtValue Returns String
+        String sValue
+
+        Move (DateGetYear(dtValue)) to sValue
+        Move (sValue+"-"+IntegerToStringRzf(oStringFunctions,DateGetMonth(dtValue),2)) to sValue
+        Move (sValue+"-"+IntegerToStringRzf(oStringFunctions,DateGetDay(dtValue),2)) to sValue
+        Move (sValue+"T"+IntegerToStringRzf(oStringFunctions,DateGetHour(dtValue),2)) to sValue
+        Move (sValue+":"+IntegerToStringRzf(oStringFunctions,DateGetMinute(dtValue),2)) to sValue
+        Move (sValue+":"+IntegerToStringRzf(oStringFunctions,DateGetSecond(dtValue),2)) to sValue
+        Move (sValue+"."+IntegerToStringRzf(oStringFunctions,DateGetMillisecond(dtValue),3)) to sValue
+
+        Function_Return sValue // 1999-12-31T13:59:59.999 (=length:23)
+    End_Function
+
+    Function String23ToDateTime String sValue Returns DateTime
+        DateTime dtValue
+        Move (DateSetYear(dtValue,Integer(Mid(sValue,4,1)))) to dtValue
+        Move (DateSetMonth(dtValue,Integer(Mid(sValue,2,6)))) to dtValue
+        Move (DateSetDay(dtValue,Integer(Mid(sValue,2,9)))) to dtValue
+        Move (DateSetHour(dtValue,Integer(Mid(sValue,2,12)))) to dtValue
+        Move (DateSetMinute(dtValue,Integer(Mid(sValue,2,15)))) to dtValue
+        Move (DateSetSecond(dtValue,Integer(Mid(sValue,2,18)))) to dtValue
+        Move (DateSetMillisecond(dtValue,Integer(Mid(sValue,3,21)))) to dtValue
+        Function_Return dtValue
+    End_Function
+
+    Function DateTimeToString DateTime dtValue Integer iDateFormat Boolean bLong String sSep Returns String
+        Date dValue
+        Time tmTimeValue
+        Integer iHour iMin iSec
+        String sValue
+        Send DecomposeDateTime dtValue (&dValue) (&tmTimeValue)
+        Get DateToString dValue iDateFormat bLong sSep to sValue
+        Send DecomposeTime tmTimeValue (&iHour) (&iMin) (&iSec)
+        Function_Return (sValue*ComposeTimeString(Self,iHour,iMin,iSec))
+    End_Function
+
+    Function StringToDateTime String sDateTimeValue Integer iDateFormat Returns DateTime
+        Integer iSpacePos
+        String sDate sTime
+        DateTime dtResult
+        Date dValue
+        Time tmValue
+        Move (Trim(sDateTimeValue)) to sDateTimeValue
+        Move (Pos(" ",sDateTimeValue)) to iSpacePos
+        If (iSpacePos<>0) Begin
+            Move (Left(sDateTimeValue,iSpacePos-1)) to sDate
+            Move (Trim(Replace(sDate,sDateTimeValue,""))) to sTime
+            Get StringToDate sDate iDateFormat to dValue
+            Get TimeStringToTime sTime to tmValue
+            Get ComposeDateTime dValue tmValue to dtResult
+        End
+        Function_Return dtResult
+    End_Function
+
+    Function DateIntervalLabel Integer iCode Returns String
+        Function_Return (Value(oIntervalLabels,iCode))
+    End_Function
+
+    Function DateIntervalEval Date dFrom Date dTo Date dTestValue Returns Boolean
+        If (Integer(dFrom)+Integer(dTo)) Begin
+            If (Integer(dTo)=0) Function_Return (dTestValue>=dFrom)
+            Function_Return (dTestValue>=dFrom and dTestValue<=dTo)
+        End
+        Function_Return True
+    End_Function
+    
+    Procedure DateIntervalCalc Integer iCode Date ByRef dFrom Date ByRef dTo
+        Date dDate
+        If (iCode=DI_EXPLICIT) Begin
+            // Do nothing
+        End
+        If (iCode=DI_NO_LIMIT) Begin
+            Move "" to dFrom
+            Move "" to dTo
+        End
+        If (iCode=DI_LAST_WEEK) Begin
+            Get DateIncrement (SystemDate(Self)) DS_WEEK -1 to dDate
+            Move (Date(Integer(dDate)-DayNumber(Self,dDate)+1)) to dFrom
+            Move (Date(Integer(dDate)-DayNumber(Self,dDate)+7)) to dTo
+        End
+        If (iCode=DI_LAST_MONTH) Begin
+            Get DateIncrement (SystemDate(Self)) DS_MONTH -1 to dDate
+            Get FirstDateIn DS_MONTH dDate to dFrom
+            Get LastDateIn DS_MONTH dDate to dTo
+        End
+        If (iCode=DI_LAST_YEAR) Begin
+            Get DateIncrement (SystemDate(Self)) DS_YEAR -1 to dDate
+            Get FirstDateIn DS_YEAR dDate to dFrom
+            Get LastDateIn DS_YEAR dDate to dTo
+        End
+        If (iCode=DI_WEEK_TO_DATE) Begin
+            Get SystemDate to dTo
+            Move (Date(Integer(dTo)-DayNumber(Self,dTo)+1)) to dFrom
+        End
+        If (iCode=DI_MONTH_TO_DATE) Begin
+            Get SystemDate to dTo
+            Get FirstDateIn DS_MONTH dTo to dFrom
+        End
+        If (iCode=DI_YEAR_TO_DATE) Begin
+            Get SystemDate to dTo
+            Get FirstDateIn DS_YEAR dTo to dFrom
+        End
+    End_Procedure
+    
+    Function SecondsToTimeString Integer iSeconds Returns String
+        Integer iHour iMinute
+        If (iSeconds=0) Function_Return "00:00:00"
+        Move (iSeconds/3600) to iHour
+        Move (iSeconds-(iHour*3600)) to iSeconds
+        Move (iSeconds/60) to iMinute
+        Move (iSeconds-(iMinute*60)) to iSeconds
+        Function_Return (If(iHour<10,"0","")+String(iHour)+":"+If(iMinute<10,"0","")+String(iMinute)+":"+If(iSeconds<10,"0","")+String(iSeconds))
+    End_Function
+    
+    Function MilliSecondsToTimeString Number nMilliSeconds Returns String
+        String sTimeString
+        Integer iMilliSeconds
+        Get SecondsToTimeString (Integer(nMilliSeconds/1000)) to sTimeString
+        Move (Mod(nMilliSeconds,1000)) to iMilliSeconds
+        Function_Return (sTimeString+"."+IntegerToStringRzf(oStringFunctions,iMilliSeconds,3))
+    End_Function
+    
+//    Function TimeStringFormat String sValue Integer iPrioritizedSegment Returns String
+//        Integer iMax iPos iHours iMinutes iTmp
+//        String[] aSegments
+//        String sRval
+//        If (sValue="-" or lowercase(sValue)="now") begin
+//            Function_Return (Left(SystemTimeString(Self),5)) // Strip away seconds
+//        End
+//        If (sValue="") begin
+//            Function_Return ""
+//        End
+//        Move (Replaces(" ",sValue,":")) to sValue
+//        Move (Replaces(",",sValue,":")) to sValue
+//        Send SplitString of oStringFunctions sValue ":" True False (&aSegments)
+//        Move (SizeOfArray(aSegments)) to iMax // Get HowManyWords sValue ":" to iMax
+//        If (iMax=1) Begin
+//            If (iPrioritizedSegment=TS_MINUTE) Begin
+//                Move (ExtractInteger(ExtractWord(sValue,":",1),1)) to iMinutes
+//                Move 0 to iHours
+//            End
+//            Else Begin //So it is hour prioritized
+//                Move (ExtractInteger(ExtractWord(sValue,":",1),1)) to sValue
+//                If (Length(sValue)>2) Begin
+//                    If (Length(sValue)=3) Move (Append("0",sValue)) to sValue
+//                    If (Length(sValue)>4) Move (Left(sValue,4)) to sValue
+//                    Move (Left(sValue,2)) to iHours
+//                    Move (Right(sValue,2)) to iMinutes
+//                End
+//                Else Begin
+//                    Move 0 to iMinutes
+//                    Move sValue to iHours
+//                End
+//            End
+//        End
+//        Else Begin
+//            Move (ExtractInteger(ExtractWord(sValue,":",1),1)) to iHours
+//            Move (ExtractInteger(ExtractWord(sValue,":",2),1)) to iMinutes
+//        End
+//        Move (iMinutes/60) to iTmp
+//        Move (iMinutes-(iTmp*60)) to iMinutes
+//        Move (iHours+iTmp) to iHours
+//        Function_Return (IntegerToStringRzf(oStringFunctions,iHours,2)+":"+IntegerToStringRzf(oStringFunctions,iMinutes,2))
+//    End_Function
+//Function TimeStringToHours Global String lsTime Returns Number
+//  Integer liHours liMinutes liFraction
+//  Move (ExtractWord(lsTime,":",1)) to liHours
+//  Move (ExtractWord(lsTime,":",2)) to liMinutes
+//  Move (liMinutes*25/15) to liFraction
+//  Function_Return (liHours+(liFraction/100.0))
+//End_Function
+//
+//// Returns true if lsTime is a legal time of day ("hh:mm:ss" or "hh:mm")
+//Function IsTimeString Global String lsTime Returns Integer
+//  Integer liLen liNumber
+//  String lsNumber
+//  Move (trim(lsTime)) to lsTime
+//  Move (length(lsTime)) to liLen
+//  If (liLen<>5 and liLen<>8) Function_Return 0 // Wrong length, couldn't be a time
+//  If (mid(lsTime,1,3)<>":") Function_Return 0 // Missing ":"
+//
+//  Move (mid(lsTime,2,1)) to lsNumber
+//  If (StringIsInteger(lsNumber)) Begin
+//    Move (Integer(lsNumber)) to liNumber
+//    If (liNumber<0 or liNumber>23) Function_Return 0 // Wrong hours
+//  End
+//  Else Function_Return 0 // Not digits
+//
+//  Move (mid(lsTime,2,4)) to lsNumber
+//  If (StringIsInteger(lsNumber)) Begin
+//    Move (Integer(lsNumber)) to liNumber
+//    If (liNumber<0 or liNumber>59) Function_Return 0 // Wrong hours
+//  End
+//  Else Function_Return 0 // Not digits
+//
+//  If (liLen=8) Begin
+//    If (mid(lsTime,1,6)<>":") Function_Return 0 // Missing ":"
+//    Move (mid(lsTime,2,7)) to lsNumber
+//    If (StringIsInteger(lsNumber)) Begin
+//      Move (Integer(lsNumber)) to liNumber
+//      If (liNumber<0 or liNumber>59) Function_Return 0 // Wrong hours
+//    End
+//    Else Function_Return 0 // Not digits
+//  End
+//
+//  Function_Return 1 // It's a time
+//End_Function
+//
+//Function HoursBetweenTimeStrings Global String lsTimeFrom String lsTimeTo Returns Number
+//  Function_Return (Time_ToHours(lsTimeTo)-Time_ToHours(lsTimeFrom))
+//End_Function
+
+    Function DateIndex Date dBase Date dDate Integer iSegment Returns Integer
+        Integer iBase iDate
+        If (iSegment=DS_DAY) Begin
+            Move (Integer(dDate)) to iDate
+            Move (Integer(dBase)) to iBase
+        End
+        If (iSegment=DS_WEEK) Begin
+            Get DayNumber dDate to iDate
+            Move (Integer(dDate)+1-iDate) to iDate // Back to Monday!
+            Get DayNumber dBase to iBase
+            Move (Integer(dBase)+1-iBase) to iBase // Back to Monday!
+            Move (iDate-iBase) to iDate
+            Move (iDate/7) to iDate
+            Move 0 to iBase
+        End
+        If (iSegment=DS_MONTH) Begin
+            Move (DateSegment(Self,dDate,DS_YEAR)*12+DateSegment(Self,dDate,DS_MONTH)) to iDate
+            Move (DateSegment(Self,dBase,DS_YEAR)*12+DateSegment(Self,dBase,DS_MONTH)) to iBase
+        End
+        If (iSegment=DS_QUARTER) Begin
+            Move (DateSegment(Self,dDate,DS_YEAR)*4+DateSegment(Self,dDate,DS_QUARTER)) to iDate
+            Move (DateSegment(Self,dBase,DS_YEAR)*4+DateSegment(Self,dBase,DS_QUARTER)) to iBase
+        End
+        If (iSegment=DS_YEAR) Begin
+            Move (DateSegment(Self,dDate,DS_YEAR)) to iDate
+            Move (DateSegment(Self,dBase,DS_YEAR)) to iBase
+        End
+        Function_Return (iDate-iBase)
+    End_Function
+    
+    Function DateIndexLabel Date dBase Integer iIndex Integer iSegment Returns String
+        Integer iBase iMonth
+        If (iSegment=DS_DAY) Begin
+            Function_Return (String(Date(Integer(dBase)+iIndex)))
+        End
+        If (iSegment=DS_WEEK) Begin
+            Get DayNumber dBase to iBase
+            Move (Integer(dBase)+1-iBase) to iBase // Back to Monday!
+            Move (iIndex*7+iBase) to iBase // Now it's the julian value of the monday in the week we want to label
+            Move (Date(iBase)) to dBase
+            Function_Return (String(DateSegment(Self,dBase,DS_YEAR))+"-"+IntegerToStringRzf(oStringFunctions,DateSegment(Self,dBase,DS_WEEK),2))
+        End
+        If (iSegment=DS_MONTH) Begin
+            Get DateIncrement dBase DS_MONTH iIndex to dBase
+            Get DateSegment dBase DS_MONTH to iMonth
+//            If (iMonth=1) Begin
+//                Function_Return (String(DateSegment(Self,dBase,DS_YEAR))+"-"+Left(MonthName(Self,DateSegment(Self,dBase,DS_MONTH)),3))
+//            End
+//            Else Begin
+//                Function_Return (MonthName(Self,iMonth))
+//            End
+            Function_Return (String(DateSegment(Self,dBase,DS_YEAR))+"-"+Left(MonthName(Self,DateSegment(Self,dBase,DS_MONTH)),3))
+//            Function_Return (String(DateSegment(Self,dBase,DS_YEAR))+"-"+IntegerToStringRzf(oStringFunctions,DateSegment(Self,dBase,DS_MONTH),2))
+        End
+        If (iSegment=DS_QUARTER) Begin
+            Get DateIncrement dBase DS_QUARTER iIndex to dBase
+            Function_Return (String(DateSegment(Self,dBase,DS_YEAR))+"-"+IntegerToStringRzf(oStringFunctions,DateSegment(Self,dBase,DS_QUARTER),2))
+        End
+        If (iSegment=DS_YEAR) Begin
+            Get DateIncrement dBase DS_YEAR iIndex to dBase
+            Function_Return (String(DateSegment(Self,dBase,DS_YEAR)))
+        End
+    End_Function
+    
+    // Function DateIndexStartDate returns the lowest date in the interval time
+    // interval implicitly passed in the parameters
+    Function DateIndexStartDate Date dBase Integer iIndex Integer iSegment Returns Date
+        Integer iBase
+        If (iSegment=DS_DAY) Begin
+            Function_Return (Date(Integer(dBase)+iIndex))
+        End
+        If (iSegment=DS_WEEK) Begin
+            Get DayNumber dBase to iBase
+            Move (Integer(dBase)+1-iBase) to iBase // Back to Monday!
+            Move (iIndex*7+iBase) to iBase // Now it's the julian value of the monday in the week we want to label
+            Move (Date(iBase)) to dBase
+            Function_Return dBase
+        End
+        If (iSegment=DS_MONTH) Begin
+            Get DateIncrement dBase DS_MONTH iIndex to dBase
+            Function_Return dBase
+        End
+        If (iSegment=DS_QUARTER) Begin
+            Get DateIncrement dBase DS_QUARTER iIndex to dBase
+            Function_Return dBase
+        End
+        If (iSegment=DS_YEAR) Begin
+            Get DateIncrement dBase DS_YEAR iIndex to dBase
+            Function_Return dBase
+        End
+    End_Function
+
+    Function DateIndexStopDate Date dBase Integer iIndex Integer iSegment Returns Date
+        Date dValue
+        Get DateIndexStartDate dBase iIndex iSegment to dValue
+        Get DateIncrement dValue iSegment 1 to dValue
+        Get DateIncrement dValue DS_DAY -1 to dValue
+        Function_Return dValue
+    End_Function
+    
+    Function CurrentDateFormat Returns Integer
+        Integer iFormat
+        Get_Attribute DF_DATE_FORMAT to iFormat
+        Function_Return iFormat
+    End_Function
+    
+End_Class
+
+Global_Variable Integer oDateFunctions
+
+Object _oDateFunctions is a cDateFunctions
+    Move Self to oDateFunctions
+    Get SystemTimeToString23 (SystemTimeMilliSeconds(Self)) to _gsDate$ModuleStartTime
+End_Object
+
+#IFNDEF Is$WebApp // If Windows application
+    Use Win\ObjectInfo.pkg
+    Use Dftimer.pkg
+    
+    Class cDateCalendarButton is a Button
+        Procedure Construct_Object
+            Forward Send Construct_Object
+            On_Key kLeftArrow  Send prev_day
+            On_Key kRightArrow Send next_day
+            On_Key kUpArrow    Send prev_week
+            On_Key kDownArrow  Send next_week
+            Property Date pdAssignedDate
+        End_Procedure
+        Procedure OnClick
+            Set pdOk to True
+            Set pdCurrentDate to (pdAssignedDate(Self))
+            Send close_panel
+        End_Procedure
+    End_Class
+
+    Class cDateCalendar is a Container3d
+        Procedure Construct_Object
+            Forward Send Construct_Object
+            Set Size to 108 172
+            Set Border_Style to Border_None
+            Property Integer[][] paButtons
+            Send CreateButtons
+        End_Procedure
+        
+            Procedure Set ButtonObj Integer iRow Integer iColumn Integer hBtn
+                Integer[][] aButtons
+                Get paButtons to aButtons
+                Move hBtn to aButtons[iRow][iColumn]
+                Set paButtons to aButtons
+            End_Procedure
+
+            Function ButtonObj Integer iRow Integer iColumn Returns Integer
+                Integer[][] aButtons
+                Get paButtons to aButtons
+                Function_Return aButtons[iRow][iColumn]
+            End_Function
+        
+        Procedure CreateButtons
+            Integer iRow iColumn
+            For iRow from 0 to 5
+                For iColumn from 0 to 6
+                    Object oBtn is a cDateCalendarButton
+                        Set Size to 15 18
+                        Set Location to (iRow*15) (iColumn*18)
+                        Set ButtonObj iRow iColumn to Self
+                        Set TextColor to clRed
+                    End_Object
+                Loop
+            Loop
+        End_Procedure
+        
+        
+                Procedure _DisplayButton Integer iRow Integer iColumn Integer iDay Boolean bActivate
+                    Integer hBtn iCurrentDay iMonth iYear
+                    Date dCurrentDate
+                    Get ButtonObj iRow iColumn to hBtn
+                    Get pdCurrentDate to dCurrentDate
+                    Get DateSegment of oDateFunctions dCurrentDate DS_DAY to iCurrentDay
+                    If (bActivate) Begin
+                        If (iDay=iCurrentDay) Begin
+                            Send Activate of hBtn
+                            Send OnActivateButton iRow iColumn
+                        End
+                    End
+                    Else Begin
+                        If (iDay<>0) Begin
+                            Set Label of hBtn to (String(iDay))
+                            Set Visible_State of hBtn to True
+                            Get DateSegment of oDateFunctions dCurrentDate DS_MONTH to iMonth
+                            Get DateSegment of oDateFunctions dCurrentDate DS_YEAR to iYear
+                            Set pdAssignedDate of hBtn to (ComposeDate(oDateFunctions,iDay,iMonth,iYear))
+                        End
+                        Else Begin
+                            Set Visible_State of hBtn to False
+                        End
+                    End
+                End_Procedure
+
+        Procedure DisplayButtons Boolean bActivate
+            Date dCurrentDate dFirst
+            Integer iRow iColumn iItem
+            Integer iFirstItem iLastItem
+            Integer iDay
+            Get pdCurrentDate to dCurrentDate
+            Get FirstDateIn of oDateFunctions DS_MONTH dCurrentDate to dFirst
+            Get DayNumber of oDateFunctions dFirst to iFirstItem
+            Decrement iFirstItem
+            Move (Integer(LastDateIn(oDateFunctions,DS_MONTH,dFirst))-Integer(dFirst)+iFirstItem) to iLastItem
+            
+            If (not(bActivate)) Begin
+                For iItem from 0 to (iFirstItem-1)
+                    Move (iItem/7) to iRow
+                    Move (iItem-(iRow*7)) to iColumn
+                    Send _DisplayButton iRow iColumn 0 False
+                Loop
+            End
+
+            Move 1 to iDay
+            For iItem from iFirstItem to iLastItem
+                Move (iItem/7) to iRow
+                Move (iItem-(iRow*7)) to iColumn
+                Send _DisplayButton iRow iColumn iDay bActivate
+                Increment iDay
+            Loop
+
+            If (not(bActivate)) Begin
+                For iItem from (iLastItem+1) to 41
+                    Move (iItem/7) to iRow
+                    Move (iItem-(iRow*7)) to iColumn
+                    Send _DisplayButton iRow iColumn 0 False
+                Loop
+            End
+        End_Procedure
+    End_Class
+
+    Object oDateCalendarPanel is a ModalPanel
+        Set Size to 136 238
+        Set Location to 11 28
+        Set Label to "Calendar"
+        Property Date pdCurrentDate (SystemDate(oDateFunctions))
+        Property Boolean pdOk
+
+        Object _oTimer is a dfTimer
+            Set TimeOut to 0 // Makes it fire immediately when program becomes idle.
+            Set Auto_Start_State to True
+            Set Auto_Stop_State to False
+            Set Timer_Object to Self
+            Set Timer_Active_State to False
+            Procedure OnTimer
+                Send go_current
+                Set Timer_Active_State to False
+            End_Procedure
+        End_Object
+        
+        On_Key Key_Ctrl+Key_PgUp Send prev_year
+        On_Key Key_Ctrl+Key_PgDn Send next_year
+        On_Key          Key_PgUp Send prev_month
+        On_Key          Key_PgDn Send next_month
+        On_Key Key_Ctrl+Key_D    Send go_today
+        On_Key kCancel           Send close_panel
+
+        Object oCalendar is a cDateCalendar
+            Set Location to 21 44
+            Set Size to 93 132
+        End_Object
+
+        Object oHorizontalLine is a LineControl
+            Set Size to 2 171
+            Set Location to 17 5
+        End_Object
+
+        Object oVerticalLine is a LineControl
+            Set Size to 111 2
+            Set Location to 3 40
+            Set Horizontal_State to False
+        End_Object
+
+        Object oDayNames is a Container3d
+            Set Size to 10 133
+            Set Location to 5 45
+            Property Integer[] paBoxes
+            Set Border_Style to Border_None
+
+            Procedure CreateTextBoxes
+                Integer iDay
+                Integer[] aBoxes
+                String sDayName
+                For iDay from 0 to 6
+                    Object oTextBox is a TextBox
+                        Set Auto_Size_State to False
+                        Set Justification_Mode to JMode_Center
+                        Set location to 1 (iDay*18)
+                        Set size to 11 18
+                        Move Self to aBoxes[iDay]
+                        Get DayName of oDateFunctions (iDay+1) to sDayName
+                        If (giLanguage=LNG_DUTCH) Set Label to (left(sDayName,2))
+                        Else Set Label to (left(sDayName,3))
+                    End_Object
+                Loop
+                Set paBoxes to aBoxes
+            End_Procedure
+            Send CreateTextBoxes
+            
+            Procedure ColorBox Integer iActiveColumn
+                Integer iColumn iYellow
+                Integer[] aBoxes
+
+                Get Brighten of oRgbFunctions clGray 98 to iYellow
+                Get paBoxes to aBoxes
+                For iColumn from 0 to 6
+                    Set Color of aBoxes[iColumn] to (If(iColumn=iActiveColumn,iYellow,clBtnFace))
+                Loop 
+            End_Procedure
+        End_Object
+
+        Object oWeekNumbers is a Container3d
+            Set Size to 90 37
+            Set Location to 24 2
+            Property Integer[] paBoxes
+            Set Border_Style to Border_None
+
+            Procedure CreateTextBoxes
+                Integer iRow
+                Integer[] aBoxes
+                For iRow from 0 to 5
+                    Object oTextBox is a TextBox
+                        Set Auto_Size_State to False
+                        Set Justification_Mode to JMode_Center
+                        Set Location to (iRow*15) 1
+                        Set Size to 11 35
+                        Move Self to aBoxes[iRow]
+                        Set Label to "Week xx"
+                    End_Object
+                Loop
+                Set paBoxes to aBoxes
+            End_Procedure
+            Send CreateTextBoxes
+
+            Procedure ColorBox Integer iActiveRow
+                Integer iRow iYellow
+                Integer[] aBoxes
+
+                Get Brighten of oRgbFunctions clGray 98 to iYellow
+                Get paBoxes to aBoxes
+                For iRow from 0 to 5
+                    Set Color of aBoxes[iRow] to (If(iRow=iActiveRow,iYellow,clBtnFace))
+                Loop
+            End_Procedure
+            
+            Procedure DisplayWeekNumbers
+                Integer iItm 
+                Date dDate dLastDate
+                Integer[] aBoxes
+                String sWeek
+
+                Get Translate of oLanguageFunctions "ls.date.week" to sWeek
+                
+                Get paBoxes to aBoxes
+                Get pdCurrentDate to dDate
+                Get FirstDateIn of oDateFunctions DS_MONTH dDate to dDate
+                Get LastDateIn of oDateFunctions DS_MONTH dDate to dLastDate
+                Move (dDate-DayNumber(oDateFunctions,dDate)+1) to dDate
+                For iItm from 0 to 5
+                    If ((iItm*7+Integer(dDate))<=Integer(dLastDate)) Begin
+                        Set Label of aBoxes[iItm] to (sWeek*String(WeekNumber(oDateFunctions,iItm*7+dDate)))
+                    End
+                    Else begin
+                        Set Label of aBoxes[iItm] to ""
+                    End
+                Loop
+            End_Procedure
+        End_Object
+
+        Object oMonth is a TextBox
+            Set Auto_Size_State to False
+            Set Justification_Mode to JMode_Center
+            Set location to 5 181
+            Set size to 10 46
+            Set Label to "Month name"
+            Set Color to (Brighten(oRgbFunctions,clGray,98))
+        End_Object
+        
+        Object oTxtMonth is a TextBox
+            Set Auto_Size_State to False
+            Set Justification_Mode to JMode_Center
+            Set size to 9 35
+            Set location to 32 186
+            Set Label to "Month"
+        End_Object
+        Object oBtn1 is a button
+            Set size to 12 12
+            Set location to 45 190
+            Procedure OnClick
+                Send prev_month
+            End_Procedure
+            Set bitmap to "prev.bmp"
+        End_Object
+        Object oBtn2 is a button
+            Set size to 12 12
+            Set location to 45 205
+            Procedure OnClick
+                Send next_month
+            End_Procedure
+            Set bitmap to "next.bmp"
+        End_Object
+        Object oTxtYear is a textbox
+            Set Auto_Size_State to False
+            Set Justification_Mode to JMode_Center
+            Set size to 9 35
+            Set location to 72 187
+            Set Label to "Year"
+        End_Object
+        Object oBtn3 is a button
+            Set size to 12 12
+            Set location to 85 190
+            Procedure OnClick
+                Send prev_year
+            End_Procedure
+            Set bitmap to "prev.bmp"
+        End_Object
+        Object oBtn4 is a button
+            Set size to 12 12
+            Set location to 85 205
+            Procedure OnClick
+                Send next_year
+            End_Procedure
+            Set bitmap to "next.bmp"
+        End_Object
+
+        Object oOkBtn is a Button
+            Set Location to 115 124
+            Set Label to "Ok"
+        
+            // fires when the button is clicked
+            Procedure OnClick
+                Set pdOk to True
+                Send close_panel
+            End_Procedure
+        
+        End_Object
+
+        Object oCancel is a Button
+            Set Location to 115 177
+            Set Label to "Cancel"
+        
+            // fires when the button is clicked
+            Procedure OnClick
+                Send close_panel
+            End_Procedure
+        
+        End_Object
+
+        Object oYear is a TextBox
+            Set Auto_Size_State to False
+            Set Size to 10 20
+            Set Location to 5 11
+            Set Label to "Year"
+            Set Justification_Mode to JMode_Center
+        End_Object
+        
+        Procedure DisplayCalendar
+            Date dCurrent
+            Get pdCurrentDate to dCurrent
+            If (Integer(dCurrent)=0) begin
+                Get SystemDate of oDateFunctions to dCurrent
+                Set pdCurrentDate to dCurrent
+            End
+            Set Label of oYear to (DateSegment(oDateFunctions,dCurrent,DS_YEAR))
+            Set Label of oMonth to (DateMonthName(oDateFunctions,dCurrent))
+            Send DisplayButtons of oCalendar False
+            Send DisplayButtons of oCalendar True
+            Send DisplayWeekNumbers of oWeekNumbers
+        End_Procedure
+        
+        Procedure OnActivateButton Integer iRow Integer iColumn
+            Send ColorBox of oWeekNumbers iRow
+            Send ColorBox of oDayNames iColumn
+        End_Procedure
+        
+        Procedure SetCurrentDate Date dValue
+            Set pdCurrentDate to dValue
+            Send DisplayCalendar
+        End_Procedure
+        
+        Procedure prev_year
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_YEAR,-1))
+        End_Procedure
+        Procedure next_year
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_YEAR,1))
+        End_Procedure
+        Procedure prev_month
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_MONTH,-1))
+        End_Procedure
+        Procedure next_month  
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_MONTH,1))
+        End_Procedure
+        Procedure prev_week
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_WEEK,-1))
+        End_Procedure
+        Procedure next_week
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_WEEK,1))
+        End_Procedure
+        Procedure prev_day
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_DAY,-1))
+        End_Procedure
+        Procedure next_day  
+            Send SetCurrentDate (DateIncrement(oDateFunctions,pdCurrentDate(Self),DS_DAY,1))
+        End_Procedure
+        Procedure go_today
+            Send SetCurrentDate (SystemDate(oDateFunctions))    
+        End_Procedure
+        Procedure go_current
+            Send SetCurrentDate (pdCurrentDate(Self))
+        End_Procedure
+        
+        Procedure RequestPopup
+            Date dValue
+            tOIDeoInfo stFocus
+            Get FocusInfo of oObjectInfo to stFocus
+            If (stFocus.bDateEntry) Begin
+                Set pdOk to False
+                Get Value of stFocus.hObject stFocus.iCurrentItem to dValue
+                If (Integer(dValue)=0) Begin
+                    Get SystemDate of oDateFunctions to dValue
+                End
+//                Send SetCurrentDate dValue
+                Set pdCurrentDate to dValue
+                Send Popup
+                If (pdOk(Self)) Begin
+                    Set Value of stFocus.hObject stFocus.iCurrentItem to (pdCurrentDate(Self))
+                    Set Item_Changed_State of stFocus.hObject stFocus.iCurrentItem to True
+                End
+            End
+        End_Procedure
+        Send DisplayButtons of oCalendar False
+    End_Object
+
+    Procedure RequestPopupCalendar
+        Send RequestPopup of oDateCalendarPanel
+    End_Procedure
+    
+    Class cDateForm is a Form
+        Procedure Construct_Object
+            Forward Send Construct_Object
+            Set Size to 13 60
+            Set Prompt_Button_Mode to PB_PromptOn
+            Set Form_Datatype to Date_Window
+        End_Procedure
+        Procedure Prompt
+            Send RequestPopup of oDateCalendarPanel            
+        End_Procedure    
+    End_Class
+#ENDIF

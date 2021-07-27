@@ -1,0 +1,77 @@
+Use AttributeFunctions.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+
+#IFNDEF Is$WebApp // If Windows application we add a progress panel
+    Use win\StatusPanelAlternative.pkg
+#ENDIF
+
+Global_Variable tFileList gstFilelist
+Global_Variable tTableRelation[] gaTableRelations
+
+Global_Variable Integer oGlobalAttrFunctions
+
+Object _oGlobalAttrFunctions is a cObject
+    Move Self to oGlobalAttrFunctions
+
+#IFNDEF Is$WebApp
+    Procedure HandleReadProgress String sValue Integer iIndex Integer iMax
+        Set Action_Text of ghoStatusPanel to sValue
+        Set Meter_Pct of ghoStatusPanel to (100*iIndex/iMax)
+        Set Meter_Text of ghoStatusPanel to (String(Integer(100*iIndex/iMax))+"%")
+    End_Procedure
+#ENDIF
+
+    Procedure ReadAll
+        tFileList strFilelist
+        Integer[] aEmpty // 20121212
+#IFNDEF Is$WebApp // If Windows application we add a progress panel
+        Send Initialize_StatusPanel of ghoStatusPanel "Reading table definitions" "Reading definitions" ""
+        Send Start_StatusPanel of ghoStatusPanel
+        Send EnableCancelButton of ghoStatusPanel False
+#ENDIF
+
+#IFNDEF Is$WebApp // If Windows application
+        Send GetAllAttributesProgressCallback of oAttributeFunctions (&strFilelist) MSG_HandleReadProgress Self
+#ELSE
+        Send GetAllAttributes of oAttributeFunctions (&strFilelist)
+#ENDIF
+
+        Move strFilelist to gstFilelist
+#IFNDEF Is$WebApp // If Windows application
+        Set Action_Text of ghoStatusPanel to ""
+        Set Title_Text of ghoStatusPanel to "Registering relationships"
+#ENDIF
+        Get TableRelations of oAttributeFunctions strFilelist.aTables to gaTableRelations // Make a list of all relations in the database
+#IFNDEF Is$WebApp // If Windows application
+        Send Stop_StatusPanel of ghoStatusPanel
+#ENDIF
+        Set _paTempTableFilter of oAttributeFunctions to aEmpty
+    End_Procedure
+
+    Procedure ReadAllTableArray Integer[] aTables
+        Set _paTempTableFilter of oAttributeFunctions to aTables
+        Send ReadAll
+    End_Procedure
+
+    Procedure ReadAllIfEmpty
+        If (SizeOfArray(gstFilelist.aGlobalAttributes)=0) Begin
+            Send ReadAll
+        End
+    End_Procedure
+
+    Procedure WriteToFile String sFileName
+        Send WriteFile_FileListAttributes of oAttributeFunctions sFileName gstFilelist
+    End_Procedure
+
+    Procedure RegisterRelations
+        Get TableRelations of oAttributeFunctions gstFilelist.aTables to gaTableRelations // Make a list of all relations in the database
+    End_Procedure
+
+    Procedure ReadFromFile String sFileName
+        tFileList stEmpty
+        Move stEmpty to gstFilelist
+        Send ReadFile_FileListAttributes of oAttributeFunctions sFileName (&gstFilelist)
+        Send RegisterRelations
+    End_Procedure
+
+End_Object

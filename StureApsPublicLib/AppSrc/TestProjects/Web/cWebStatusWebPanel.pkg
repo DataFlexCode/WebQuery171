@@ -1,0 +1,177 @@
+Use TestProjects\Web\cWebHtmlBoxSture.pkg
+Use cWebPanel.pkg
+Use DataDictionaryFunctions.pkg
+Use yUML.pkg
+Use HtmlSequenceFunctions.pkg
+Use RgbFunctions.pkg
+Use TestProjects\alpha\cDFTicketLink.pkg
+Use WebServiceClientFunctions.pkg
+
+Class _cWebStatusPanelHtmlBox is a cWebHtmlBoxSture
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set pbFillHeight to True
+        Set psBackgroundColor to "#DCE0C6"
+        Set pbServerOnClick to True
+    End_Procedure
+    
+    Procedure AddSmallButton String sLabel String sAction
+        Integer iColor
+        Send AddElement "span" sLabel
+        Send AddAttribute "class" "statusbarbtn"
+        Send AddOnClickAttributes sAction ""
+        Get HTMLToRgb of oRgbFunctions "#DCE0C6" to iColor
+        Move (Darken(oRgbFunctions,iColor,15)) to iColor
+        Send AddAttribute "style" ("background-color:"+ToHTML(oRgbFunctions,iColor)+";")
+    End_Procedure
+
+// .statusbarbtn{margin-left:10px;margin-right:10px;padding-left:4px;padding-right:4px;font-size:0.7em;outline:none;border:1px solid;background-color:rgb(212,212,255);border-radius:5px;}
+// .statusbarbtn:hover{background-color:rgb(255,222,222);}
+
+    Procedure OnOrdinaryClick String sAction String sParam
+        If (sAction="support") Begin
+            Send OnSupport
+        End
+        Else If (sAction="debug") Begin
+            Send OnDebug
+        End
+        Else If (sAction="user") Begin
+            Send OnUser
+        End
+        Else If (sAction="newwindow") Begin
+            Send OnNewWindow
+        End
+        Else If (sAction="startpage") Begin
+            Send OnStartPage
+        End
+    End_Procedure
+    
+    Procedure OnBuildHtml
+        String sValue
+        Send AddSmallButton "Startside" "startpage"
+        
+        Send AddSmallButton "Nyt vindue" "newwindow"
+
+        Get psReportIncidentLabel to sValue
+        Send AddSmallButton sValue "support" 
+        
+        Get psDebugLabel to sValue
+        Send AddSmallButton sValue "debug" 
+
+        Get psApplicationTitle to sValue
+        Send AddElement "span" sValue
+        
+        Get psUserLabel to sValue
+        Send AddSmallButton sValue "user"
+        Get OnGetUserLabel to sValue
+        Send AddElement "span" sValue
+    End_Procedure
+        
+    Procedure OnBuildHtml2
+        String sValue
+        tHTMLSequence strSeq
+        Get ColumnLayout of oHTMLSequenceFunctions "50% 15% 35%" False to strSeq
+        While (FindSection(oHTMLSequenceFunctions,Self,&strSeq))
+            If (strSeq.sCurrentSection="column1") Begin
+                
+                Send AddSmallButton "Startside" "startpage"
+                
+                Send AddSmallButton "Nyt vindue" "newwindow"
+
+                Get psReportIncidentLabel to sValue
+                Send AddSmallButton sValue "support" 
+                
+                Get psDebugLabel to sValue
+                Send AddSmallButton sValue "debug" 
+                
+            End
+            If (strSeq.sCurrentSection="column2") Begin
+                Send AddAttribute "style" "text-align:center;" // to the encapsulating td
+                
+                Get psApplicationTitle to sValue
+                Send AddElement "span" sValue
+            End
+            If (strSeq.sCurrentSection="column3") Begin
+                Send AddAttribute "style" "text-align:right;padding-right:10px;"  // to the encapsulating td
+                
+                Get psUserLabel to sValue
+                Send AddSmallButton sValue "user"
+                Get OnGetUserLabel to sValue
+                Send AddElement "span" sValue
+            End
+        Loop
+    End_Procedure
+End_Class
+
+//Class cvbWebStatusPanel is a cWebStatusPanelHtmlBox
+//End_Class
+
+Class cWebStatusWebPanel is a cWebPanel
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set peRegion to prBottom
+        Set piHeight to 35
+        Set psBackgroundColor to "#DCE0C6"
+        
+        Property String psApplicationTitle    "No application label"
+        
+        Property String psReportIncidentLabel "Feedback" // "Report incident"
+        Property String psDebugLabel          "Debug"
+        Property String psUserLabel           "Bruger/LAB" // "User"
+        
+        Object oWebStatusPanel is a _cWebStatusPanelHtmlBox
+        End_Object
+    End_Procedure
+
+    Function OnGetUserLabel Returns String
+        Function_Return "No user label"
+    End_Function
+
+    Procedure OnSupport
+        Send RequestNewTicketPanel of ghoDFTicketLink
+//        String sExternalLink
+//        tWStTicketLock_New_Resp strResp
+//        Move oDataFlexTicketLink to hDftLink
+//        Get PrepareNewTicket of ghoDFTicketFunctions to strResp
+//        If (strResp.bSuccess) Begin
+//            Get psServiceURL of ghoDFTicketFunctions to sExternalLink
+//            
+//            Move (sExternalLink+"?ticketlock="+strResp.sUUID) to sExternalLink
+//            Send NavigateNewWindow sExternalLink 800 600
+//        End
+//        Else Begin
+//            Error DFERR_PROGRAM "Link to DFTicket could not be established"
+//        End
+    End_Procedure
+    
+    Procedure OnNewWindow
+//        Send NavigateToPage "http://localhost/MarselisborgLabVidensbank/Index.html" btNewWindow
+    End_Procedure
+    
+    Procedure OnStartPage
+    End_Procedure    
+
+    Procedure OnDebug
+        Handle hoFocus hDD
+        String sUrl
+        tYumlClassDiagram strDiagram
+        Get FocusObject to hoFocus
+        If hoFocus Begin
+            Get Main_DD of hoFocus to hDD
+            If (hDD) Begin
+                Get yUML_DDODiagram of oDataDictionaryFunctions (Parent(hDD)) True to strDiagram
+                Get DiagramUrl of oYumlFunctions strDiagram to sUrl
+                Send NavigateNewWindow sUrl 800 600
+            End
+        End
+    End_Procedure
+
+    Procedure OnUser
+    End_Procedure
+
+    Procedure RefreshStatusbar
+        Send RefreshContent of oWebStatusPanel
+    End_Procedure
+End_Class
+
+

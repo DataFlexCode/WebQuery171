@@ -1,0 +1,13 @@
+Search_Id
+Search_Mode
+User_id
+Search_String
+Create_Date
+Create_Time
+Result_Count
+Execution_Time
+Search_Name
+Low_Date_Limit
+High_Date_Limit
+Order_By
+Refinement_Of

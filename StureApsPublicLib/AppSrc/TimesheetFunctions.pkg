@@ -1,0 +1,814 @@
+Use VdfBase.pkg
+
+Use DateFunctions.pkg // Define oDateFunctions object
+Use FileFunctions.pkg // Define oFileFunctions object
+Use StringFunctions.pkg // Define oStringFunctions object
+Use StackFunctions.pkg // Define oStackFunctions object
+Use XmlBuilder.pkg
+
+Struct tTSAtomData
+    String[] aDims
+    Integer  iRecordCount // How many times did we hit this aDims combination during AddRecord operations?
+    Number[] aFacts
+End_Struct
+
+Struct tTSDataItem
+    Boolean bUsed
+    tTSAtomData[] aAtomData
+End_Struct
+
+Struct tTSFactColumn
+    String sName
+    Integer iFormatDecimals
+    String sUnit
+End_Struct
+
+Struct tTSDimColumn
+    String    sName
+    String[]  aValues             // All values taken on by this dimension throughout the dataset.
+    // Display options (they influence the values returned by the CalculateDimValueStructure procedure)
+    Boolean bExpandAllKnownValues
+    Boolean bAddTotal
+End_Struct
+
+Struct tTSDataSet
+    String sTitle
+    tTSFactColumn[] aFactColumns
+    tTSDimColumn[] aDimColumns
+    Integer iDateGranularity //> DS_DAY=day, DS_WEEK=week, DS_MONTH=month, DS_QUARTER=quarter, DS_YEAR=year
+    Date dBase //> The earliest date that we can handle in the dataset. If left at 0 the date associated with the first data item added will assumed.
+    tTSDataItem[] aData
+End_Struct
+
+Struct tTSReduction
+    Integer iDateGranularity // DS_DAY=day, DS_WEEK=week, DS_MONTH=month, DS_QUARTER=quarter, DS_YEAR=year
+    Integer[] aiFactPermutation
+    Integer[] aiDimPermutation
+End_Struct
+
+Struct tTSDimValueStructure
+    String sValue
+    Integer iType // 0=Dim value, 1=Total, 2=Average
+    tTSDimValueStructure[] aNextLevelValues
+End_Struct
+
+//Struct tTSPresentationCell
+//    Integer iType // 0:Date header, 1..N
+//    String sValue
+//    Number nValue
+//End_Struct
+
+Object oTimesheetFunctions is a cObject
+    
+    Function NewTimeSheet tTSFactColumn[] aFactColumns ;
+                          tTSDimColumn[] aDimColumns  ;
+                          Integer  iDateGranularity ; //> DS_DAY=day, DS_WEEK=week, DS_MONTH=month, DS_QUARTER=quarter, DS_YEAR=year
+                          Date     dBase ; //> Datewise offset for aData indexing. Blank (or zero) means that this value is determined by first "record" that is added. The value represents the earliest date that we can handle in the dataset.
+                          Returns tTSDataSet
+        tTSDataSet stNew
+        Move aFactColumns to stNew.aFactColumns
+        Move aDimColumns  to stNew.aDimColumns 
+        Move iDateGranularity to stNew.iDateGranularity
+        Move dBase            to stNew.dBase
+        Function_Return stNew
+    End_Function
+    
+                Function _CompareAtomDimensions tTSAtomData stVal1 tTSAtomData stVal2 Returns Integer
+                    Integer iIndex iMax
+                    Move (SizeOfArray(stVal1.aDims)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (stVal1.aDims[iIndex]<stVal2.aDims[iIndex]) Function_Return (LT)
+                        If (stVal1.aDims[iIndex]>stVal2.aDims[iIndex]) Function_Return (GT)
+                    Loop
+                    Function_Return (EQ)
+                End_Function
+            
+            // This function checks if a given combination of dimensions has already been
+            // encountered. If no such combination can be found it returns the next available
+            // index.
+            
+            Function _FindDimensionIndex tTSDataItem[] aAtomData String[] aDims tTSDimColumn[] aDimDefinitions Returns Integer
+                Integer iIndex
+                tTSAtomData stSearchVal
+                Move aDims to stSearchVal.aDims
+                Move (SearchArray(stSearchVal,aAtomData,Self,GET__CompareAtomDimensions)) to iIndex
+                If (iIndex=-1) Begin
+                    Move (SizeOfArray(aAtomData)) to iIndex
+                End
+                Function_Return iIndex
+            End_Function
+            
+            Procedure _UpdateFacts tTSAtomData ByRef stAtomData Integer iDimensionIndex Number[] aFacts String[] aDims
+                Integer iIndex iMax
+                
+                If (SizeOfArray(stAtomData.aDims)=0) Begin
+                    Move aDims to stAtomData.aDims
+                End
+
+                If (stAtomData.iRecordCount=0) Begin
+                    Move aFacts to stAtomData.aFacts
+                    Move 1 to stAtomData.iRecordCount
+                End
+                Else Begin
+                    Move (SizeOfArray(stAtomData.aFacts)-1) to iMax
+                    For iIndex from 0 to iMax
+                        Move (stAtomData.aFacts[iIndex]+aFacts[iIndex]) to stAtomData.aFacts[iIndex]
+                    Loop
+                    Move (stAtomData.iRecordCount+1) to stAtomData.iRecordCount
+                End
+            End_Procedure
+            
+            Procedure _UpdateDimValueLists tTSDataSet ByRef stDataSet String[] aDims
+                Integer iDimIndex iDimMax
+                Integer iValIndex 
+                Move (SizeOfArray(aDims)-1) to iDimMax
+                For iDimIndex from 0 to iDimMax
+                    Move (SearchArray(aDims[iDimIndex],stDataSet.aDimColumns[iDimIndex].aValues)) to iValIndex
+                    If (iValIndex=-1) Begin
+                        Move (SizeOfArray(stDataSet.aDimColumns[iDimIndex].aValues)) to iValIndex
+                        Move aDims[iDimIndex] to stDataSet.aDimColumns[iDimIndex].aValues[iValIndex]
+                    End    
+                    
+                Loop
+            End_Procedure
+            
+    Procedure AddRecordDateIndex tTSDataSet ByRef stDataSet Integer iDateIndex Number[] aFacts String[] aDims
+        Integer iDimensionIndex
+        Send _UpdateDimValueLists (&stDataSet) aDims
+        If (iDateIndex>=SizeOfArray(stDataSet.aData)) Begin
+            Move 0 to iDimensionIndex
+        End
+        Else Begin
+            Get _FindDimensionIndex stDataSet.aData[iDateIndex].aAtomData aDims stDataSet.aFactColumns to iDimensionIndex
+        End
+        Move True to stDataSet.aData[iDateIndex].bUsed
+        If (iDimensionIndex>=SizeOfArray(stDataSet.aData[iDateIndex].aAtomData)) Begin
+            Move (ResizeArray(stDataSet.aData[iDateIndex].aAtomData,iDimensionIndex+1)) to stDataSet.aData[iDateIndex].aAtomData
+        End
+        Send _UpdateFacts (&stDataSet.aData[iDateIndex].aAtomData[iDimensionIndex]) iDimensionIndex aFacts aDims
+    End_Procedure
+    
+    Procedure AddRecord tTSDataSet ByRef stDataSet Date dDate Number[] aFacts String[] aDims
+        Integer iDateIndex
+        If (Integer(dDate)=0) Begin
+            Error 424 "No date passed in AddData procedure"
+        End
+        
+        If (Integer(stDataSet.dBase)=0) Begin
+            Move dDate to stDataSet.dBase 
+        End
+        
+        Get DateIndex of oDateFunctions stDataSet.dBase dDate stDataSet.iDateGranularity to iDateIndex
+        If (iDateIndex<0) Begin
+            Error 425 "Date out of range in AddData procedure"
+        End
+        Else Begin
+            Send AddRecordDateIndex (&stDataSet) iDateIndex aFacts aDims
+        End
+    End_Procedure
+    
+    Procedure SortTimeSheet tTSDataSet ByRef stDataSet
+        Integer iIndex iMax
+        Move (SizeOfArray(stDataSet.aData)-1) to iMax
+        For iIndex from 0 to iMax
+            Move (SortArray(stDataSet.aData[iIndex].aAtomData,Self,GET__CompareAtomDimensions)) to stDataSet.aData[iIndex].aAtomData
+        Loop
+    End_Procedure    
+    
+    // --- Reduction procedures ---------------
+    
+        Function _ValidateDateGranularityReduction Integer iOld Integer iNew Returns Boolean
+            If (iNew<iOld) Begin
+                Function_Return False
+            End
+            If (iOld=DS_WEEK) Begin
+                Function_Return False // Weeks can't be transformed to anything
+            End
+            Function_Return True
+        End_Function
+        
+        Function _ValidateDimensionDependencies tTSDataSet stDataSet tTSReduction stReduction Returns Boolean
+            // It should not be possible to exclude a "super-dimension" without also
+            // exluding the sub-dimensions.
+            Function_Return True
+        End_Function
+        
+        Function _PermutateNumberArray Number[] aValues Integer[] aiPermutation Returns Number[]
+            Integer iIndex iMax iMaxValueIndex
+            Number[] aRval
+            Move (SizeOfArray(aiPermutation)-1) to iMax
+            Move (SizeOfArray(aValues)-1) to iMaxValueIndex
+            For iIndex from 0 to iMax
+                If (aiPermutation[iIndex]<=iMaxValueIndex) Begin
+                    Move aValues[aiPermutation[iIndex]] to aRval[iIndex]
+                End
+            Loop
+            Function_Return aRval    
+        End_Function
+        
+        Function _PermutateStringArray String[] aValues Integer[] aiPermutation Returns String[]
+            Integer iIndex iMax iMaxValueIndex
+            String[] aRval
+            Move (SizeOfArray(aiPermutation)-1) to iMax
+            Move (SizeOfArray(aValues)-1) to iMaxValueIndex
+            For iIndex from 0 to iMax
+                If (aiPermutation[iIndex]<=iMaxValueIndex) Begin
+                    Move aValues[aiPermutation[iIndex]] to aRval[iIndex]
+                End
+            Loop
+            Function_Return aRval    
+        End_Function
+        
+        Function _PermutateFactColumnArray tTSFactColumn[] aValues Integer[] aiPermutation Returns tTSFactColumn[]
+            Integer iIndex iMax iMaxValueIndex
+            tTSFactColumn[] aRval
+            Move (SizeOfArray(aiPermutation)-1) to iMax
+            Move (SizeOfArray(aValues)-1) to iMaxValueIndex
+            For iIndex from 0 to iMax
+                If (aiPermutation[iIndex]<=iMaxValueIndex) Begin
+                    Move aValues[aiPermutation[iIndex]] to aRval[iIndex]
+                End
+            Loop
+            Function_Return aRval    
+        End_Function
+        
+        Function _PermutateDimColumnArray tTSDimColumn[] aValues Integer[] aiPermutation Returns tTSDimColumn[]
+            Integer iIndex iMax iMaxValueIndex
+            tTSDimColumn[] aRval
+            Move (SizeOfArray(aiPermutation)-1) to iMax
+            Move (SizeOfArray(aValues)-1) to iMaxValueIndex
+            For iIndex from 0 to iMax
+                If (aiPermutation[iIndex]<=iMaxValueIndex) Begin
+                    Move aValues[aiPermutation[iIndex]] to aRval[iIndex]
+                End
+            Loop
+            Function_Return aRval    
+        End_Function
+        
+    Function TimeSheetReduction tTSDataSet stDataSet tTSReduction stReduction Returns tTSDataSet
+        Integer iItemIndex iItemMax
+        Integer iAtomIndex iAtomMax
+        Date dDate
+        Number[] aFacts
+        String[] aDims
+        tTSDataSet stResult
+        
+        // If the 'reduction' doesn't change anything the operation should be omitted. Insert check for that.
+
+        If (_ValidateDateGranularityReduction(Self,stDataSet.iDateGranularity,stReduction.iDateGranularity)) Begin
+            If (_ValidateDimensionDependencies(Self,stDataSet,stReduction)) Begin
+                
+                Move (SizeOfArray(stDataSet.aData)-1) to iItemMax
+                
+                // Initialise result parameter:
+                Move stDataSet.dBase to stResult.dBase
+                Move stReduction.iDateGranularity to stResult.iDateGranularity
+                
+                // Transfer dimension columns:
+                Get _PermutateDimColumnArray stDataSet.aDimColumns stReduction.aiDimPermutation to stResult.aDimColumns
+                // Transfer fact columns:
+                Get _PermutateFactColumnArray stDataSet.aFactColumns stReduction.aiFactPermutation to stResult.aFactColumns
+                
+                // Transfer the data
+                For iItemIndex from 0 to iItemMax
+                    
+                    Get DateIndexStartDate of oDateFunctions stDataSet.dBase iItemIndex stDataSet.iDateGranularity to dDate
+                    
+                    Move (SizeOfArray(stDataSet.aData[iItemIndex].aAtomData)-1) to iAtomMax
+                    For iAtomIndex from 0 to iAtomMax
+                        
+                        // Calculate reduced dimension values:
+                        Get _PermutateStringArray stDataSet.aData[iItemIndex].aAtomData[iAtomIndex].aDims stReduction.aiDimPermutation to aDims
+                        
+                        // Calculate reduced fact values:
+                        Get _PermutateNumberArray stDataSet.aData[iItemIndex].aAtomData[iAtomIndex].aFacts stReduction.aiFactPermutation to aFacts
+
+                        Send AddRecord (&stResult) dDate aFacts aDims
+                    Loop // iAtomIndex
+                Loop // iItemIndex
+            End
+        End
+        Send SortTimeSheet (&stResult)
+        Function_Return stResult
+    End_Function
+    
+        Function _FindFact_DimMatch String[] aDimValues1 String[] aDimValues2 Returns Boolean
+            Integer iMax iIndex
+            If (SizeOfArray(aDimValues1)=SizeOfArray(aDimValues2)) Begin
+                Move (SizeOfArray(aDimValues1)-1) to iMax
+                For iIndex from 0 to iMax
+                    If (aDimValues1[iIndex]<>aDimValues2[iIndex]) Begin
+                        Function_Return False    
+                    End
+                Loop
+                Function_Return True
+            End
+            Function_Return False
+        End_Function
+    
+    Function FindFact tTSDataSet stDataSet Integer iDateIndex String[] aDimValues Returns Number[]
+        Integer iAtomIndex iAtomMax
+        Number aFactValues
+        
+        If (iDateIndex>=0 and iDateIndex<SizeOfArray(stDataSet.aData)) Begin
+            If (stDataSet.aData[iDateIndex].bUsed) Begin
+                Move (SizeOfArray(stDataSet.aData[iDateIndex].aAtomData)-1) to iAtomMax
+                For iAtomIndex from 0 to iAtomMax
+                    If (_FindFact_DimMatch(Self,aDimValues,stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aDims)) Begin
+                        Function_Return stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aFacts
+                    End
+                Loop                
+            End
+        End
+        
+        Function_Return (ResizeArray(aFactValues,SizeOfArray(stDataSet.aFactColumns)))
+    End_Function
+    
+            Function _FindDimValue tTSDimValueStructure[] aDimValueStructure String sDimValue Returns Integer
+                Integer iIndex iMax
+                Move (SizeOfArray(aDimValueStructure)-1) to iMax
+                For iIndex from 0 to iMax
+                    If (sDimValue=aDimValueStructure[iIndex].sValue) Begin
+                        Function_Return iIndex
+                    End
+                Loop
+                Function_Return -1
+            End_Function
+            
+            Procedure _FindDimValueIndices tTSDimValueStructure[] aDimValueStructure String[] aDimValues Integer[] ByRef aIndices 
+                Integer iIndex
+                If (SizeOfArray(aDimValues)<>0) Begin
+                    Get _FindDimValue aDimValueStructure aDimValues[0] to iIndex
+                    If (iIndex=-1) Begin
+                        Send IntegerPush of oStackFunctions -1 (&aIndices)
+                    End
+                    Else Begin
+                        Send IntegerPush of oStackFunctions iIndex (&aIndices)
+                        Send _FindDimValueIndices aDimValueStructure[iIndex].aNextLevelValues (RemoveFromArray(aDimValues,0))
+                    End
+                End
+            End_Procedure
+            
+            Function _DimensionColumnIndex Integer[] aIndices Returns Integer
+                Integer iMax iIndex iValue iRval
+                Move 0 to iRval
+                Move (SizeOfArray(aIndices)-1) to iMax
+                For iIndex from 0 to iMax
+                    Move aIndices[iIndex] to iValue
+                    If (iValue=-1) Begin
+                        Function_Return -1
+                    End
+                    Else Begin
+                        Move (iRval+iValue+1) to iRval
+                    End
+                Loop
+                Function_Return (iRval-1)
+            End_Function
+
+        // This function calculates a column offset (vertical or horizontal) that corresponds to the set of dim values (aDimValues)
+        // when these are looked up in the dimension value structure. If the set of dim values cannot be looked up -1 is returned.
+        Function DimensionColumnIndex tTSDimValueStructure[] aDimValueStructure String[] aDimValues Returns Integer
+            Integer[] aIndices
+            Send _FindDimValueIndices aDimValueStructure aDimValues (&aIndices)
+            Function_Return (_DimensionColumnIndex(Self,aIndices))
+        End_Function
+        
+            Function _DimensionValueRange tTSDataSet stDataSet Integer iDateIndex Integer iDim Returns String[]
+            End_Function
+            
+            Function _Precond_CalculateDimValueStructure tTSDataSet stDataSet Integer iDimFirstYdim Returns Boolean
+                Function_Return (iDimFirstYdim<SizeOfArray(stDataSet.aDimColumns))
+            End_Function
+            
+
+            Procedure _AddDimValues tTSDimValueStructure[] ByRef aDimValueStructure String[] aDimValues 
+                Integer iIndex // iNewIndex
+                If (SizeOfArray(aDimValues)<>0) Begin
+                    Get _FindDimValue aDimValueStructure aDimValues[0] to iIndex
+                    If (iIndex=-1) Begin
+                        Move (SizeOfArray(aDimValueStructure)) to iIndex
+                        Move aDimValues[0] to aDimValueStructure[iIndex].sValue // Create
+                    End
+                    Send _AddDimValues (&aDimValueStructure[iIndex].aNextLevelValues) (RemoveFromArray(aDimValues,0)) //  (StringTopDrop(oStackFunctions,aDimValues))
+                End
+            End_Procedure
+            
+
+        // iDimFirstYdim // Index of first dimension to be displayed in horizontal direction. Determines which dimensions goes horizontal and vertical
+        Procedure CalcDimValueStructureDateIndex tTSDataSet stDataSet Integer iDateIndex Integer iDimFirstYdim tTSDimValueStructure[] ByRef aXvalues tTSDimValueStructure[] ByRef aYvalues
+            Integer iX1 iX2 iY1 iY2
+            Integer iIndex iMax
+            String[] aDims
+            If (_Precond_CalculateDimValueStructure(Self,stDataSet,iDimFirstYdim)) Begin
+                
+                Move 0                                      to iX1
+                Move (iDimFirstYdim-1)                      to iX2
+                Move iDimFirstYdim                          to iY1
+                Move (SizeOfArray(stDataSet.aDimColumns)-1) to iY2
+                
+                Move (SizeOfArray(stDataSet.aData[iDateIndex].aAtomData)-1) to iMax
+                For iIndex from 0 to iMax
+                    Move stDataSet.aData[iDateIndex].aAtomData[iIndex].aDims to aDims
+                    Send _AddDimValues (&aXvalues) (CopyArray(aDims,iX1,iX2)) // Vertical dimensions
+                    Send _AddDimValues (&aYvalues) (CopyArray(aDims,iY1,iY2)) // Horizontal dimensions
+                Loop
+            End
+            Else Begin
+                Error 242 "Illegal dimension divider (between hor/ver)"
+            End
+        End_Procedure
+        
+        Procedure CalcDimValueStructure tTSDataSet stDataSet Boolean bTimeDownwards Integer iDimFirstYdim tTSDimValueStructure[] ByRef aXvalues tTSDimValueStructure[] ByRef aYvalues
+            Integer iDateIndex iDateIndexMax
+            tTSDimValueStructure[] aXvaluesNew aYvaluesNew
+            Move (ResizeArray(aXvalues,0)) to aXvalues
+            Move (ResizeArray(aYvalues,0)) to aYvalues
+            If (bTimeDownwards) Begin
+//                Move (InsertInArray())
+            End
+            Else Begin
+            End
+            If (_Precond_CalculateDimValueStructure(Self,stDataSet,iDimFirstYdim)) Begin
+                Move (SizeOfArray(stDataSet.aData)-1) to iDateIndexMax
+                For iDateIndex from 0 to iDateIndexMax
+                    If (bTimeDownwards) Begin
+                    End
+                    Else Begin
+                        
+                    End
+                Loop
+            End
+            Else Begin
+                Error 243 "Illegal dimension divider (between hor/ver)"
+            End
+        End_Procedure
+               
+//    // WriteDataSet and ReadDataSet should be implemented using json/struct stuff.
+//    Procedure WriteDataSet tTSDataItem stDataSet Integer iChannel
+//    End_Procedure
+//    
+//    Procedure ReadDataSet tTSDataItem ByRef stDataSet Integer iChannel
+//    End_Procedure
+//    
+//    Function _HorizontalDimValues tTSDataSet stDataSet tTSDisplayInfo stDisplay Returns String[]
+//        Integer iItemIndex iItemMax iAtomIndex iAtomMax
+//        String asDims a
+//        Move (SizeOfArray(stDataSet.aData)-1) to iItemMax
+//        For iItemIndex from 0 to iItemMax
+//            Move (SizeOfArray(stDataSet.aData[iItemIndex].aAtomData)-1) to iAtomMax
+//            For iAtomIndex from 0 to iAtomMax
+//                
+//            Loop
+//        Loop
+//    End_Function
+//
+//    Function _ColumnHeaderStructure tTSDataItem stDataSet tTSDisplayInfo stDisplayInfo Returns tTSDimValueStructure[]
+//        tTSDimValueStructure[] aValueStructure
+//        Integer iIndex iMax
+//        Move (SizeOfArray(stDisplayInfo.aDimY)-1) to iMax
+//        For iIndex from 0 to iMax
+//        Loop
+//    End_Function
+//    
+//    Procedure CallBack tTSDataSet stDataSet tTSDisplayInfo stDisplay Integer hMsg Integer hObj
+//        Integer iItemIndex iItemMax iAtomIndex iAtomMax
+//        
+//        Move (SizeOfArray(stDataSet.aData)-1) to iItemMax
+//        For iItemIndex from 0 to iItemMax
+//            Move (SizeOfArray(stDataSet.aData[iItemIndex].aAtomData)-1) to iAtomMax
+//            For iAtomIndex from 0 to iAtomMax
+//            Loop
+//        Loop
+//    End_Procedure
+//    
+//    Struct tTSCell
+//        Boolean bTopHeader
+//        Boolean bLeftHeader
+//        String sValue
+//    End_Struct
+//    
+//    Function CompleteCellLayout tTSDataSet stDataSet Integer iXYDimDivider Returns tTSCell[]
+//    End_Function
+//
+
+//    Procedure HandleCell Integer iDateIndex String sDateLabel String[] aDimensions String[] aFacts
+   
+    Procedure CallBack tTSDataSet stDataSet Integer hMsg Integer hObj
+        Integer iDateIndex iDateIndexMax
+        Integer iAtomIndex iAtomIndexMax
+
+        Move (SizeOfArray(stDataSet.aData)-1) to iDateIndexMax
+        For iDateIndex from 0 to iDateIndexMax
+            If (stDataSet.aData[iDateIndex].bUsed) Begin
+                Move (SizeOfArray(stDataSet.aData[iDateIndex].aAtomData)-1) to iAtomIndexMax
+                For iAtomIndex from 0 to iAtomIndexMax
+                    Send hMsg of hObj iDateIndex ;
+                            (DateIndexLabel(oDateFunctions,stDataSet.dBase,iDateIndex,stDataSet.iDateGranularity)) ;
+                            (stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aDims) ;
+                            (stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aFacts) ;
+                                    
+                Loop
+            End
+        Loop
+    End_Procedure
+
+
+    Procedure TestLayout tTSDataSet stDataSet //Integer iFirstDateIndex Integer iLastDateIndex Integer iFirstHorizontalDimIndex Boolean bHorizontalTime
+        String sOutputFile
+        Integer iChannel
+        Integer iDateIndex iDateIndexMax
+        Integer iAtomIndex iAtomIndexMax
+        Integer iDimIndex iDimIndexMax
+        Integer iFactIndex iFactIndexMax
+        
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sOutputFile
+        Get AppendPath of oFileFunctions sOutputFile "TestLayout.txt" to sOutputFile
+        Get DirectOutput of oFileFunctions sOutputFile to iChannel
+        
+        If (iChannel>=0) Begin
+        
+            Move (SizeOfArray(stDataSet.aData)-1) to iDateIndexMax
+            For iDateIndex from 0 to iDateIndexMax
+                If (stDataSet.aData[iDateIndex].bUsed) Begin
+                    // Print date-header:
+                    Writeln channel iChannel (DateIndexLabel(oDateFunctions,stDataSet.dBase,iDateIndex,stDataSet.iDateGranularity))
+                    
+                    Move (SizeOfArray(stDataSet.aData[iDateIndex].aAtomData)-1) to iAtomIndexMax
+                    For iAtomIndex from 0 to iAtomIndexMax
+                        
+                        Move (SizeOfArray(stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aDims)-1) to iDimIndexMax
+                        For iDimIndex from 0 to iDimIndexMax
+                            Write channel iChannel stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aDims[iDimIndex]
+                            If (iDimIndex<>iDimIndexMax) Begin
+                                Write channel iChannel "; "
+                            End
+                        Loop
+                        Write channel iChannel ": "
+                        
+                        Move (SizeOfArray(stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aFacts)-1) to iFactIndexMax
+                        For iFactIndex from 0 to iFactIndexMax
+                            Write channel iChannel stDataSet.aData[iDateIndex].aAtomData[iAtomIndex].aFacts[iFactIndex]
+                            If (iFactIndex<>iFactIndexMax) Begin
+                                Write channel iChannel "; "
+                            End
+                        Loop
+                        Writeln channel iChannel ""
+                        
+                    Loop
+                End
+                    
+            Loop    
+            Send CloseOutput of oFileFunctions iChannel
+            Send NotePad of oFileFunctions sOutputFile
+        End
+    End_Procedure
+    
+End_Object // oTimesheetFunctions
+
+Struct tTSValueSource
+//    Boolean bVirtualColumn
+    Integer hGet
+    Integer iTable
+    Integer iColumn
+End_Struct
+
+Class cTimeSheetDataCollector is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer piDateGranularity DS_DAY // DS_DAY=day, DS_WEEK=week, DS_MONTH=month, DS_QUARTER=quarter, DS_YEAR=year
+        Property tTSFactColumn[]  _paFactColumns
+        Property tTSDimColumn[]   _paDimColumns
+        Property tTSValueSource[] _paFactSources
+        Property tTSValueSource[] _paDimSources
+        Property tTSValueSource   _pstDateSource
+    End_Procedure
+    
+    Procedure Set DateSource Integer iTable Integer iColumn
+        tTSValueSource stDateSource
+//        Move (iTable=0) to stDateSource.bVirtualColumn
+        Move iTable to stDateSource.iTable
+        Move iColumn to stDateSource.iColumn
+        Set _pstDateSource to stDateSource
+    End_Procedure
+        
+    Procedure AddFactColumn String sName Integer iDecimals String sUnit
+        Integer iIndex
+        tTSFactColumn[] aFactColumns
+        Get _paFactColumns to aFactColumns
+        Move (SizeOfArray(aFactColumns)) to iIndex
+        Move sName to aFactColumns[iIndex].sName
+        Move iDecimals to aFactColumns[iIndex].iFormatDecimals
+        Move sUnit to aFactColumns[iIndex].sUnit
+        Set _paFactColumns to aFactColumns
+    End_Procedure
+        
+    Procedure Set FactSource Integer iTable Integer iColumn
+        Integer iIndex
+        tTSValueSource[] aSources
+        tTSFactColumn[] aFactColumns
+        Get _paFactColumns to aFactColumns
+        Get _paFactSources to aSources
+        Move (SizeOfArray(aFactColumns)-1) to iIndex
+//        Move (iTable=0) to aSources[iIndex].bVirtualColumn
+        Move iTable to aSources[iIndex].iTable
+        Move iColumn to aSources[iIndex].iColumn
+        Set _paFactSources to aSources
+    End_Procedure
+    
+    Procedure AddDimColumn String sName 
+        Integer iIndex
+        tTSValueSource stSource
+        tTSDimColumn[] aDimColumns
+        Get _paDimColumns to aDimColumns
+        Move (SizeOfArray(aDimColumns)) to iIndex
+        Move sName to aDimColumns[iIndex].sName
+        Set _paDimColumns to aDimColumns
+    End_Procedure
+
+    Procedure Set DimSource Integer iTable Integer iColumn
+        Integer iIndex
+        tTSValueSource[] aSources
+        tTSDimColumn[] aDimColumns
+        Get _paDimColumns to aDimColumns
+        Get _paDimSources to aSources
+        Move (SizeOfArray(aDimColumns)-1) to iIndex
+//        Move (iTable=0) to aSources[iIndex].bVirtualColumn
+        Move iTable to aSources[iIndex].iTable
+        Move iColumn to aSources[iIndex].iColumn
+        Set _paDimSources to aSources
+    End_Procedure
+    
+    Procedure AddRecordFromBuffer tTSDataSet ByRef stDataSet
+        Integer iMax iIndex
+        Date dDate
+        String sDim
+        Number[] aFacts
+        String[] aDims
+        tTSValueSource[] aFactSources
+        tTSValueSource[] aDimSources
+        tTSValueSource strSource
+        
+        Get _paFactSources to aFactSources
+        Move (SizeOfArray(aFactSources)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aFactSources[iIndex] to strSource
+            If (strSource.iTable<>0) Begin
+                Get_Field_Value strSource.iTable strSource.iColumn to aFacts[iIndex]
+            End
+            Else Begin
+                Get strSource.iColumn to aFacts[iIndex]
+            End
+        Loop
+        Get _paDimSources to aDimSources
+        Move (SizeOfArray(aDimSources)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aDimSources[iIndex] to strSource
+            If (strSource.iTable<>0) Begin
+                Get_Field_Value strSource.iTable strSource.iColumn to sDim
+                Move (Rtrim(sDim)) to aDims[iIndex]
+            End
+            Else Begin
+                Get strSource.iColumn to aDims[iIndex]
+            End
+        Loop
+        
+        Get _pstDateSource to strSource
+        If (strSource.iTable<>0) Begin
+            Get_Field_Value strSource.iTable strSource.iColumn to dDate
+        End
+        Else Begin
+            Get strSource.iColumn to dDate
+        End
+        Send AddRecord of oTimesheetFunctions (&stDataSet) dDate aFacts aDims
+    End_Procedure
+    
+    Procedure AddRecord tTSDataSet ByRef stDataSet Date dDate Number[] aFacts String[] aDims
+        Send AddRecord of oTimesheetFunctions (&stDataSet) dDate aFacts aDims
+    End_Procedure
+
+    Function NewTimeSheet Date     dBase ; //> Date offset for aData indexing. Blank (or zero) means that this value is determined by first "record" that is added. The value represents the earliest date that we can handle in the dataset.
+                          Returns tTSDataSet
+        tTSDataSet stNew
+        Get NewTimeSheet of oTimesheetFunctions (_paFactColumns(Self)) ;
+                                                (_paDimColumns(Self)) ;
+                                                (piDateGranularity(Self)) ;
+                                                dBase to stNew
+        Function_Return stNew
+    End_Function
+    
+    Procedure SortTimeSheet tTSDataSet ByRef stDataSet
+        Send SortTimeSheet of oTimesheetFunctions (&stDataSet)
+    End_Procedure
+End_Class // cTimeSheetDataCollector
+
+
+//                 2007-01  2007-02  2007-03  2007-04  2007-06
+//                                                                                              2007-01  2007-02  2007-03
+// AE Sture Aps               16,50     1,75                                       AE
+// AE VD-Kbh                  65,75   128,00                                         Sture ApS             16,50     1,75
+//                         -------- --------                                         VD-Kbh                65,75   128,00
+// AE                        ###,##   ###,##                                       GS
+//                                                                                   Sture ApS              2,00     9,50
+// GS Sture Aps                2,00     9,50                                         VD-Kbh       90,25    50,50    93,00
+// GS VD-Kbh         90,25    50,50    93,00                                       JB
+//                -------- -------- --------                                         DSV         108,00    99,50
+// GS               ###,##   ###,##   ###,##                                         Sture ApS    28,00    28,00
+//                                                                                 JK
+// JB  DSV          108,00    99,50                                                  VD-Kbh       73,00    78,75
+// JB  Sture Aps     28,00    28,00                                                JKA
+//                -------- --------                                                  Dantek       25,50    19,50
+// JB               ###,##   ###,##                                                  Sture ApS    28,00    19,00
+//                                                                                   VD-Kbh       82,00    87,00
+//-----------------------------------                                              LBC
+//                                                                                   Marselis     28,00    43,50
+//                -------- --------                                                MJP
+// JK               ###,##   ###,##                                                  VD-Kbh       74,00
+//                                                                                 SBA
+// JKA Dantek        25,50    19,50                                                  Marselis     46,75    42,75
+// JKA Sture Aps     28,00    19,00
+// JKA VD-Kbh        82,00    87,00
+//                -------- --------
+// JKA              ###,##   ###,##
+//
+// LBC Marselis      28,00    43,50
+//                -------- --------
+// LBC              ###,##   ###,##
+//
+// MJP VD-Kbh        74,00
+//                --------
+// MJP              ###,##
+//
+// SBA Marselis      46,75    42,75
+//                -------- --------
+// LBC              ###,##   ###,##
+//
+//                ======== ======== ========
+//                  ###,##   ###,##   ###,##
+
+
+
+//            DSV  Dantek  Marselis  Sture Aps  VD-Kbh
+// 2007-01
+//  GS                                           90,25 | ###,##
+//  JB     108,00                        28,00         | ###,##
+//  JK                                   56,50   73,00 | ###,##
+//  JKA             25,50                28,00   82,00 | ###,##
+//  LBC                       28,00                    | ###,##
+//  MJP                                          74,00 | ###,##
+//  SBA                       46,75                    | ###,##
+//        ------- -------  --------    ------- ------- |-------
+//         ###,##  ###,##   ####,##     ###,##  ###,## |####,##
+// 2007-02
+//  AE                                    1,75  128,00 | ###,##
+//  GS                                    2,00   50,50 | ###,##
+//  JB      99,50                        28,00         | ###,##
+//  JK                                   56,50   73,00 | ###,##
+//  JKA             25,50                28,00   82,00 | ###,##
+//  LBC                       28,00                    | ###,##
+//  SBA                       46,75                    | ###,##
+//        ------- -------  --------    ------- ------- |-------
+//         ###,##  ###,##   ####,##     ###,##  ###,## |####,##
+//
+//
+//  Sture Andersen
+//
+//
+//           -Reg-- -Norm-
+//  2010-01  135.00
+//  2010-02  120.50
+//  2010-03  122.00
+//
+//
+//
+//              DSV        Dantek      Marselis       Sture Aps       VD-Kbh
+//           TB PR tt     TB PR tt     TB PR tt       TB PR tt       TB PR tt
+//
+//
+
+// 2007-01
+//  GS                                           90,25 | ###,##
+//  JB     108,00                        28,00         | ###,##
+//  JK                                   56,50   73,00 | ###,##
+//  JKA             25,50                28,00   82,00 | ###,##
+//  LBC                       28,00                    | ###,##
+//  MJP                                          74,00 | ###,##
+//  SBA                       46,75                    | ###,##
+//        ------- -------  --------    ------- ------- |-------
+//         ###,##  ###,##   ####,##     ###,##  ###,## |####,##
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//

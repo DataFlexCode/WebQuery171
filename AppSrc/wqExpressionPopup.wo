@@ -1,0 +1,312 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebEdit.pkg
+Use cWebList.pkg
+Use cWebColumn.pkg
+
+Use cWqWebEdit.pkg
+Use cWebQueryFunctions.pkg
+
+Struct wqExpressionReturn
+    String  sExpression
+    Integer iOp
+    Integer iField
+End_Struct
+
+Object oWqExpressionPopup is a cWebModalDialog
+    Set psCaption        to "Expression"
+    Set piMinWidth       to 800
+    Set piMinHeight      to 500
+    Set pbServerOnSubmit to True
+    Set pbServerOnShow   to True
+    
+    { WebProperty=True }
+    Property Integer wpiOp
+    { WebProperty=True }
+    Property Integer wpiField
+    { WebProperty=True }
+    Property Handle  wphMainTable
+    { WebProperty=True }
+    Property String  wpsExpression
+    { WebProperty=True }
+    Property String  wpsName
+    
+    Property Handle phSelectedTable
+    
+    Object oExprPanel is a cWebPanel
+        Set peRegion to prTop
+        Set piHeight to 200
+        
+        Object oExpression is a cWqWebEdit
+            Set piColumnSpan to 0
+            Set pbShowLabel to False
+            Set pbFillHeight to True
+        End_Object
+
+    End_Object
+
+    Object oListsPanel is a cWebPanel
+        Set pbFillHeight to True
+        Set piColumnCount to 20
+
+        Object oTablesList is a cWebList
+            Set piColumnIndex       to 0
+            Set piColumnSpan        to 4
+            Set pbFillHeight        to True
+            Set pbDataAware         to False
+            Set pbColumnSortable    to False
+            
+            Object oTableCol is a cWebColumn
+                Set psCaption to "Tables"
+            End_Object
+            
+            Procedure OnChangeCurrentRow String sFromRowID String sToRowID
+                Set phSelectedTable     to sToRowID
+                Send GridRefresh        of oFieldsList
+                WebSet psCurrentRowID   of oFieldsList to 1
+            End_Procedure  // OnChangeCurrentRow
+            
+            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                Handle hTab
+                
+                WebGet wphMainTable of oWqExpressionPopup to hTab                
+                Send RelatedFiles of ghoWQF (&aTheRows) hTab
+            End_Procedure
+            
+        End_Object
+
+        Object oFieldsList is a cWebList
+            Set piColumnIndex       to 4
+            Set piColumnSpan        to 6
+            Set pbFillHeight        to True
+            Set pbDataAware         to False
+            Set pbColumnSortable    to False
+            
+            Object oFieldCol is a cWebColumn
+                Set psCaption to "Fields"
+            End_Object
+            
+            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                Send CollectColumns of ghoWQF (&aTheRows) (phSelectedTable(oWqExpressionPopup))
+            End_Procedure
+            
+        End_Object
+
+        Object oFuncsList is a cWebList
+            Set piColumnIndex       to 10
+            Set piColumnSpan        to 0
+            Set pbFillHeight        to True
+            Set pbDataAware         to False
+            Set pbColumnSortable    to False
+            
+            Object oFuncCol is a cWebColumn
+                Set psCaption to "Functions"
+            End_Object
+            
+            Procedure OnManualLoadData tWebRow[] ByRef aRows String ByRef sCurrentRowID
+                Integer i
+                
+                Move "Mid(s, i, i)"         to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Left(s, i)"           to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Right(s, i)"          to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Uppercase(s)"         to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Lowercase(s)"         to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Concat(s, s)"         to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Length(s)"            to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Trim(s)"              to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Pos(s, s)"            to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Today()"              to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Month(d)"             to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Week(d)"              to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Year(d)"              to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Day(d)"               to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "DayName(i)"           to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "MonthName(i)"         to aRows[(SizeOfArray(aRows))].aValues[1]
+//                Move "DateIncrement(d,i,i)" to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "FirstDayInMonth(d)"   to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "DateAsTextEU(d)"      to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "DateAsTextUS(d)"      to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "DateFormatText(d, s)" to aRows[(SizeOfArray(aRows))].aValues[1]
+//                Move "If_Int(i,i,i)"        to aRows[(SizeOfArray(aRows))].aValues[1]
+//                Move "If_Num(i,i,n)"        to aRows[(SizeOfArray(aRows))].aValues[1]
+//                Move "If_Str(i,s,s)"        to aRows[(SizeOfArray(aRows))].aValues[1]
+//                Move "If_Dat(i,d,d)"        to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Integer(i)"           to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "String(s)"            to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Number(n)"            to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "Date(d)"              to aRows[(SizeOfArray(aRows))].aValues[1]
+                Move "not(i)"               to aRows[(SizeOfArray(aRows))].aValues[1]
+                
+                For i from 0 to (SizeOfArray(aRows) - 1)
+                    Move i to aRows[i].aValues[0]
+                Loop
+                
+            End_Procedure
+            
+        End_Object
+            
+    End_Object
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 8
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object 
+
+        Object oClearButton is a cWebButton
+            Set psCaption to "Clear"
+            Set piColumnSpan to 1
+            Set piColumnIndex to 6
+
+            Procedure OnClick
+                Send ClearExpr
+            End_Procedure
+            
+        End_Object 
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 7
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object 
+        
+    End_Object
+    
+    Procedure InsertFunction
+        Integer iPos iLen
+        String  sFunc sExpr
+        
+        WebGet psValue of oExpression to sExpr
+        WebGet piCaretPosition of oExpression to iPos
+        WebGet psValue of oFuncCol to sFunc
+        Move (Length(sExpr)) to iLen
+        
+        If (iPos > iLen) Move (sExpr + sFunc) to sExpr
+        Else Move (Left(sExpr, (iPos - 1)) + sFunc + Right(sExpr, (iLen - iPos + 1))) to sExpr
+        
+        WebSet psValue of oExpression to sExpr
+        WebSet piCaretPosition of oExpression to (iPos + Length(sFunc))
+    End_Procedure
+    
+    Procedure InsertField
+        Integer iPos iLen iFld
+        Handle  hTab
+        String  sExpr sTab sFld sFF
+        
+        WebGet psValue         of oExpression to sExpr
+        WebGet piCaretPosition of oExpression to iPos
+        WebGet psCurrentRowID  of oTablesList to hTab
+        WebGet psCurrentRowID  of oFieldsList to iFld
+        
+        Open hTab
+        Get_Attribute DF_FILE_LOGICAL_NAME of hTab      to sTab
+        Get_Attribute DF_FIELD_NAME        of hTab iFld to sFld
+        
+        Move (sTab + "." + sFld) to sFF        
+        Move (Length(sExpr))     to iLen
+        
+        If (iPos > iLen) Move (sExpr + sFF) to sExpr
+        Else Move (Left(sExpr, (iPos - 1)) + sFF + Right(sExpr, (iLen - iPos + 1))) to sExpr
+        
+        WebSet psValue of oExpression to sExpr
+        WebSet piCaretPosition of oExpression to (iPos + Length(sFF))
+    End_Procedure
+
+    Procedure OnSubmit
+        Handle  hoFoc
+        
+        Get FocusObject to hoFoc
+        
+        If (hoFoc = oFieldsList) Send InsertField
+        If (hoFoc = oFuncsList)  Send InsertFunction
+    End_Procedure
+    
+    Procedure ClearExpr
+        WebSet psValue of oExpression to ""
+    End_Procedure
+    
+    Procedure OnLoad
+        Send GridRefresh of oFuncsList
+    End_Procedure
+    
+    Procedure OnShow
+        String  sExpr sName
+        Integer iOp
+        
+        WebGet wpiOp   to iOp
+        WebGet wpsName to sName
+        
+        If (iOp = C_wqSelectExpr) WebSet psCaption to "Edit selection expression"
+        Else                      WebSet psCaption to ('Edit expression for calculated column "' + sName + '"')
+        
+        WebGet wpsExpression            to sExpr
+        WebSet psValue of oExpression   to sExpr
+        Send GridRefresh of oTablesList
+    End_Procedure
+    
+    Procedure Ok
+        String  sExpr
+        tXPGrammar tXPGram
+        tXPToken[] aXPSyms
+        tXPError   tXPErr
+        tXPValue   tXPRes
+        
+        WebGet psValue of oExpression to sExpr
+        
+        If (sExpr <> "") Begin
+            Get NewGrammar of oWqExprPar                                          to tXPGram
+            Get TokenizeString of oWqExprPar tXPGram sExpr (&tXPErr)              to aXPSyms
+            If (tXPErr.iPos = 0) ;
+                Get ReversePolishNotation of oWqExprPar tXPGram aXPSyms (&tXPErr) to aXPSyms
+        
+            If (tXPErr.iPos <> 0) Begin
+                Send ShowInfoBox ('Error in expression: "' + tXPErr.sErrorText + '"') "Expression Error"
+            End
+            Else Forward Send Ok
+            
+        End
+        Else Forward Send Ok
+        
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure DoPopup Handle hoObj String sExpr Integer iOp Integer iFld Handle hMainTab String sName
+        WebSet wpsExpression    to sExpr
+        WebSet wpiOp            to iOp
+        WebSet wpiField         to iFld  // ToDo: Don't think we need this...
+        WebSet wphMainTable     to hMainTab
+        WebSet wpsName          to sName
+                
+        Send Popup hoObj
+    End_Procedure
+    
+    Function ExprValue Returns wqExpressionReturn
+        wqExpressionReturn tExpr
+        
+        WebGet psValue of oExpression to tExpr.sExpression
+        WebGet wpiOp                  to tExpr.iOp
+        WebGet wpiField               to tExpr.iField
+        
+        Function_Return tExpr
+    End_Function
+    
+End_Object

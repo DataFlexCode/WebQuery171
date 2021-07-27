@@ -1,0 +1,791 @@
+// Use WorkSpaceFunctions.pkg // Workspace functions encapsulated in WsFunctions object (StureApsPublicLib)
+
+Use VdfBase.pkg // DAW package, provides low level support expected of all VDF applications (windows and webapp)
+Use cRegistry.pkg // DAW package, provides access to the Windows system Registry
+Use Windows.pkg
+
+Use FileFunctions.pkg // Define oFileFunctions object
+Use StringFunctions.pkg // Define oStringFunctions object
+Use VdfRuntime.pkg
+Use RegistryFunctions.pkg
+
+Use cApplication.pkg
+Use cWorkspace.pkg
+
+Use cIniFile.pkg
+
+Global_Variable Integer oWsSelector
+Global_Variable Integer oWorkSpaceFunctions
+
+Struct tWorkSpaceFile // (.ws file)
+    String sAppSrcPath     
+    String sBitmapPath     
+    String sDataPath       
+    String sDdSrcPath      
+    String sDescription    
+    String sFileList       
+    String sHelpPath       
+    String sHome           
+    String sIdeSrcPath     
+    String sProgramPath    
+    String sAppHtmlPath    
+    String sWorkspaceName  
+    String sWorkspaceWSFile
+                           
+    String sSystemDfPath
+    String sSystemMakePath 
+    String sDfPath
+End_Struct
+
+Struct tStudioWorkSpaceFile // (.sws file)
+    String   sSwsFilePath
+    String   sVdfVersion
+    String   sConfigFile
+    String[] aProjects
+    String   sDataDictClass
+    String   sDataDictPkg
+    tWorkSpaceFile strWorkSpaceFile
+    tStudioWorkSpaceFile[] aLibraries
+End_Struct
+
+#IFNDEF Is$WebApp // If Windows application 
+    Object _oWsSelector is a ModalPanel
+        Move Self to oWsSelector
+        
+        Set Locate_Mode to CENTER_ON_PANEL 
+        Set size to 221 319
+        Set piMinSize to 221 319
+        Set Label to "Workspace selector"
+        Set Border_Style to Border_Thick
+        On_Key kCancel Send Close_Panel
+        
+        Property Boolean pbVDFXray True
+        
+        Property Boolean _pbAccept
+        Property String  _psBrowsedValue
+        
+        Procedure AcceptPanel
+            Set _pbAccept to True
+            Send Close_Panel
+        End_Procedure
+        
+        Object oTextBox is a TextBox
+            Set Size to 50 14
+            Set Location to 10 9
+            Set Label to "Currently selected workspace:"
+        End_Object
+        
+        Object oForm is a Form
+            Set Size to 14 306
+            Set Location to 24 6
+            Set peAnchors to anTopLeftRight
+            Set Enabled_State to False
+        End_Object
+        
+        Object oConstrainValue is a Form
+            Set Size to 13 45
+            Set Location to 199 135
+            Set Label_Col_Offset to 0
+            Set Label_Justification_Mode to JMode_Right
+            Set Label to "WS name:"
+            Set peAnchors to anBottomLeftRight
+            
+            On_Key kUpArrow Send ActivateList
+            On_Key kDownArrow Send ActivateList
+            On_Key kEnter send ActivateList
+            
+            Procedure ActivateList
+                Send Activate of oList
+            End_Procedure
+            
+            Function ConstrainValue Returns String
+                String sValue
+                Get Value to sValue
+                Move (Trim(sValue)) to sValue
+                If (sValue="") Begin
+                    Move "*" to sValue
+                End
+                Else Begin
+                    Move ("*"+sValue+"*") to sValue
+                End
+                Function_Return (Uppercase(sValue))
+            End_Function
+            
+            Procedure OnChange
+                Send UpdateList of oList
+            End_Procedure
+        End_Object
+
+        Property Boolean _pbIncludeRecentlySelected False
+        
+        Object oList is a List
+            Set Size to 156 306
+            Set Location to 42 6
+            Set peAnchors to anAll
+            Set Select_Mode to Auto_Select
+            On_Key kEnter Send AcceptPanel
+            
+            Function _SwsVersion String sSws Returns String
+                Boolean bOk
+                String sVdfVer
+                Get SwsFileVersion of oWorkSpaceFunctions sSws (&sVdfVer) to bOk
+                If (Left(sVdfVer,1)="9") Begin
+                    Move ("0"+sVdfVer) to sVdfVer
+                End
+                Function_Return sVdfVer
+            End_Function
+            
+            Function ValueWithoutVersion Integer iItem Returns String
+                String sValue
+                Get Value iItem to sValue
+                If (Right(sValue,1)=")") Begin
+                    Move (rRemove(oStringFunctions,sValue,7)) to sValue // "(17.1) " for example
+                End
+                Function_Return sValue
+            End_Function
+            
+                Function _SwsAlreadyAdded String sSws Returns Boolean
+                    Integer iMax iItem
+                    Move (Lowercase(sSws)) to sSws
+                    Get Item_Count to iMax
+                    Decrement iMax
+                    For iItem from 0 to iMax
+                        If (sSws=Lowercase(ValueWithoutVersion(Self,iItem))) Begin
+                            Function_Return True
+                        End
+                    Loop
+                    Function_Return False
+                End_Function
+            
+            Procedure AddWorkSpaceToList String sSws
+                String sConstrainVdfVer sVer
+                If (not(_SwsAlreadyAdded(Self,sSws))) Begin
+                    Get Value of oVersionSelector to sConstrainVdfVer
+                    Get _SwsVersion sSws to sVer
+                    If (sConstrainVdfVer="All" or sConstrainVdfVer=sVer) Begin
+                        Move (sSws+" ("+sVer+")") to sSws
+                        Send Add_Item MSG_NONE sSws
+                    End
+                End
+            End_Procedure
+
+            Property String[] _pasWorkSpaces
+            Function RecentlySelected Returns String[]
+                Boolean bOk
+                String sKey sValue
+                String[] aValues
+                tRegKeyData strKeyData
+                If (pbVDFXray(Self)) Begin
+                    Move ("Software\Data Access Worldwide\VDFXray\") to sKey
+                    Get ReadKeyData of oRegistryFunctions HKEY_CURRENT_USER sKey (&strKeyData) True to bOk
+                    Get NamedRegValue of oRegistryFunctions strKeyData "RecentlySelectedWS" to sValue
+                    Send SplitString of oStringFunctions sValue ";" True "" (&aValues)
+                End
+                Function_Return aValues
+            End_Function
+            
+            Procedure Set RecentlySelected String[] aValues
+                Boolean bOk
+                String sKey sValue
+                tRegKeyData strKeyData
+                If (pbVDFXray(Self)) Begin
+                    Get JoinString of oStringFunctions aValues ";" 0 0 to sValue
+                    Move ("Software\Data Access Worldwide\VDFXray\") to sKey
+                    Send WriteRegValue of oRegistryFunctions HKEY_CURRENT_USER sKey "RecentlySelectedWS" sValue rdString
+                End
+            End_Procedure
+            
+            Procedure RecentlySelectedAdd String sFile
+                Integer iItem iMax
+                String[] aValues
+                Get RecentlySelected to aValues
+                Move (SizeOfArray(aValues)-1) to iMax
+                For iItem from 0 to iMax
+                    If (Lowercase(sFile)=Lowercase(aValues[iItem])) Begin
+                        Procedure_Return // Do nothing
+                    End
+                Loop
+                If (SizeOfArray(aValues)>0) Begin
+#IF (FMAC_VERSION<15)
+                    Move (ReverseArray(aValues)) to aValues
+                    Move sFile to aValues[SizeOfArray(aValues)]
+                    Move (ReverseArray(aValues)) to aValues
+#ELSE
+                    Move (InsertInArray(aValues,0,sFile)) to aValues
+#ENDIF
+                End
+                Else Begin
+                    Move sFile to aValues[0]
+                End
+                Set RecentlySelected to aValues
+            End_Procedure
+
+            Procedure UpdateList
+                Boolean bOk
+                Integer iMax iIndex
+                String sVdfVer
+                String sConstrainValue
+                tWildCardEvalSequence stSeq
+                String[] aValues
+                
+                Get ConstrainValue of oConstrainValue to sConstrainValue
+                Get WildCardEvalSequence of oStringFunctions sConstrainValue to stSeq
+                Send Delete_Data
+                If (_pbIncludeRecentlySelected(Self)) Begin
+                    
+                    Get RecentlySelected to aValues
+                    Move (SizeOfArray(aValues)-1) to iMax
+                    For iIndex from 0 to iMax
+                        Send Add_Item MSG_NONE aValues[iIndex]
+                    Loop
+                    If (iMax>=0) Begin
+                        Send Add_Item MSG_NONE "" // Divider
+                    End
+                End
+                
+                Get _pasWorkSpaces to aValues
+                Move (SizeOfArray(aValues)) to iMax
+                Decrement iMax
+                For iIndex from 0 to iMax
+                    Get SwsFileVersion of oWorkSpaceFunctions aValues[iIndex] (&sVdfVer) to bOk
+                    If (bOk) Begin
+                        If (WildCardMatch(oStringFunctions,uppercase(aValues[iIndex]),stSeq)) Begin
+                            Send AddWorkSpaceToList aValues[iIndex]
+                        End
+                    End
+                Loop
+            End_Procedure
+            
+            Procedure DoFillList String[] aValues
+                Set _pasWorkSpaces to aValues
+                Set Value of oConstrainValue to ""
+                Send UpdateList
+            End_Procedure
+            
+            Procedure Mouse_Click Integer iWindowNumber Integer iPosition // Sent on mouse double click.
+                Send AcceptPanel
+            End_Procedure
+            Function CurrentFile Returns String
+                If (Item_Count(Self)) Begin
+                    Function_Return (ValueWithoutVersion(Self,Current_Item(Self)))
+                End
+                Function_Return ""    
+            End_Function
+        End_Object // oList
+
+        Object oVersionSelector is a ComboForm
+            Set Size to 13 39
+            Set Location to 199 53
+            Set Label to "Constrain ver:"
+            Set Label_Justification_Mode to JMode_Right
+            Set Label_Col_Offset to 0
+            Set peAnchors to anBottomLeft
+            Set Entry_State to False
+            Set Combo_Sort_State to True
+            
+            //Combo_Fill_List is called when the list needs filling
+        
+            Procedure DoFillCombo String[] aSwsFiles
+                Integer iIndex iMax
+                Boolean bOk
+                String sVdfVer
+                Send Combo_Delete_Data
+                Send Combo_Add_Item "All"
+                Move (SizeOfArray(aSwsFiles)-1) to iMax
+                For iIndex from 0 to iMax
+                    Get SwsFileVersion of oWorkSpaceFunctions aSwsFiles[iIndex] (&sVdfVer) to bOk
+                    If (bOk) Begin
+                        Send AddVersion sVdfVer
+                    End
+                Loop
+                Set Value to "All"
+            End_Procedure
+            
+            Procedure AddVersion String sVer
+                Integer iMax iItem
+                Get Combo_Item_Count to iMax
+                Decrement iMax
+                For iItem from 0 to iMax
+                    If (sVer=Combo_Value(Self,iItem)) Begin
+                        Procedure_Return
+                    End
+                Loop
+                Send Combo_Add_Item sVer
+            End_Procedure
+        
+            Procedure OnChange
+                Send UpdateList of oList
+            End_Procedure
+        End_Object
+
+        Object oButton1 is a Button
+            Set Size to 14 40
+            Set Location to 199 186
+            Set Label to "OK"
+            Set peAnchors to anBottomRight
+            Procedure OnClick
+                Send AcceptPanel
+            End_Procedure
+        End_Object
+        
+        Object oButton2 is a Button
+            Set Size to 14 40
+            Set Location to 199 228
+            Set Label to "Browse"
+            Set peAnchors to anBottomRight
+            Procedure OnClick
+                String sFile sStartFolder
+                Get VdfFolderPath of oFileFunctions VDF_FILELIST to sStartFolder
+                Get PathToFolder of oFileFunctions sStartFolder to sStartFolder 
+                Get PathToFolder of oFileFunctions sStartFolder to sStartFolder
+                
+                Get BrowseFileOpen of oFileFunctions "Select Workspace file" sStartFolder "All files (*.sws, *.ws and filelist.cfg's)|*.sws; *.ws; filelist.cfg|VDF Studio workspace file (*.sws)|*.sws|VDF Workspace file (*.ws)|*.ws|Filelist.cfg|filelist.cfg" to sFile
+                If (sFile<>"") Begin
+                    Send RecentlySelectedAdd of oList sFile
+                    Set _psBrowsedValue to sFile
+                    Send AcceptPanel
+                End
+            End_Procedure
+        End_Object
+        
+        Object oButton3 is a Button
+            Set Size to 14 40
+            Set Location to 199 270
+            Set Label to "Cancel"
+            Set peAnchors to anBottomRight
+            Procedure OnClick
+                Send close_panel
+            End_Procedure
+        End_Object
+
+        Function SelectSwsFile String[] aValues String sCurrent Returns String
+            String sRval
+            Set _pbAccept to False
+            Set value of oForm to (If(sCurrent="","none",sCurrent))
+            Send DoFillCombo of oVersionSelector aValues
+            Send DoFillList of oList aValues
+            Send popup
+            If (_pbAccept(Self)) Begin
+                Get _psBrowsedValue to sRval
+                If (sRval="") Get CurrentFile of oList to sRval
+            End
+            Set _psBrowsedValue to ""
+            Function_Return sRval
+        End_Function
+
+        Object oRecently is a CheckBox
+            Set Size to 10 50
+            Set Location to 12 197
+            Set Label to 'Display recently selected (ctrl+R)'
+            Set peAnchors to anTopRight
+        
+            Procedure OnChange
+                Boolean bChecked
+                Get Checked_State to bChecked
+                Set _pbIncludeRecentlySelected to bChecked
+                Send UpdateList of oList
+            End_Procedure
+        End_Object
+        
+        Procedure ToggleRecent
+            Set Checked_State of oRecently to (not(Checked_State(oRecently)))
+        End_Procedure
+        On_Key Key_Ctrl+Key_R Send ToggleRecent
+    End_Object // oWsSelector
+#ENDIF
+
+Object _oWorkSpaceFunctions is a cObject
+    Move Self to oWorkSpaceFunctions
+    
+    Object _oRecentWs is a cRegistry // Private
+//            Set pfAccessRights to (KEY_READ+KEY_ENUMERATE_SUB_KEYS)
+        Set phRootKey to HKEY_CURRENT_USER
+    End_Object
+    
+    // Reads data out of the .ws file and all of the included libraries recursively
+    Function WorkspaceStruct String sWorkspaceFile Returns tWorkSpaceFile
+        // Content of this function is largely stolen from function OpenWorkspaceFile in DAW
+        // package cWorkspace.pkg:
+        Handle hoIniFile
+        Pointer lpsApplicationStartPath
+        tWorkSpaceFile strWS
+        String sApplicationStartPath sWsName sOldDirectory
+        String sHome sAppSrcPath sBitmapPath sDataPath sDdSrcPath sDescription sAppHtmlPath
+        String sFileList sHelpPath sIdeSrcPath sProgramPath sWorkspaceName
+        String sPath
+
+        
+        If (FileExists(oFileFunctions,sWorkspaceFile)=1) Begin
+            
+            Get PathToFolder of oFileFunctions sWorkspaceFile to sPath
+        
+            Get Create U_cIniFile to hoIniFile
+            Set psFilename of hoIniFile to sWorkspaceFile
+    
+            Get ReadString of hoIniFile "Workspace" "Home" ""          to sHome
+            Get ReadString of hoIniFile "Workspace" "AppSrcPath" ""    to sAppSrcPath
+            Get ReadString of hoIniFile "Workspace" "AppHtmlPath" ""   to sAppHtmlPath
+            Get ReadString of hoIniFile "Workspace" "BitmapPath" ""    to sBitmapPath
+            Get ReadString of hoIniFile "Workspace" "DataPath" ""      to sDataPath
+            Get ReadString of hoIniFile "Workspace" "DdSrcPath" ""     to sDdSrcPath
+            Get ReadString of hoIniFile "Workspace" "FileList" ""      to sFileList
+            Get ReadString of hoIniFile "Workspace" "HelpPath" ""      to sHelpPath
+            Get ReadString of hoIniFile "Workspace" "IdeSrcPath" ""    to sIdeSrcPath
+            Get ReadString of hoIniFile "Workspace" "ProgramPath" ""   to sProgramPath
+            Move (Left(sWsName, Length(sWsName) -3))                   to sWorkspaceName
+    
+            Get AppendPath of oFileFunctions sPath sHome to strWS.sHome
+    
+            Get AppendPath of oFileFunctions strWS.sHome sAppSrcPath    to strWS.sAppSrcPath 
+            Get AppendPath of oFileFunctions strWS.sHome sAppHtmlPath   to strWS.sAppHtmlPath
+            Get AppendPath of oFileFunctions strWS.sHome sBitmapPath    to strWS.sBitmapPath 
+            Get AppendPath of oFileFunctions strWS.sHome sDataPath      to strWS.sDataPath   
+            Get AppendPath of oFileFunctions strWS.sHome sDdSrcPath     to strWS.sDdSrcPath  
+            Get AppendPath of oFileFunctions strWS.sHome sFileList      to strWS.sFileList   
+            Get AppendPath of oFileFunctions strWS.sHome sHelpPath      to strWS.sHelpPath   
+            Get AppendPath of oFileFunctions strWS.sHome sIdeSrcPath    to strWS.sIdeSrcPath 
+            Get AppendPath of oFileFunctions strWS.sHome sWorkspaceName to strWS.sWorkspaceName 
+            Get AppendPath of oFileFunctions strWS.sHome sProgramPath   to strWS.sProgramPath
+    
+            Send Destroy of hoIniFile // destroy dynaically created inifile object
+    
+        End
+
+        Function_Return strWS
+    End_Function
+    
+    // Reads data out of the .sws file and all of the included libraries recursively
+    Function StudioWorkspaceStruct String sSwsPath Returns tStudioWorkSpaceFile
+        Integer hIniFile
+        Integer hArray iMax iIndex
+        tStudioWorkSpaceFile strWSfile
+        String sValueName sFolder sValue sPath
+        
+        Get Create U_cIniFile to hIniFile
+        Get Create U_Array to hArray
+        
+        Set psFileName of hIniFile to sSwsPath
+        Move sSwsPath to strWSfile.sSwsFilePath
+        
+        Get ReadString of hIniFile "Properties" "Version" "" to strWSfile.sVdfVersion
+        Get ReadString of hIniFile "WorkspacePaths" "ConfigFile" "" to strWSfile.sConfigFile
+        
+        If (strWSfile.sConfigFile<>"") Begin // If a ws file is specified, we will read it
+            If (Left(strWSfile.sConfigFile,2)=".\") Begin
+                Get PathToFolder of oFileFunctions sSwsPath to sPath
+                Move (Replace(".",strWSfile.sConfigFile,sPath)) to strWSfile.sConfigFile
+            End
+            Get WorkspaceStruct strWSfile.sConfigFile to strWSfile.strWorkSpaceFile
+        End
+        
+        Send Delete_Data of hArray
+        Send ReadSection of hIniFile "Projects" hArray
+        Get Item_Count of hArray to iMax
+        Decrement iMax
+        For iIndex from 0 to iMax
+            Get Value of hArray iIndex to sValueName 
+            Get ReadString of hIniFile "Projects" sValueName "" to strWSfile.aProjects[iIndex]
+        Loop
+        
+        Get ReadString of hIniFile "DataDictionary" "class" "" to strWSfile.sDataDictClass
+        Get ReadString of hIniFile "DataDictionary" "file" "" to strWSfile.sDataDictPkg
+        
+        Get PathToFolder of oFileFunctions sSwsPath to sFolder
+        Send Delete_Data of hArray
+        Send ReadSection of hIniFile "Libraries" hArray
+        Get Item_Count of hArray to iMax
+        Decrement iMax
+        For iIndex from 0 to iMax
+            Get Value of hArray iIndex to sValueName 
+            Get ReadString of hIniFile "Libraries" sValueName "" to sSwsPath
+
+            Get AppendPath of oFileFunctions sFolder sSwsPath to sSwsPath
+            Get StudioWorkspaceStruct sSwsPath to strWSfile.aLibraries[iIndex]
+        Loop
+
+        Send Destroy of hArray
+        Send Destroy of hIniFile
+        Function_Return strWSfile
+    End_Function
+    
+    Function VdfRootFolder tStudioWorkSpaceFile strWorkspace Returns String
+        tVdfRuntime strRuntime
+        If (strWorkspace.sVdfVersion<>"") Begin
+            Get RuntimeStruct of oVdfRuntimeFunctions strWorkspace.sVdfVersion to strRuntime
+            Function_Return strRuntime.sRootFolder
+        End
+        Function_Return "" 
+    End_Function
+    
+//        Function _AddWorkspace tStudioWorkSpaceFile strWS tStudioWorkSpaceFile[] ByRef aWS Returns Boolean
+//            Integer iItem iMax
+//            Move (SizeOfArray(aWS)-1) to iMax
+//            For iItem from 0 to iMax
+//                If (Lowercase(strWS.sSwsFilePath)=Lowercase(aWS[iItem].sSwsFilePath)) Begin
+//                    Function_Return False
+//                End
+//            Loop
+//            Move (ResizeArray(strWS.aLibraries,0)) to strWS.aLibraries
+//            Move strWS to aWS[iMax+1]
+//            Function_Return True
+//        End_Function
+//        
+//        Procedure _WorkspaceList tStudioWorkSpaceFile strWS tStudioWorkSpaceFile[] ByRef aWS 
+//            Integer iMax iItem
+//            If (_AddWorkspace(Self,strWS,&aWS)) Begin
+//                Move (SizeOfArray(strWS.aLibraries)-1) to iMax
+//                For iItem from 0 to iMax
+//                    Send _WorkspaceList strWS.aLibraries[iItem] (&aWS)
+//                Loop
+//            End
+//        End_Procedure
+//    
+//    Function WorkspaceLibraryList String sSwsPath Returns tStudioWorkSpaceFile[]
+//        tStudioWorkSpaceFile[] strWS
+//        tStudioWorkSpaceFile[] aWS
+//        Get StudioWorkspaceStruct sSwsPath to strWS
+//        Send _WorkspaceList strWS (&aWS)
+//        Function_Return aWS
+//    End_Function
+    
+        Procedure _AddFolder String sFolder String[] ByRef aFolders
+            Integer iMax iItem
+            Move (SizeOfArray(aFolders)-1) to iMax
+            For iItem from 0 to iMax
+                If (Lowercase(sFolder)=Lowercase(aFolders[iItem])) Begin
+                    Procedure_Return
+                End
+            Loop
+            Move sFolder to aFolders[iMax+1]
+        End_Procedure
+        
+        Procedure _AddLibraryAppSrcFolder tStudioWorkSpaceFile strLibrary String[] ByRef aFolders
+            Integer iMax iItem
+            Send _AddFolder strLibrary.strWorkSpaceFile.sAppSrcPath (&aFolders)
+            Move (SizeOfArray(strLibrary.aLibraries)-1) to iMax
+            For iItem from 0 to iMax
+                Send _AddLibraryAppSrcFolder strLibrary.aLibraries[iItem] (&aFolders)
+            Loop 
+        End_Procedure
+    
+    Function WorkspaceSourceFolders String sSwsPath Boolean bIncludeVdfPkgFolder Returns String[]
+        Integer iMax iItem
+        String sFolder
+        String[] aFolders
+        tStudioWorkSpaceFile strCurrentWorkSpace
+        tVdfRuntime strRuntime
+        
+        Get StudioWorkspaceStruct sSwsPath to strCurrentWorkSpace
+        Send _AddFolder strCurrentWorkSpace.strWorkSpaceFile.sAppSrcPath (&aFolders)
+        Send _AddFolder strCurrentWorkSpace.strWorkSpaceFile.sDdSrcPath (&aFolders)
+        
+        Move (SizeOfArray(strCurrentWorkSpace.aLibraries)-1) to iMax
+        For iItem from 0 to iMax
+            Send _AddLibraryAppSrcFolder strCurrentWorkSpace.aLibraries[iItem] (&aFolders)
+        Loop
+            
+        If (bIncludeVdfPkgFolder) Begin
+            Get RuntimeStruct of oVdfRuntimeFunctions strCurrentWorkSpace.sVdfVersion to strRuntime
+            
+            If (strRuntime.sRootFolder<>"") Begin
+                Get AppendPath of oFileFunctions strRuntime.sRootFolder "Pkg" to sFolder
+                Send _AddFolder sFolder (&aFolders)
+            End 
+        End
+        Function_Return aFolders
+    End_Function
+    
+    Procedure _ReadRegistryRecentWorkSpacesOfVdfVersion String sVdfVerDotRev String[] ByRef aValues
+        Boolean bOpen
+        Handle hoArray
+        Integer iMaxKey iKey iCount
+        String sKey sVdfKey sKeyValue
+        
+        Get OpenKey of _oRecentWs ("Software\Data Access Worldwide\Visual DataFlex Tools\"+sVdfVerDotRev+"\Studio\RecentWorkspaces") to bOpen
+        If (bOpen) Begin
+            Get Create U_Array to hoArray // Create an array object
+            Get GetValues of _oRecentWs hoArray to iMaxKey
+            Decrement iMaxKey
+            Move (SizeOfArray(aValues)) to iCount
+            For iKey from 0 to iMaxKey
+                Get value of hoArray iKey to sKey
+                Get ReadString of _oRecentWs sKey to sKeyValue
+                If (sKeyValue<>"") Begin // Empty values may occur
+                    Move sKeyValue to aValues[iCount]
+                    Increment iCount
+                End
+            Loop
+            Send Destroy of hoArray // Remove the array object from memory.
+            Send CloseKey of _oRecentWs
+        End
+    End_Procedure
+
+    Procedure ReadRegistryRecentWorkSpacesOfVdfVersion String sVdfVerDotRev String[] ByRef aValues
+        Move (ResizeArray(aValues,0)) to aValues
+        Send _ReadRegistryRecentWorkSpacesOfVdfVersion sVdfVerDotRev (&aValues)
+    End_Procedure
+
+    //> The VDF studio stores its "Recent Workspaces" list in the Windows registry. Use the ReadRegistryRecentWorkSpaces
+    //> procedure to dig them out.
+    Procedure ReadRegistryRecentWorkSpaces String[] ByRef aValues
+        String sVdfVer sVdfRev sVdfBuild sVdfVerDotRev
+        Version_Information sVdfVer sVdfRev sVdfBuild
+        Move (sVdfVer+"."+sVdfRev) to sVdfVerDotRev
+        Send ReadRegistryRecentWorkSpacesOfVdfVersion sVdfVerDotRev (&aValues)
+    End_Procedure
+    
+    Procedure ReadRegistryRecentWorkspacesAllVersions String[] ByRef aValues
+        Integer iMax iIndex
+        Move (ResizeArray(aValues,0)) to aValues
+        Move (SizeOfArray(gaRuntimes)-1) to iMax
+        For iIndex from 0 to iMax
+            Send _ReadRegistryRecentWorkSpacesOfVdfVersion gaRuntimes[iIndex].sVdfVersion (&aValues)
+        Loop
+    End_Procedure
+
+    //> Returns a handle to cWorkSpace object currently in action.
+    Function WorkSpaceObject Returns Handle
+        Handle hRval
+        Move 0 to hRval
+        If (ghoApplication>=0) Begin
+            Get phoWorkspace of ghoApplication to hRval
+        End
+        Function_Return hRval
+    End_Function
+
+    //> Returns the name (incl. full path) of the .ws file currently used.
+    Function WorkSpaceFile Returns String
+        Handle hoWs
+        String sFile
+        Get WorkSpaceObject to hoWs
+        If (hoWs>0) Begin
+            Get psWorkspaceWSFile of hoWs to sFile
+        End
+        Else Begin
+            Move "" to sFile
+        End
+        Function_Return sFile
+    End_Function
+    
+    Function SwsFileVersion String sSws String ByRef sVdfVer Returns Boolean
+        Boolean bSeqEof
+        Integer iChannel
+        String sLine
+        Move "" to sVdfVer
+        Get DirectInput of oFileFunctions sSws to iChannel
+        If (iChannel>=0) Begin
+            Repeat
+                Readln channel iChannel sLine
+                Move (SeqEof) to bSeqEof
+                If (not(bSeqEof)) Begin
+                    If (Left(sLine,8)="Version=") Begin
+                        Send CloseInput of oFileFunctions iChannel
+                        Move (Replace("Version=",sLine,"")) to sVdfVer
+                        Function_Return True
+                    End
+                End
+            Until (bSeqEof)
+            Send CloseInput of oFileFunctions iChannel
+        End
+        Function_Return False
+    End_Function
+    
+    //> Use this function to calculate the absolute path of the .ws file corresponding to the abslute path of a .sws file given as parameter.
+    Function SwsFileToWsFile String sSwsFile Returns String
+        Boolean bStop
+        //Integer iChannel
+        Handle hoIniFile
+        String sWsFile sLine
+
+        Get Create U_cIniFile To hoIniFile
+
+        Set psFilename of hoIniFile To sSwsFile
+        Get ReadString of hoIniFile "WorkspacePaths" "ConfigFile" "" To sWsFile
+        Send Destroy of hoIniFile // destroy dynaically created inifile object
+
+        If (left(sWsFile,2)=".\") Begin // If that's not the case we assume that the path is absolute. (Maybe someday it is necessary to take "..\" into account also).
+            Move (Remove(swsFile,1,2)) to sWsFile // Remove the first two characters
+            Get PathToFolder of oFileFunctions sSwsFile to sSwsFile // "C:\Apps\FreeLib\FreeLib.sws" -> "C:\Apps\FreeLib"
+            Get AppendPath of oFileFunctions sSwsFile sWsFile to sWsFile
+        End
+        Function_Return sWsFile
+    End_Function
+
+    //> Function OpenWorkspace takes a .sws or .ws file and calls the "OpenWorkSpaceFile" method of the current cWorkSpace object. The return
+    //> value is one of the following:
+    //>     -1                      : cWorkSpace object not found
+    //>     wsWorkspaceOpened       : WS opened ok
+    //>     wsWorkspaceNotFound     : the named WS was not found in the global list
+    //>     wsWorkspaceFileNotFound : the WS file was not found
+    //>     wsDataPathEmpty         : the DataPath entry was empty
+    //>     wsFileListEmpty         : The FileList entry was empty
+    //>     wsFileListNotExist      : The FileList.cfg file could not be found
+    //>
+    //> Most likely, you want to close all tables before calling this function.
+    //>
+    Function OpenWorkspace String sFile Returns Integer
+        Handle hoWs
+        Integer iRval
+        Get WorkSpaceObject to hoWs
+        If (hoWs>=0) Begin
+            If (Lowercase(PathToFileName(oFileFunctions,sFile))="filelist.cfg") Begin
+                // If this function is passed a filelist.cfg we have to give
+                // special treatment to the workspace object:
+                Send DoClearPaths of hoWs
+                Set psHome            of hoWs to (PathToFolder(oFileFunctions,sFile))
+                Set psWorkspaceName   of hoWs to ""
+                Set psAppSrcPath      of hoWs to ""
+                Set psAppHtmlPath     of hoWs to ""
+                Set psBitmapPath      of hoWs to ""
+                Set psDataPath        of hoWs to (PathToFolder(oFileFunctions,sFile))
+                Set psDdSrcPath       of hoWs to ""
+                Set psDescription     of hoWs to ""
+                Set psFileList        of hoWs to sFile
+                Set psHelpPath        of hoWs to ""
+                Set psIdeSrcPath      of hoWs to ""
+                Set psProgramPath     of hoWs to ""
+                Set psSystemDfPath    of hoWs to (VdfSystemDfPath(hoWs))
+                Set psSystemMakePath  of hoWs to (VdfSystemMakePath(hoWs))
+                Set psWorkspaceWSFile of hoWs to ""
+
+                Set psDfPath           of hoWS to (PathToFolder(oFileFunctions,sFile))
+                Set_Attribute DF_FILELIST_NAME to sFile
+                Set_Attribute DF_OPEN_PATH     to (PathToFolder(oFileFunctions,sFile))
+                Move wsWorkspaceOpened to iRval
+            End
+            Else Begin
+                If (Lowercase(Right(sFile,4))=".sws") Begin
+                    Get SwsFileToWsFile sFile to sFile
+                End
+                Send DoClearPaths of hoWs
+                Get OpenWorkspaceFile of hoWs sFile to iRval
+            End
+        End
+        Else Begin
+            Error 232 "Workspace object not found (WorkSpaceFunctions.pkg)"
+        End
+        Function_Return iRval
+    End_Function
+
+    Function OpenWorkspaceErrorText integer iReturnValue returns string
+        if (iReturnValue=-1)                      function_return "cWorkSpace object not found"
+        if (iReturnValue=wsWorkspaceOpened)       function_return "WS opened ok"
+        if (iReturnValue=wsWorkspaceNotFound)     function_return "The named WS was not found in the global list"
+        if (iReturnValue=wsWorkspaceFileNotFound) function_return "The WS file was not found"
+        if (iReturnValue=wsDataPathEmpty)         function_return "The DataPath entry was empty"
+        if (iReturnValue=wsFileListEmpty)         function_return "The FileList entry was empty"
+        if (iReturnValue=wsFileListNotExist)      function_return "'FileList.cfg' file could not be found"
+        function_return ""
+    End_Function
+
+    #IFNDEF Is$WebApp // If not web application
+        Function SelectRecentWorkspaceFile Boolean bJustCurrentVersion Returns String
+            String sSwsFile sWsFile
+            String[] aValues
+            Send ReadRegistryRecentWorkspacesAllVersions (&aValues)
+            Get SelectSwsFile of oWsSelector aValues (WorkSpaceFile(Self)) to sSwsFile
+            Function_Return sSwsFile
+        End_Function
+    #ENDIF
+    
+End_Object

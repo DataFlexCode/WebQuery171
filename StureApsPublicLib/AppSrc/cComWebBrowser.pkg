@@ -1,0 +1,2548 @@
+// Visual DataFlex COM proxy classes generated from C:\Windows\SysWOW64\ieframe.dll
+Use FlexCom20.pkg
+
+
+// Constants for WebBrowser CommandStateChange
+Define OLECommandStateChangeConstants for Integer
+    // Command Change
+    Define OLECSC_UPDATECOMMANDS for -1
+    // Navigate Forward
+    Define OLECSC_NAVIGATEFORWARD for 1
+    // Navigate Back
+    Define OLECSC_NAVIGATEBACK for 2
+
+Define OLEOLECMDID for Integer
+    Define OLEOLECMDID_OPEN for 1
+    Define OLEOLECMDID_NEW for 2
+    Define OLEOLECMDID_SAVE for 3
+    Define OLEOLECMDID_SAVEAS for 4
+    Define OLEOLECMDID_SAVECOPYAS for 5
+    Define OLEOLECMDID_PRINT for 6
+    Define OLEOLECMDID_PRINTPREVIEW for 7
+    Define OLEOLECMDID_PAGESETUP for 8
+    Define OLEOLECMDID_SPELL for 9
+    Define OLEOLECMDID_PROPERTIES for 10
+    Define OLEOLECMDID_CUT for 11
+    Define OLEOLECMDID_COPY for 12
+    Define OLEOLECMDID_PASTE for 13
+    Define OLEOLECMDID_PASTESPECIAL for 14
+    Define OLEOLECMDID_UNDO for 15
+    Define OLEOLECMDID_REDO for 16
+    Define OLEOLECMDID_SELECTALL for 17
+    Define OLEOLECMDID_CLEARSELECTION for 18
+    Define OLEOLECMDID_ZOOM for 19
+    Define OLEOLECMDID_GETZOOMRANGE for 20
+    Define OLEOLECMDID_UPDATECOMMANDS for 21
+    Define OLEOLECMDID_REFRESH for 22
+    Define OLEOLECMDID_STOP for 23
+    Define OLEOLECMDID_HIDETOOLBARS for 24
+    Define OLEOLECMDID_SETPROGRESSMAX for 25
+    Define OLEOLECMDID_SETPROGRESSPOS for 26
+    Define OLEOLECMDID_SETPROGRESSTEXT for 27
+    Define OLEOLECMDID_SETTITLE for 28
+    Define OLEOLECMDID_SETDOWNLOADSTATE for 29
+    Define OLEOLECMDID_STOPDOWNLOAD for 30
+    Define OLEOLECMDID_ONTOOLBARACTIVATED for 31
+    Define OLEOLECMDID_FIND for 32
+    Define OLEOLECMDID_DELETE for 33
+    Define OLEOLECMDID_HTTPEQUIV for 34
+    Define OLEOLECMDID_HTTPEQUIV_DONE for 35
+    Define OLEOLECMDID_ENABLE_INTERACTION for 36
+    Define OLEOLECMDID_ONUNLOAD for 37
+    Define OLEOLECMDID_PROPERTYBAG2 for 38
+    Define OLEOLECMDID_PREREFRESH for 39
+    Define OLEOLECMDID_SHOWSCRIPTERROR for 40
+    Define OLEOLECMDID_SHOWMESSAGE for 41
+    Define OLEOLECMDID_SHOWFIND for 42
+    Define OLEOLECMDID_SHOWPAGESETUP for 43
+    Define OLEOLECMDID_SHOWPRINT for 44
+    Define OLEOLECMDID_CLOSE for 45
+    Define OLEOLECMDID_ALLOWUILESSSAVEAS for 46
+    Define OLEOLECMDID_DONTDOWNLOADCSS for 47
+    Define OLEOLECMDID_UPDATEPAGESTATUS for 48
+    Define OLEOLECMDID_PRINT2 for 49
+    Define OLEOLECMDID_PRINTPREVIEW2 for 50
+    Define OLEOLECMDID_SETPRINTTEMPLATE for 51
+    Define OLEOLECMDID_GETPRINTTEMPLATE for 52
+    Define OLEOLECMDID_PAGEACTIONBLOCKED for 55
+    Define OLEOLECMDID_PAGEACTIONUIQUERY for 56
+    Define OLEOLECMDID_FOCUSVIEWCONTROLS for 57
+    Define OLEOLECMDID_FOCUSVIEWCONTROLSQUERY for 58
+    Define OLEOLECMDID_SHOWPAGEACTIONMENU for 59
+    Define OLEOLECMDID_ADDTRAVELENTRY for 60
+    Define OLEOLECMDID_UPDATETRAVELENTRY for 61
+    Define OLEOLECMDID_UPDATEBACKFORWARDSTATE for 62
+    Define OLEOLECMDID_OPTICAL_ZOOM for 63
+    Define OLEOLECMDID_OPTICAL_GETZOOMRANGE for 64
+    Define OLEOLECMDID_WINDOWSTATECHANGED for 65
+    Define OLEOLECMDID_ACTIVEXINSTALLSCOPE for 66
+    Define OLEOLECMDID_UPDATETRAVELENTRY_DATARECOVERY for 67
+    Define OLEOLECMDID_SHOWTASKDLG for 68
+
+Define OLEOLECMDF for Integer
+    Define OLEOLECMDF_SUPPORTED for 1
+    Define OLEOLECMDF_ENABLED for 2
+    Define OLEOLECMDF_LATCHED for 4
+    Define OLEOLECMDF_NINCHED for 8
+    Define OLEOLECMDF_INVISIBLE for 16
+    Define OLEOLECMDF_DEFHIDEONCTXTMENU for 32
+
+Define OLEOLECMDEXECOPT for Integer
+    Define OLEOLECMDEXECOPT_DODEFAULT for 0
+    Define OLEOLECMDEXECOPT_PROMPTUSER for 1
+    Define OLEOLECMDEXECOPT_DONTPROMPTUSER for 2
+    Define OLEOLECMDEXECOPT_SHOWHELP for 3
+
+Define OLEtagREADYSTATE for Integer
+    Define OLEREADYSTATE_UNINITIALIZED for 0
+    Define OLEREADYSTATE_LOADING for 1
+    Define OLEREADYSTATE_LOADED for 2
+    Define OLEREADYSTATE_INTERACTIVE for 3
+    Define OLEREADYSTATE_COMPLETE for 4
+
+// Constants for WebBrowser security icon notification
+Define OLESecureLockIconConstants for Integer
+    Define OLEsecureLockIconUnsecure for 0
+    Define OLEsecureLockIconMixed for 1
+    Define OLEsecureLockIconSecureUnknownBits for 2
+    Define OLEsecureLockIconSecure40Bit for 3
+    Define OLEsecureLockIconSecure56Bit for 4
+    Define OLEsecureLockIconSecureFortezza for 5
+    Define OLEsecureLockIconSecure128Bit for 6
+
+// Constants for WebBrowser NewProcess notification
+Define OLENewProcessCauseConstants for Integer
+    Define OLEProtectedModeRedirect for 1
+
+// Constants for ShellWindows registration
+Define OLEShellWindowTypeConstants for Integer
+    // Explorer
+    Define OLESWC_EXPLORER for 0
+    // Various Browsing Windows
+    Define OLESWC_BROWSER for 1
+    // 3rd Party Browsers
+    Define OLESWC_3RDPARTY for 2
+    // Creation Callback
+    Define OLESWC_CALLBACK for 4
+    // The Windows Desktop
+    Define OLESWC_DESKTOP for 8
+
+// Options for ShellWindows FindWindow
+Define OLEShellWindowFindWindowOptions for Integer
+
+// CLSID: {D30C1661-CDAF-11D0-8A3E-00C04FC9E26E}
+// Web Browser Interface for IE4.
+Class cComIWebBrowser2 is a Mixin
+
+    // Navigates to the previous item in the history list.
+    Procedure ComGoBack
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 100 OLE_VT_VOID
+    End_Procedure
+
+    // Navigates to the next item in the history list.
+    Procedure ComGoForward
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 101 OLE_VT_VOID
+    End_Procedure
+
+    // Go home/start page.
+    Procedure ComGoHome
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 102 OLE_VT_VOID
+    End_Procedure
+
+    // Go Search Page.
+    Procedure ComGoSearch
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 103 OLE_VT_VOID
+    End_Procedure
+
+    // Navigates to a URL or file.
+    Procedure ComNavigate String llURL Variant llFlags Variant llTargetFrameName Variant llPostData Variant llHeaders
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 5
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llFlags
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTargetFrameName
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llPostData
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llHeaders
+        Send InvokeComMethod to hDispatchDriver 104 OLE_VT_VOID
+    End_Procedure
+
+    // Refresh the currently viewed page.
+    Procedure ComRefresh
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver -550 OLE_VT_VOID
+    End_Procedure
+
+    // Refresh the currently viewed page.
+    Procedure ComRefresh2 Variant llLevel
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llLevel
+        Send InvokeComMethod to hDispatchDriver 105 OLE_VT_VOID
+    End_Procedure
+
+    // Stops opening a file.
+    Procedure ComStop
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 106 OLE_VT_VOID
+    End_Procedure
+
+    // Returns the application automation object if accessible, this automation object otherwise..
+    { MethodType=Property DesignTime=False }
+    Function ComApplication Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 200 OLE_VT_DISPATCH to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns the automation object of the container/parent if one exists or this automation object.
+    { MethodType=Property DesignTime=False }
+    Function ComParent Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 201 OLE_VT_DISPATCH to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns the container/parent automation object, if any.
+    { MethodType=Property DesignTime=False }
+    Function ComContainer Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 202 OLE_VT_DISPATCH to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns the active Document automation object, if any.
+    { MethodType=Property DesignTime=False }
+    Function ComDocument Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 203 OLE_VT_DISPATCH to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns True if this is the top level object.
+    { MethodType=Property DesignTime=False }
+    Function ComTopLevelContainer Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 204 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns the type of the contained document object.
+    { MethodType=Property DesignTime=False }
+    Function ComType Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 205 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    // The horizontal position (pixels) of the frame window relative to the screen/container.
+    { MethodType=Property DesignTime=False }
+    Function ComLeft Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 206 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // The horizontal position (pixels) of the frame window relative to the screen/container.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComLeft Integer value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 206 OLE_VT_I4 to value
+    End_Procedure
+
+    // The vertical position (pixels) of the frame window relative to the screen/container.
+    { MethodType=Property DesignTime=False }
+    Function ComTop Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 207 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // The vertical position (pixels) of the frame window relative to the screen/container.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComTop Integer value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 207 OLE_VT_I4 to value
+    End_Procedure
+
+    // The horizontal dimension (pixels) of the frame window/object.
+    { MethodType=Property DesignTime=False }
+    Function ComWidth Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 208 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // The horizontal dimension (pixels) of the frame window/object.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComWidth Integer value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 208 OLE_VT_I4 to value
+    End_Procedure
+
+    // The vertical dimension (pixels) of the frame window/object.
+    { MethodType=Property DesignTime=False }
+    Function ComHeight Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 209 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // The vertical dimension (pixels) of the frame window/object.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComHeight Integer value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 209 OLE_VT_I4 to value
+    End_Procedure
+
+    // Gets the short (UI-friendly) name of the URL/file currently viewed.
+    { MethodType=Property DesignTime=False }
+    Function ComLocationName Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 210 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    // Gets the full URL/path currently viewed.
+    { MethodType=Property DesignTime=False }
+    Function ComLocationURL Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 211 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    // Query to see if something is still in progress.
+    { MethodType=Property DesignTime=False }
+    Function ComBusy Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 212 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Exits application and closes the open document.
+    Procedure ComQuit
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 300 OLE_VT_VOID
+    End_Procedure
+
+    // Converts client sizes into window sizes.
+    Procedure ComClientToWindow Integer ByRef llpcx Integer ByRef llpcy
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_I4) llpcx
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_I4) llpcy
+        Send InvokeComMethod to hDispatchDriver 301 OLE_VT_VOID
+    End_Procedure
+
+    // Associates vtValue with the name szProperty in the context of the object.
+    Procedure ComPutProperty String llProperty Variant llvtValue
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llProperty
+        Send DefineParam to hDispatchDriver OLE_VT_VARIANT llvtValue
+        Send InvokeComMethod to hDispatchDriver 302 OLE_VT_VOID
+    End_Procedure
+
+    // Retrieve the Associated value for the property vtValue in the context of the object.
+    Function ComGetProperty String llProperty Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llProperty
+        Get InvokeComMethod of hDispatchDriver 303 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns name of the application.
+    { MethodType=Property DesignTime=False }
+    Function ComName Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 0 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns the HWND of the current IE window.
+    { MethodType=Property DesignTime=False }
+    Function ComHWND Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver -515 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns file specification of the application, including path.
+    { MethodType=Property DesignTime=False }
+    Function ComFullName Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 400 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    // Returns the path to the application.
+    { MethodType=Property DesignTime=False }
+    Function ComPath Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 401 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    // Determines whether the application is visible or hidden.
+    { MethodType=Property DesignTime=False }
+    Function ComVisible Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 402 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Determines whether the application is visible or hidden.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComVisible Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 402 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Turn on or off the statusbar.
+    { MethodType=Property DesignTime=False }
+    Function ComStatusBar Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 403 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Turn on or off the statusbar.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComStatusBar Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 403 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Text of Status window.
+    { MethodType=Property DesignTime=False }
+    Function ComStatusText Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 404 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    // Text of Status window.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComStatusText String value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 404 OLE_VT_BSTR to value
+    End_Procedure
+
+    // Controls which toolbar is shown.
+    { MethodType=Property DesignTime=False }
+    Function ComToolBar Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 405 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls which toolbar is shown.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComToolBar Integer value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 405 OLE_VT_I4 to value
+    End_Procedure
+
+    // Controls whether menubar is shown.
+    { MethodType=Property DesignTime=False }
+    Function ComMenuBar Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 406 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls whether menubar is shown.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComMenuBar Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 406 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Maximizes window and turns off statusbar, toolbar, menubar, and titlebar.
+    { MethodType=Property DesignTime=False }
+    Function ComFullScreen Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 407 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Maximizes window and turns off statusbar, toolbar, menubar, and titlebar.
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComFullScreen Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 407 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Navigates to a URL or file or pidl.
+    Procedure ComNavigate2 Variant llURL Variant llFlags Variant llTargetFrameName Variant llPostData Variant llHeaders
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 5
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llURL
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llFlags
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTargetFrameName
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llPostData
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llHeaders
+        Send InvokeComMethod to hDispatchDriver 500 OLE_VT_VOID
+    End_Procedure
+
+    // IOleCommandTarget::QueryStatus
+    Function ComQueryStatusWB OLEOLECMDID llcmdID Returns OLEOLECMDF
+        Handle hDispatchDriver
+        OLEOLECMDF retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_I4 llcmdID
+        Get InvokeComMethod of hDispatchDriver 501 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // IOleCommandTarget::Exec
+    Procedure ComExecWB OLEOLECMDID llcmdID OLEOLECMDEXECOPT llcmdexecopt Variant llpvaIn Variant llpvaOut
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 4
+        Send DefineParam to hDispatchDriver OLE_VT_I4 llcmdID
+        Send DefineParam to hDispatchDriver OLE_VT_I4 llcmdexecopt
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvaIn
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvaOut
+        Send InvokeComMethod to hDispatchDriver 502 OLE_VT_VOID
+    End_Procedure
+
+    // Set BrowserBar to Clsid
+    Procedure ComShowBrowserBar Variant llpvaClsid Variant llpvarShow Variant llpvarSize
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvaClsid
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarShow
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarSize
+        Send InvokeComMethod to hDispatchDriver 503 OLE_VT_VOID
+    End_Procedure
+
+    { MethodType=Property DesignTime=False }
+    Function ComReadyState Returns OLEtagREADYSTATE
+        Handle hDispatchDriver
+        OLEtagREADYSTATE retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver -525 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls if the frame is offline (read from cache)
+    { MethodType=Property DesignTime=False }
+    Function ComOffline Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 550 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls if the frame is offline (read from cache)
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComOffline Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 550 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Controls if any dialog boxes can be shown
+    { MethodType=Property DesignTime=False }
+    Function ComSilent Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 551 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls if any dialog boxes can be shown
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComSilent Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 551 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Registers OC as a top-level browser (for target name resolution)
+    { MethodType=Property DesignTime=False }
+    Function ComRegisterAsBrowser Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 552 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Registers OC as a top-level browser (for target name resolution)
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComRegisterAsBrowser Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 552 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Registers OC as a drop target for navigation
+    { MethodType=Property DesignTime=False }
+    Function ComRegisterAsDropTarget Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 553 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Registers OC as a drop target for navigation
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComRegisterAsDropTarget Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 553 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Controls if the browser is in theater mode
+    { MethodType=Property DesignTime=False }
+    Function ComTheaterMode Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 554 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls if the browser is in theater mode
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComTheaterMode Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 554 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Controls whether address bar is shown
+    { MethodType=Property DesignTime=False }
+    Function ComAddressBar Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 555 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls whether address bar is shown
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComAddressBar Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 555 OLE_VT_BOOL to value
+    End_Procedure
+
+    // Controls whether the window is resizable
+    { MethodType=Property DesignTime=False }
+    Function ComResizable Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 556 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // Controls whether the window is resizable
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComResizable Boolean value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 556 OLE_VT_BOOL to value
+    End_Procedure
+End_Class
+
+// CLSID: {34A715A0-6587-11D0-924A-0020AFC7AC4D}
+// Web Browser Control events interface
+Class cComDWebBrowserEvents2 is a Mixin
+
+    // Statusbar text changed.
+    { MethodType=Event }
+    Procedure OnComStatusTextChange String llText
+    End_Procedure
+
+    // Fired when download progress is updated.
+    { MethodType=Event }
+    Procedure OnComProgressChange Integer llProgress Integer llProgressMax
+    End_Procedure
+
+    // The enabled state of a command changed.
+    { MethodType=Event }
+    Procedure OnComCommandStateChange Integer llCommand Boolean llEnable
+    End_Procedure
+
+    // Download of a page started.
+    { MethodType=Event }
+    Procedure OnComDownloadBegin
+    End_Procedure
+
+    // Download of page complete.
+    { MethodType=Event }
+    Procedure OnComDownloadComplete
+    End_Procedure
+
+    // Document title changed.
+    { MethodType=Event }
+    Procedure OnComTitleChange String llText
+    End_Procedure
+
+    // Fired when the PutProperty method has been called.
+    { MethodType=Event }
+    Procedure OnComPropertyChange String llszProperty
+    End_Procedure
+
+    // Fired before navigate occurs in the given WebBrowser (window or frameset element). The processing of this navigation may be modified.
+    { MethodType=Event }
+    Procedure OnComBeforeNavigate2 Variant llpDisp Variant llURL Variant llFlags Variant llTargetFrameName Variant llPostData Variant llHeaders Boolean ByRef llCancel
+    End_Procedure
+
+    // A new, hidden, non-navigated WebBrowser window is needed.
+    { MethodType=Event }
+    Procedure OnComNewWindow2 Variant llppDisp Boolean ByRef llCancel
+    End_Procedure
+
+    // Fired when the document being navigated to becomes visible and enters the navigation stack.
+    { MethodType=Event }
+    Procedure OnComNavigateComplete2 Variant llpDisp Variant llURL
+    End_Procedure
+
+    // Fired when the document being navigated to reaches ReadyState_Complete.
+    { MethodType=Event }
+    Procedure OnComDocumentComplete Variant llpDisp Variant llURL
+    End_Procedure
+
+    // Fired when application is quiting.
+    { MethodType=Event }
+    Procedure OnComQuit
+    End_Procedure
+
+    // Fired when the window should be shown/hidden
+    { MethodType=Event }
+    Procedure OnComVisible Boolean llVisible
+    End_Procedure
+
+    // Fired when the toolbar  should be shown/hidden
+    { MethodType=Event }
+    Procedure OnComToolBar Boolean llToolBar
+    End_Procedure
+
+    // Fired when the menubar should be shown/hidden
+    { MethodType=Event }
+    Procedure OnComMenuBar Boolean llMenuBar
+    End_Procedure
+
+    // Fired when the statusbar should be shown/hidden
+    { MethodType=Event }
+    Procedure OnComStatusBar Boolean llStatusBar
+    End_Procedure
+
+    // Fired when fullscreen mode should be on/off
+    { MethodType=Event }
+    Procedure OnComFullScreen Boolean llFullScreen
+    End_Procedure
+
+    // Fired when theater mode should be on/off
+    { MethodType=Event }
+    Procedure OnComTheaterMode Boolean llTheaterMode
+    End_Procedure
+
+    // Fired when the host window should allow/disallow resizing
+    { MethodType=Event }
+    Procedure OnComWindowSetResizable Boolean llResizable
+    End_Procedure
+
+    // Fired when the host window should change its Left coordinate
+    { MethodType=Event }
+    Procedure OnComWindowSetLeft Integer llLeft
+    End_Procedure
+
+    // Fired when the host window should change its Top coordinate
+    { MethodType=Event }
+    Procedure OnComWindowSetTop Integer llTop
+    End_Procedure
+
+    // Fired when the host window should change its width
+    { MethodType=Event }
+    Procedure OnComWindowSetWidth Integer llWidth
+    End_Procedure
+
+    // Fired when the host window should change its height
+    { MethodType=Event }
+    Procedure OnComWindowSetHeight Integer llHeight
+    End_Procedure
+
+    // Fired when the WebBrowser is about to be closed by script
+    { MethodType=Event }
+    Procedure OnComWindowClosing Boolean llIsChildWindow Boolean ByRef llCancel
+    End_Procedure
+
+    // Fired to request client sizes be converted to host window sizes
+    { MethodType=Event }
+    Procedure OnComClientToHostWindow Integer ByRef llCX Integer ByRef llCY
+    End_Procedure
+
+    // Fired to indicate the security level of the current web page contents
+    { MethodType=Event }
+    Procedure OnComSetSecureLockIcon Integer llSecureLockIcon
+    End_Procedure
+
+    // Fired to indicate the File Download dialog is opening
+    { MethodType=Event }
+    Procedure OnComFileDownload Boolean llActiveDocument Boolean ByRef llCancel
+    End_Procedure
+
+    // Fired when a binding error occurs (window or frameset element).
+    { MethodType=Event }
+    Procedure OnComNavigateError Variant llpDisp Variant llURL Variant llFrame Variant llStatusCode Boolean ByRef llCancel
+    End_Procedure
+
+    // Fired when a print template is instantiated.
+    { MethodType=Event }
+    Procedure OnComPrintTemplateInstantiation Variant llpDisp
+    End_Procedure
+
+    // Fired when a print template destroyed.
+    { MethodType=Event }
+    Procedure OnComPrintTemplateTeardown Variant llpDisp
+    End_Procedure
+
+    // Fired when a page is spooled. When it is fired can be changed by a custom template.
+    { MethodType=Event }
+    Procedure OnComUpdatePageStatus Variant llpDisp Variant llnPage Variant llfDone
+    End_Procedure
+
+    // Fired when the global privacy impacted state changes
+    { MethodType=Event }
+    Procedure OnComPrivacyImpactedStateChange Boolean llbImpacted
+    End_Procedure
+
+    // A new, hidden, non-navigated WebBrowser window is needed.
+    { MethodType=Event }
+    Procedure OnComNewWindow3 Variant llppDisp Boolean ByRef llCancel UInteger lldwFlags String llbstrUrlContext String llbstrUrl
+    End_Procedure
+
+    // Fired to indicate the progress and status of the Phishing Filter analysis of the current web page
+    { MethodType=Event }
+    Procedure OnComSetPhishingFilterStatus Integer llPhishingFilterStatus
+    End_Procedure
+
+    // Fired to indicate that the browser window's visibility or enabled state has changed.
+    { MethodType=Event }
+    Procedure OnComWindowStateChanged UInteger lldwWindowStateFlags UInteger lldwValidFlagsMask
+    End_Procedure
+
+    // A new, hidden, non-navigated process is created to handle the navigation.
+    { MethodType=Event }
+    Procedure OnComNewProcess Integer lllCauseFlag Variant llpWB2 Boolean ByRef llCancel
+    End_Procedure
+
+    // Fired when a third-party URL is blocked.
+    { MethodType=Event }
+    Procedure OnComThirdPartyUrlBlocked Variant llURL UInteger lldwCount
+    End_Procedure
+
+    // Fired when a x-domain redirect is blocked.
+    { MethodType=Event }
+    Procedure OnComRedirectXDomainBlocked Variant llpDisp Variant llStartURL Variant llRedirectURL Variant llFrame Variant llStatusCode
+    End_Procedure
+
+    { Visibility=Private }
+    Procedure RegisterComEvents
+        Send RegisterComEvent 102 msg_OnComStatusTextChange
+        Send RegisterComEvent 108 msg_OnComProgressChange
+        Send RegisterComEvent 105 msg_OnComCommandStateChange
+        Send RegisterComEvent 106 msg_OnComDownloadBegin
+        Send RegisterComEvent 104 msg_OnComDownloadComplete
+        Send RegisterComEvent 113 msg_OnComTitleChange
+        Send RegisterComEvent 112 msg_OnComPropertyChange
+        Send RegisterComEvent 250 msg_OnComBeforeNavigate2
+        Send RegisterComEvent 251 msg_OnComNewWindow2
+        Send RegisterComEvent 252 msg_OnComNavigateComplete2
+        Send RegisterComEvent 259 msg_OnComDocumentComplete
+        Send RegisterComEvent 253 msg_OnComQuit
+        Send RegisterComEvent 254 msg_OnComVisible
+        Send RegisterComEvent 255 msg_OnComToolBar
+        Send RegisterComEvent 256 msg_OnComMenuBar
+        Send RegisterComEvent 257 msg_OnComStatusBar
+        Send RegisterComEvent 258 msg_OnComFullScreen
+        Send RegisterComEvent 260 msg_OnComTheaterMode
+        Send RegisterComEvent 262 msg_OnComWindowSetResizable
+        Send RegisterComEvent 264 msg_OnComWindowSetLeft
+        Send RegisterComEvent 265 msg_OnComWindowSetTop
+        Send RegisterComEvent 266 msg_OnComWindowSetWidth
+        Send RegisterComEvent 267 msg_OnComWindowSetHeight
+        Send RegisterComEvent 263 msg_OnComWindowClosing
+        Send RegisterComEvent 268 msg_OnComClientToHostWindow
+        Send RegisterComEvent 269 msg_OnComSetSecureLockIcon
+        Send RegisterComEvent 270 msg_OnComFileDownload
+        Send RegisterComEvent 271 msg_OnComNavigateError
+        Send RegisterComEvent 225 msg_OnComPrintTemplateInstantiation
+        Send RegisterComEvent 226 msg_OnComPrintTemplateTeardown
+        Send RegisterComEvent 227 msg_OnComUpdatePageStatus
+        Send RegisterComEvent 272 msg_OnComPrivacyImpactedStateChange
+        Send RegisterComEvent 273 msg_OnComNewWindow3
+        Send RegisterComEvent 282 msg_OnComSetPhishingFilterStatus
+        Send RegisterComEvent 283 msg_OnComWindowStateChanged
+        Send RegisterComEvent 284 msg_OnComNewProcess
+        Send RegisterComEvent 285 msg_OnComThirdPartyUrlBlocked
+        Send RegisterComEvent 286 msg_OnComRedirectXDomainBlocked
+    End_Procedure
+End_Class
+
+// CoClass
+// ProgID: Shell.Explorer.2
+// CLSID: {8856F961-340A-11D0-A96B-00C04FD705A2}
+// WebBrowser Control
+{ CLSID="{8856F961-340A-11D0-A96B-00C04FD705A2}" }
+Class cComWebBrowser is a cComActiveXControl
+    Import_Class_Protocol cComIWebBrowser2
+    Import_Class_Protocol cComDWebBrowserEvents2
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set psProgID to "{8856F961-340A-11D0-A96B-00C04FD705A2}"
+        Set psEventId to "{34A715A0-6587-11D0-924A-0020AFC7AC4D}"
+        Set peAutoCreate to acDeferredAutoCreate
+    End_Procedure
+End_Class
+
+// CoClass
+// ProgID: InternetExplorer.Application.1
+// CLSID: {0002DF01-0000-0000-C000-000000000046}
+// Internet Explorer Application.
+Class cComInternetExplorer is a cComAutomationObject
+    Import_Class_Protocol cComIWebBrowser2
+    Import_Class_Protocol cComDWebBrowserEvents2
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set psProgID to "{0002DF01-0000-0000-C000-000000000046}"
+        Set psEventId to "{34A715A0-6587-11D0-924A-0020AFC7AC4D}"
+        Set peAutoCreate to acNoAutoCreate
+    End_Procedure
+End_Class
+
+// CoClass
+// CLSID: {D5E8041D-920F-45E9-B8FB-B1DEB82C6E5E}
+// Internet Explorer Application with default integrity of Medium
+Class cComInternetExplorerMedium is a cComAutomationObject
+    Import_Class_Protocol cComIWebBrowser2
+    Import_Class_Protocol cComDWebBrowserEvents2
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set psProgID to "{D5E8041D-920F-45E9-B8FB-B1DEB82C6E5E}"
+        Set psEventId to "{34A715A0-6587-11D0-924A-0020AFC7AC4D}"
+        Set peAutoCreate to acNoAutoCreate
+    End_Procedure
+End_Class
+
+// CLSID: {85CB6900-4D95-11CF-960C-0080C7F4EE85}
+// Definition of interface IShellWindows
+Class cComIShellWindows is a Mixin
+
+    // Get count of open Shell windows
+    { MethodType=Property DesignTime=False }
+    Function ComCount Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 1610743808 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // Return the shell window for the given index
+    Function ComItem Variant llindex Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_VARIANT llindex
+        Get InvokeComMethod of hDispatchDriver 0 OLE_VT_DISPATCH to retVal
+        Function_Return retVal
+    End_Function
+
+    // Enumerates the figures
+    Function Com_NewEnum Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver -4 OLE_VT_UNKNOWN to retVal
+        Function_Return retVal
+    End_Function
+End_Class
+
+// CLSID: {FE4106E0-399A-11D0-A48C-00A0C90A8F39}
+// Event interface for IShellWindows
+Class cComDShellWindowsEvents is a Mixin
+
+    // A new window was registered.
+    { MethodType=Event }
+    Procedure OnComWindowRegistered Integer lllCookie
+    End_Procedure
+
+    // A new window was revoked.
+    { MethodType=Event }
+    Procedure OnComWindowRevoked Integer lllCookie
+    End_Procedure
+
+    { Visibility=Private }
+    Procedure RegisterComEvents
+        Send RegisterComEvent 200 msg_OnComWindowRegistered
+        Send RegisterComEvent 201 msg_OnComWindowRevoked
+    End_Procedure
+End_Class
+
+// CoClass
+// CLSID: {9BA05972-F6A8-11CF-A442-00A0C90A8F39}
+// ShellDispatch Load in Shell Context
+Class cComShellWindows is a cComAutomationObject
+    Import_Class_Protocol cComIShellWindows
+    Import_Class_Protocol cComDShellWindowsEvents
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set psProgID to "{9BA05972-F6A8-11CF-A442-00A0C90A8F39}"
+        Set psEventId to "{FE4106E0-399A-11D0-A48C-00A0C90A8F39}"
+        Set peAutoCreate to acNoAutoCreate
+    End_Procedure
+End_Class
+
+// CLSID: {B36E6A53-8073-499E-824C-D776330A333E}
+// Shell UI Helper Control Interface 4
+Class cComIShellUIHelper4 is a Mixin
+
+    Procedure ComAddFavorite String llURL Variant llTitle
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTitle
+        Send InvokeComMethod to hDispatchDriver 4 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddChannel String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 5 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddDesktopComponent String llURL String llType Variant llLeft Variant llTop Variant llWidth Variant llHeight
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 6
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llType
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llLeft
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTop
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llWidth
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llHeight
+        Send InvokeComMethod to hDispatchDriver 6 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSubscribed String llURL Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Get InvokeComMethod of hDispatchDriver 7 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComNavigateAndFind String llURL String llstrQuery Variant llvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrQuery
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 8 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComImportExportFavorites Boolean llfImport String llstrImpExpPath
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfImport
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrImpExpPath
+        Send InvokeComMethod to hDispatchDriver 9 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoCompleteSaveForm Variant llForm
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llForm
+        Send InvokeComMethod to hDispatchDriver 10 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoScan String llstrSearch String llstrFailureUrl Variant llpvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrSearch
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrFailureUrl
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 11 OLE_VT_VOID
+    End_Procedure
+
+    Function ComShowBrowserUI String llbstrName Variant llpvarIn Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrName
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarIn
+        Get InvokeComMethod of hDispatchDriver 13 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComAddSearchProvider String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 14 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComRunOnceShown
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 15 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComSkipRunOnce
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 16 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComCustomizeSettings Boolean llfSQM Boolean llfPhishing String llbstrLocale
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfSQM
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfPhishing
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrLocale
+        Send InvokeComMethod to hDispatchDriver 17 OLE_VT_VOID
+    End_Procedure
+
+    Function ComSqmEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 18 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComPhishingEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 19 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComBrandImageUri Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 20 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComSkipTabsWelcome
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 21 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComDiagnoseConnection
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 22 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComCustomizeClearType Boolean llfSet
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfSet
+        Send InvokeComMethod to hDispatchDriver 23 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSearchProviderInstalled String llURL Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Get InvokeComMethod of hDispatchDriver 24 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComIsSearchMigrated Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 25 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComDefaultSearchProvider Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 26 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComRunOnceRequiredSettingsComplete Boolean llfComplete
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfComplete
+        Send InvokeComMethod to hDispatchDriver 27 OLE_VT_VOID
+    End_Procedure
+
+    Function ComRunOnceHasShown Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 28 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComSearchGuideUrl Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 29 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComAddService String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 30 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsServiceInstalled String llURL String llVerb Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llVerb
+        Get InvokeComMethod of hDispatchDriver 31 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComInPrivateFilteringEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 37 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComAddToFavoritesBar String llURL String llTitle Variant llType
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llTitle
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llType
+        Send InvokeComMethod to hDispatchDriver 32 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComBuildNewTabPage
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 33 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComSetRecentlyClosedVisible Boolean llfVisible
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfVisible
+        Send InvokeComMethod to hDispatchDriver 34 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComSetActivitiesVisible Boolean llfVisible
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfVisible
+        Send InvokeComMethod to hDispatchDriver 35 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComContentDiscoveryReset
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 36 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSuggestedSitesEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 38 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComEnableSuggestedSites Boolean llfEnable
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfEnable
+        Send InvokeComMethod to hDispatchDriver 39 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComNavigateToSuggestedSites String llbstrRelativeUrl
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrRelativeUrl
+        Send InvokeComMethod to hDispatchDriver 40 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComShowTabsHelp
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 41 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComShowInPrivateHelp
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 42 OLE_VT_VOID
+    End_Procedure
+
+    Function ComMsIsSiteMode Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 43 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComMsSiteModeShowThumbBar
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 47 OLE_VT_VOID
+    End_Procedure
+
+    Function ComMsSiteModeAddThumbBarButton String llbstrIconURL String llbstrTooltip Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrIconURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrTooltip
+        Get InvokeComMethod of hDispatchDriver 48 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComMsSiteModeUpdateThumbBarButton Variant llButtonID Boolean llfEnabled Boolean llfVisible
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_VARIANT llButtonID
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfEnabled
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfVisible
+        Send InvokeComMethod to hDispatchDriver 46 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsSiteModeSetIconOverlay String llIconUrl Variant llpvarDescription
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llIconUrl
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarDescription
+        Send InvokeComMethod to hDispatchDriver 44 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsSiteModeClearIconOverlay
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 45 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsAddSiteMode
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 49 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsSiteModeCreateJumpList String llbstrHeader
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrHeader
+        Send InvokeComMethod to hDispatchDriver 51 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsSiteModeAddJumpListItem String llbstrName String llbstrActionUri String llbstrIconUri Variant llpvarWindowType
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 4
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrName
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrActionUri
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrIconUri
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarWindowType
+        Send InvokeComMethod to hDispatchDriver 52 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsSiteModeClearJumpList
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 53 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsSiteModeShowJumpList
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 56 OLE_VT_VOID
+    End_Procedure
+
+    Function ComMsSiteModeAddButtonStyle Variant lluiButtonID String llbstrIconURL String llbstrTooltip Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_VARIANT lluiButtonID
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrIconURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrTooltip
+        Get InvokeComMethod of hDispatchDriver 54 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComMsSiteModeShowButtonStyle Variant lluiButtonID Variant lluiStyleID
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_VARIANT lluiButtonID
+        Send DefineParam to hDispatchDriver OLE_VT_VARIANT lluiStyleID
+        Send InvokeComMethod to hDispatchDriver 55 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComMsSiteModeActivate
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 58 OLE_VT_VOID
+    End_Procedure
+
+    Function ComMsIsSiteModeFirstRun Boolean llfPreserveState Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfPreserveState
+        Get InvokeComMethod of hDispatchDriver 59 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComMsAddTrackingProtectionList String llURL String llbstrFilterName
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrFilterName
+        Send InvokeComMethod to hDispatchDriver 57 OLE_VT_VOID
+    End_Procedure
+
+    Function ComMsTrackingProtectionEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 60 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComMsActiveXFilteringEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 61 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+End_Class
+
+// CoClass
+// ProgID: Shell.UIHelper.1
+// CLSID: {64AB4BB7-111E-11D1-8F79-00C04FC2FBE1}
+Class cComShellUIHelper is a cComAutomationObject
+    Import_Class_Protocol cComIShellUIHelper4
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set psProgID to "{64AB4BB7-111E-11D1-8F79-00C04FC2FBE1}"
+        Set peAutoCreate to acNoAutoCreate
+    End_Procedure
+End_Class
+
+// CLSID: {E572D3C9-37BE-4AE2-825D-D521763E3108}
+// IShellNameSpace Interface
+Class cComIShellNameSpace is a Mixin
+
+    // method MoveSelectionUp
+    Procedure ComMoveSelectionUp
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 1 OLE_VT_VOID
+    End_Procedure
+
+    // method MoveSelectionDown
+    Procedure ComMoveSelectionDown
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 2 OLE_VT_VOID
+    End_Procedure
+
+    // method ResetSort
+    Procedure ComResetSort
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 3 OLE_VT_VOID
+    End_Procedure
+
+    // method NewFolder
+    Procedure ComNewFolder
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 4 OLE_VT_VOID
+    End_Procedure
+
+    // method Synchronize
+    Procedure ComSynchronize
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 5 OLE_VT_VOID
+    End_Procedure
+
+    // method Import
+    Procedure ComImport
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 6 OLE_VT_VOID
+    End_Procedure
+
+    // method Export
+    Procedure ComExport
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 7 OLE_VT_VOID
+    End_Procedure
+
+    // method InvokeContextMenuCommand
+    Procedure ComInvokeContextMenuCommand String llstrCommand
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrCommand
+        Send InvokeComMethod to hDispatchDriver 8 OLE_VT_VOID
+    End_Procedure
+
+    // method MoveSelectionTo
+    Procedure ComMoveSelectionTo
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 9 OLE_VT_VOID
+    End_Procedure
+
+    // Query to see if subscriptions are enabled
+    { MethodType=Property DesignTime=False }
+    Function ComSubscriptionsEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 10 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // method CreateSubscriptionForSelection
+    Function ComCreateSubscriptionForSelection Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 11 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // method DeleteSubscriptionForSelection
+    Function ComDeleteSubscriptionForSelection Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 12 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    // old, use put_Root() instead
+    Procedure ComSetRoot String llbstrFullPath
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrFullPath
+        Send InvokeComMethod to hDispatchDriver 13 OLE_VT_VOID
+    End_Procedure
+
+    // options 
+    { MethodType=Property DesignTime=False }
+    Function ComEnumOptions Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 14 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // options 
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComEnumOptions Integer value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 14 OLE_VT_I4 to value
+    End_Procedure
+
+    // get the selected item
+    { MethodType=Property DesignTime=False }
+    Function ComSelectedItem Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 15 OLE_VT_DISPATCH to retVal
+        Function_Return retVal
+    End_Function
+
+    // get the selected item
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComSelectedItem Variant value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 15 OLE_VT_DISPATCH to value
+    End_Procedure
+
+    // get the root item
+    { MethodType=Property DesignTime=False }
+    Function ComRoot Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 16 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    // get the root item
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComRoot Variant value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 16 OLE_VT_VARIANT to value
+    End_Procedure
+
+    { MethodType=Property DesignTime=False }
+    Function ComDepth Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 17 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComDepth Integer value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 17 OLE_VT_I4 to value
+    End_Procedure
+
+    { MethodType=Property DesignTime=False }
+    Function ComMode Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 18 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComMode UInteger value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 18 OLE_VT_UI4 to value
+    End_Procedure
+
+    { MethodType=Property DesignTime=False }
+    Function ComFlags Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 19 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComFlags UInteger value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 19 OLE_VT_UI4 to value
+    End_Procedure
+
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComTVFlags UInteger value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 20 OLE_VT_UI4 to value
+    End_Procedure
+
+    { MethodType=Property DesignTime=False }
+    Function ComTVFlags Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 20 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    { MethodType=Property DesignTime=False }
+    Function ComColumns Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 21 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    { MethodType=Property DesignTime=False }
+    Procedure Set ComColumns String value
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Set ComProperty of hDispatchDriver 21 OLE_VT_BSTR to value
+    End_Procedure
+
+    // number of view types
+    { MethodType=Property DesignTime=False }
+    Function ComCountViewTypes Returns Integer
+        Handle hDispatchDriver
+        Integer retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 22 OLE_VT_I4 to retVal
+        Function_Return retVal
+    End_Function
+
+    // set view type
+    Procedure ComSetViewType Integer lliType
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_I4 lliType
+        Send InvokeComMethod to hDispatchDriver 23 OLE_VT_VOID
+    End_Procedure
+
+    // collection of selected items
+    Function ComSelectedItems Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 24 OLE_VT_DISPATCH to retVal
+        Function_Return retVal
+    End_Function
+
+    // expands item specified depth
+    Procedure ComExpand Variant llvar Integer lliDepth
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_VARIANT llvar
+        Send DefineParam to hDispatchDriver OLE_VT_I4 lliDepth
+        Send InvokeComMethod to hDispatchDriver 25 OLE_VT_VOID
+    End_Procedure
+
+    // unselects all items
+    Procedure ComUnselectAll
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 26 OLE_VT_VOID
+    End_Procedure
+End_Class
+
+// CLSID: {55136806-B2DE-11D1-B9F2-00A0C98BC547}
+Class cComDShellNameSpaceEvents is a Mixin
+
+    { MethodType=Event }
+    Procedure OnComFavoritesSelectionChange Integer llcItems Integer llhItem String llstrName String llstrUrl Integer llcVisits String llstrDate Integer llfAvailableOffline
+    End_Procedure
+
+    { MethodType=Event }
+    Procedure OnComSelectionChange
+    End_Procedure
+
+    { MethodType=Event }
+    Procedure OnComDoubleClick
+    End_Procedure
+
+    { MethodType=Event }
+    Procedure OnComInitialized
+    End_Procedure
+
+    { Visibility=Private }
+    Procedure RegisterComEvents
+        Send RegisterComEvent 1 msg_OnComFavoritesSelectionChange
+        Send RegisterComEvent 2 msg_OnComSelectionChange
+        Send RegisterComEvent 3 msg_OnComDoubleClick
+        Send RegisterComEvent 4 msg_OnComInitialized
+    End_Procedure
+End_Class
+
+// CoClass
+// ProgID: ShellNameSpace.ShellNameSpace.1
+// CLSID: {55136805-B2DE-11D1-B9F2-00A0C98BC547}
+Class cComShellNameSpace is a cComAutomationObject
+    Import_Class_Protocol cComIShellNameSpace
+    Import_Class_Protocol cComDShellNameSpaceEvents
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set psProgID to "{55136805-B2DE-11D1-B9F2-00A0C98BC547}"
+        Set psEventId to "{55136806-B2DE-11D1-B9F2-00A0C98BC547}"
+        Set peAutoCreate to acNoAutoCreate
+    End_Procedure
+End_Class
+
+// CLSID: {729FE2F8-1EA8-11D1-8F85-00C04FC2FBE1}
+// Shell UI Helper Control Interface
+Class cComIShellUIHelper is a cComAutomationObject
+
+    Procedure ComAddFavorite String llURL Variant llTitle
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTitle
+        Send InvokeComMethod to hDispatchDriver 4 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddChannel String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 5 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddDesktopComponent String llURL String llType Variant llLeft Variant llTop Variant llWidth Variant llHeight
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 6
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llType
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llLeft
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTop
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llWidth
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llHeight
+        Send InvokeComMethod to hDispatchDriver 6 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSubscribed String llURL Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Get InvokeComMethod of hDispatchDriver 7 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComNavigateAndFind String llURL String llstrQuery Variant llvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrQuery
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 8 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComImportExportFavorites Boolean llfImport String llstrImpExpPath
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfImport
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrImpExpPath
+        Send InvokeComMethod to hDispatchDriver 9 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoCompleteSaveForm Variant llForm
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llForm
+        Send InvokeComMethod to hDispatchDriver 10 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoScan String llstrSearch String llstrFailureUrl Variant llpvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrSearch
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrFailureUrl
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 11 OLE_VT_VOID
+    End_Procedure
+
+    Function ComShowBrowserUI String llbstrName Variant llpvarIn Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrName
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarIn
+        Get InvokeComMethod of hDispatchDriver 13 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+End_Class
+
+// CLSID: {A7FE6EDA-1932-4281-B881-87B31B8BC52C}
+// Shell UI Helper Control Interface 2
+Class cComIShellUIHelper2 is a cComAutomationObject
+
+    Procedure ComAddFavorite String llURL Variant llTitle
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTitle
+        Send InvokeComMethod to hDispatchDriver 4 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddChannel String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 5 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddDesktopComponent String llURL String llType Variant llLeft Variant llTop Variant llWidth Variant llHeight
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 6
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llType
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llLeft
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTop
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llWidth
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llHeight
+        Send InvokeComMethod to hDispatchDriver 6 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSubscribed String llURL Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Get InvokeComMethod of hDispatchDriver 7 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComNavigateAndFind String llURL String llstrQuery Variant llvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrQuery
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 8 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComImportExportFavorites Boolean llfImport String llstrImpExpPath
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfImport
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrImpExpPath
+        Send InvokeComMethod to hDispatchDriver 9 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoCompleteSaveForm Variant llForm
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llForm
+        Send InvokeComMethod to hDispatchDriver 10 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoScan String llstrSearch String llstrFailureUrl Variant llpvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrSearch
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrFailureUrl
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 11 OLE_VT_VOID
+    End_Procedure
+
+    Function ComShowBrowserUI String llbstrName Variant llpvarIn Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrName
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarIn
+        Get InvokeComMethod of hDispatchDriver 13 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComAddSearchProvider String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 14 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComRunOnceShown
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 15 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComSkipRunOnce
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 16 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComCustomizeSettings Boolean llfSQM Boolean llfPhishing String llbstrLocale
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfSQM
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfPhishing
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrLocale
+        Send InvokeComMethod to hDispatchDriver 17 OLE_VT_VOID
+    End_Procedure
+
+    Function ComSqmEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 18 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComPhishingEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 19 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComBrandImageUri Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 20 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComSkipTabsWelcome
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 21 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComDiagnoseConnection
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 22 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComCustomizeClearType Boolean llfSet
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfSet
+        Send InvokeComMethod to hDispatchDriver 23 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSearchProviderInstalled String llURL Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Get InvokeComMethod of hDispatchDriver 24 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComIsSearchMigrated Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 25 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComDefaultSearchProvider Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 26 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComRunOnceRequiredSettingsComplete Boolean llfComplete
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfComplete
+        Send InvokeComMethod to hDispatchDriver 27 OLE_VT_VOID
+    End_Procedure
+
+    Function ComRunOnceHasShown Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 28 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComSearchGuideUrl Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 29 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+End_Class
+
+// CLSID: {528DF2EC-D419-40BC-9B6D-DCDBF9C1B25D}
+// Shell UI Helper Control Interface 3
+Class cComIShellUIHelper3 is a cComAutomationObject
+
+    Procedure ComAddFavorite String llURL Variant llTitle
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTitle
+        Send InvokeComMethod to hDispatchDriver 4 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddChannel String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 5 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAddDesktopComponent String llURL String llType Variant llLeft Variant llTop Variant llWidth Variant llHeight
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 6
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llType
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llLeft
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llTop
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llWidth
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llHeight
+        Send InvokeComMethod to hDispatchDriver 6 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSubscribed String llURL Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Get InvokeComMethod of hDispatchDriver 7 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComNavigateAndFind String llURL String llstrQuery Variant llvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrQuery
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 8 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComImportExportFavorites Boolean llfImport String llstrImpExpPath
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfImport
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrImpExpPath
+        Send InvokeComMethod to hDispatchDriver 9 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoCompleteSaveForm Variant llForm
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llForm
+        Send InvokeComMethod to hDispatchDriver 10 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComAutoScan String llstrSearch String llstrFailureUrl Variant llpvarTargetFrame
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrSearch
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llstrFailureUrl
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarTargetFrame
+        Send InvokeComMethod to hDispatchDriver 11 OLE_VT_VOID
+    End_Procedure
+
+    Function ComShowBrowserUI String llbstrName Variant llpvarIn Returns Variant
+        Handle hDispatchDriver
+        Variant retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrName
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llpvarIn
+        Get InvokeComMethod of hDispatchDriver 13 OLE_VT_VARIANT to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComAddSearchProvider String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 14 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComRunOnceShown
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 15 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComSkipRunOnce
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 16 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComCustomizeSettings Boolean llfSQM Boolean llfPhishing String llbstrLocale
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfSQM
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfPhishing
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrLocale
+        Send InvokeComMethod to hDispatchDriver 17 OLE_VT_VOID
+    End_Procedure
+
+    Function ComSqmEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 18 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComPhishingEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 19 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComBrandImageUri Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 20 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComSkipTabsWelcome
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 21 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComDiagnoseConnection
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 22 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComCustomizeClearType Boolean llfSet
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfSet
+        Send InvokeComMethod to hDispatchDriver 23 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSearchProviderInstalled String llURL Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Get InvokeComMethod of hDispatchDriver 24 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComIsSearchMigrated Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 25 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComDefaultSearchProvider Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 26 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComRunOnceRequiredSettingsComplete Boolean llfComplete
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfComplete
+        Send InvokeComMethod to hDispatchDriver 27 OLE_VT_VOID
+    End_Procedure
+
+    Function ComRunOnceHasShown Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 28 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComSearchGuideUrl Returns String
+        Handle hDispatchDriver
+        String retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 29 OLE_VT_BSTR to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComAddService String llURL
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send InvokeComMethod to hDispatchDriver 30 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsServiceInstalled String llURL String llVerb Returns UInteger
+        Handle hDispatchDriver
+        UInteger retVal
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 2
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llVerb
+        Get InvokeComMethod of hDispatchDriver 31 OLE_VT_UI4 to retVal
+        Function_Return retVal
+    End_Function
+
+    Function ComInPrivateFilteringEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 37 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComAddToFavoritesBar String llURL String llTitle Variant llType
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 3
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llURL
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llTitle
+        Send DefineParam to hDispatchDriver (OLE_VT_BYREF ior OLE_VT_VARIANT) llType
+        Send InvokeComMethod to hDispatchDriver 32 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComBuildNewTabPage
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 33 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComSetRecentlyClosedVisible Boolean llfVisible
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfVisible
+        Send InvokeComMethod to hDispatchDriver 34 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComSetActivitiesVisible Boolean llfVisible
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfVisible
+        Send InvokeComMethod to hDispatchDriver 35 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComContentDiscoveryReset
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 36 OLE_VT_VOID
+    End_Procedure
+
+    Function ComIsSuggestedSitesEnabled Returns Boolean
+        Handle hDispatchDriver
+        Boolean retVal
+        Get phDispatchDriver to hDispatchDriver
+        Get InvokeComMethod of hDispatchDriver 38 OLE_VT_BOOL to retVal
+        Function_Return retVal
+    End_Function
+
+    Procedure ComEnableSuggestedSites Boolean llfEnable
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BOOL llfEnable
+        Send InvokeComMethod to hDispatchDriver 39 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComNavigateToSuggestedSites String llbstrRelativeUrl
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send PrepareParams to hDispatchDriver 1
+        Send DefineParam to hDispatchDriver OLE_VT_BSTR llbstrRelativeUrl
+        Send InvokeComMethod to hDispatchDriver 40 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComShowTabsHelp
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 41 OLE_VT_VOID
+    End_Procedure
+
+    Procedure ComShowInPrivateHelp
+        Handle hDispatchDriver
+        Get phDispatchDriver to hDispatchDriver
+        Send InvokeComMethod to hDispatchDriver 42 OLE_VT_VOID
+    End_Procedure
+End_Class

@@ -1,0 +1,13 @@
+[Header]
+Mask=*.src;*.vw;*.sl;*.dg;*.rv;*.bp;*.pkg;*.wo;*.dd;*.inc;*.tpl;*.dfo;*.asp;*.asa;*.htm;*.html;*.css;*.js
+Active=0
+SubDirectories=1
+WholeWordOnly=0
+SearchWhere=0
+Location=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\IdeSrc\mike_FindInFiles.dsk
+[\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppSrc]
+IsEnabled=1
+[\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\DdSrc]
+IsEnabled=1
+[\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppHtml]
+IsEnabled=1

@@ -1,0 +1,184 @@
+Use VdfBase.pkg
+
+Global_Variable Integer oSimpleTypeStringConversions
+
+Class cSimpleTypeStringConversions is a cObject
+    Function AddressToString Address stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function AddressFromString String sValue Returns Address
+        Function_Return sValue
+    End_Function
+
+    Function BigIntToString BigInt stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function BigIntFromString String sValue Returns BigInt
+        Function_Return sValue
+    End_Function
+
+    Function BooleanToString Boolean stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function BooleanFromString String sValue Returns Boolean
+        Function_Return sValue
+    End_Function
+
+    Function CharToString Char stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function CharFromString String sValue Returns Char
+        Function_Return sValue
+    End_Function
+
+    Function CurrencyToString Currency stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function CurrencyFromString String sValue Returns Currency
+        Function_Return sValue
+    End_Function
+
+    Function NumberToString Number stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function NumberFromString String sValue Returns Number
+        Function_Return (Number(sValue))
+    End_Function
+
+    Function DateToString Date stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function DateFromString String sValue Returns Date
+        Function_Return (Date(sValue))
+    End_Function
+
+    Function DateTimeToString DateTime stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function DateTimeFromString String sValue Returns DateTime
+        Function_Return sValue
+    End_Function
+
+    Function DecimalToString Decimal stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function DecimalFromString String sValue Returns Decimal
+        Function_Return sValue
+    End_Function
+
+    Function DWordToString DWord stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function DWordFromString String sValue Returns DWord
+        Function_Return (DWord(sValue))
+    End_Function
+
+    Function FloatToString Float stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function FloatFromString String sValue Returns Float
+        Function_Return sValue
+    End_Function
+
+    Function HandleToString Handle stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function HandleFromString String sValue Returns Handle
+        Function_Return (Handle(sValue))
+    End_Function
+
+    Function IntegerToString Integer stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function IntegerFromString String sValue Returns Integer
+        Function_Return (Integer(sValue))
+    End_Function
+
+    Function RealToString Real stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function RealFromString String sValue Returns Real
+        Function_Return (Real(sValue))
+    End_Function
+
+    Function RowIDToString RowID stValue Returns String
+        Function_Return (SerializeRowID(stValue))
+    End_Function
+    Function RowIDFromString String sValue Returns RowID
+        Function_Return (DeserializeRowID(sValue))
+    End_Function
+
+    Function ShortToString Short stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function ShortFromString String sValue Returns Short
+        Function_Return sValue
+    End_Function
+
+    Function StringToString String stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function StringFromString String sValue Returns String
+        Function_Return (String(sValue))
+    End_Function
+
+    Function PointerToString Pointer stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function PointerFromString String sValue Returns Pointer
+        Function_Return (Pointer(sValue))
+    End_Function
+
+    Function TimeToString Time stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function TimeFromString String sValue Returns Time
+        Function_Return sValue
+    End_Function
+
+    Function TimeSpanToString TimeSpan stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function TimeSpanFromString String sValue Returns TimeSpan
+        Function_Return sValue
+    End_Function
+
+    Function UBigIntToString UBigInt stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function UBigIntFromString String sValue Returns UBigInt
+        Function_Return sValue
+    End_Function
+
+    Function UCharToString UChar stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function UCharFromString String sValue Returns UChar
+        Function_Return sValue
+    End_Function
+
+    Function UIntegerToString UInteger stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function UIntegerFromString String sValue Returns UInteger
+        Function_Return sValue
+    End_Function
+
+    Function UShortToString UShort stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function UShortFromString String sValue Returns UShort
+        Function_Return sValue
+    End_Function
+
+    Function VariantToString Variant stValue Returns String
+        Function_Return (String(stValue))
+    End_Function
+    Function VariantFromString String sValue Returns Variant
+        Function_Return sValue
+    End_Function
+End_Class
+
+Object _oSimpleTypeStringConversions is a cSimpleTypeStringConversions
+    Move Self to oSimpleTypeStringConversions
+End_Object

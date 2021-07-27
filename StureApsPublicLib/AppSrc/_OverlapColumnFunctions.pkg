@@ -1,0 +1,263 @@
+Use VdfBase.pkg
+
+// The next three structs are used for creating a bank
+Struct tocIndexSegment
+    Integer iColumn
+    Boolean bUppercase
+    Boolean bDescending
+End_Struct
+
+Struct tocIndex
+    Integer iIndex
+    Boolean bOnline
+    tocIndexSegment[] aSegments
+End_Struct
+
+Struct tocColumn
+    Boolean bOverlap
+    Integer[] aOverlappingColumns
+End_Struct
+
+Struct tocTable
+    String sPhysName
+    tocColumn[] aColumns
+    tocIndex[] aIndices
+    Integer iShortestUniqueIndex
+End_Struct
+
+Global_Variable tOCTable[] gaOCIndexBank
+
+Class cOverlapColumnFunctions is a cObject
+
+    Procedure _AppendIndexSegment tocIndex ByRef strIndex Integer iColumnType Integer iColumn Boolean bUppercase Boolean bDescending
+        Integer iSegment
+        Move (SizeOfArray(strIndex.aSegments)) to iSegment
+        If (iColumnType<>DF_ASCII) Begin
+            Move False to bUppercase
+        End
+        Move iColumn to strIndex.aSegments[iSegment].iColumn
+        Move bUppercase to strIndex.aSegments[iSegment].bUppercase
+        Move bDescending to strIndex.aSegments[iSegment].bDescending
+    End_Procedure
+
+    Procedure _HandleIndexSegment tocTable strTable tocIndex ByRef strIndex Integer iTable Integer iSourceColumn Boolean bUppercase Boolean bDescending
+        Integer iColumnType i iMax iColumn
+        Integer[] aColumns
+        tocIndexSegment[] aSegments
+        Move strTable.aColumns[iSourceColumn].aOverlappingColumns to aColumns
+        Move (SizeOfArray(aColumns)-1) to iMax
+        For i from 0 to iMax
+            Move aColumns[i] to iColumn
+            Get_Attribute DF_FIELD_TYPE of iTable iColumn to iColumnType
+            Send _AppendIndexSegment (&strIndex) iColumnType iColumn bUppercase bDescending
+        Loop
+//        
+//        If (iColumnType=DF_OVERLAP) Begin
+//            Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iColumns
+//            For iColumn from 1 to iColumns
+//                Get_Attribute DF_FIELD_OVERLAP of iTable iSourceColumn iColumn to bOverlaps
+//                If (bOverlaps) Begin
+//                    Get_Attribute DF_FIELD_TYPE of iTable iColumn to iColumnType // Overload
+//                    If (iColumnType<>DF_OVERLAP) Begin
+//                        Send _AppendIndexSegment (&strIndex) iColumnType iColumn bUppercase bDescending
+//                    End
+//                End
+//            Loop
+//        End
+//        Else Begin
+//            Send _AppendIndexSegment (&strIndex) iColumnType iColumn bUppercase bDescending
+//        End
+    End_Procedure
+    
+    Procedure _ReadIndex tocTable ByRef strTable Integer iTable Integer iIndex Integer ByRef iBestLength
+        Integer iSegments iSegment iKeyLength
+        Integer iCase iDirection iColumn iType 
+        Boolean bUppercase bDescending bUnique
+        tocIndex strIndex
+        Get_Attribute DF_INDEX_NUMBER_SEGMENTS of iTable iIndex to iSegments
+        If (iSegments>0) Begin
+            Move iIndex to strIndex.iIndex
+            Get_Attribute DF_INDEX_TYPE of iTable iIndex to iType
+            Move (iType=DF_INDEX_TYPE_ONLINE) to strIndex.bOnline
+            Move True to bUnique
+            For iSegment from 1 to iSegments
+                Get_Attribute DF_INDEX_SEGMENT_FIELD of iTable iIndex iSegment to iColumn
+                Get_Attribute DF_INDEX_SEGMENT_CASE of iTable iIndex iSegment to iCase
+                Get_Attribute DF_INDEX_SEGMENT_DIRECTION of iTable iIndex iSegment to iDirection
+                Move (iCase=DF_CASE_IGNORED) to bUppercase
+                Move (iDirection=DF_DESCENDING) to bDescending
+                Send _HandleIndexSegment strTable (&strIndex) iTable iColumn bUppercase bDescending
+                If (iColumn=0) Begin
+                    Move False to bUnique
+                End
+            Loop
+            Move strIndex to strTable.aIndices[iIndex]
+            
+            If (bUnique) Begin
+                Get_Attribute DF_INDEX_KEY_LENGTH of iTable iIndex to iKeyLength
+                If (iKeyLength<iBestLength) Begin
+                    Move iIndex to strTable.iShortestUniqueIndex
+                    Move iKeyLength to iBestLength
+                End
+            End
+        End
+    End_Procedure
+    
+    Function _ReadOverlapTranslation Integer iTable Integer iOverlapColumn Returns Integer[]
+        Boolean bOverlaps
+        Integer iColumn iColumns iColumnType
+        Integer[] aColumns
+        Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iColumns
+        For iColumn from 0 to iColumns
+            Get_Attribute DF_FIELD_TYPE of iTable iColumn to iColumnType
+            If (iColumnType<>DF_OVERLAP) Begin
+                Get_Attribute DF_FIELD_OVERLAP of iTable iOverlapColumn iColumn to bOverlaps
+                If (bOverlaps) Begin
+                    Move iColumn to aColumns[SizeOfArray(aColumns)]
+                End
+            End
+        Loop
+        Function_Return aColumns
+    End_Function
+    
+    Procedure ReadTableDefinition Integer iTable
+        Integer iIndex iMax
+        Integer iColumn iColumns iColumnType
+        Integer iBestLength
+        String sPhysName
+        tocTable strTable
+
+        // We only do something if the table definition hasn't been read before
+        // or if a new table has been opened in the same place.
+        Get_Attribute DF_FILE_PHYSICAL_NAME of iTable to sPhysName
+        If (iTable>=SizeOfArray(gaOCIndexBank) or sPhysName<>gaOCIndexBank[iTable].sPhysName) Begin
+
+            // Build column overlap information
+            Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iColumns
+            For iColumn from 0 to iColumns // Obs
+                Get_Attribute DF_FIELD_TYPE of iTable iColumn to iColumnType
+                If (iColumnType=DF_OVERLAP) Begin
+                    Move True to strTable.aColumns[iColumn].bOverlap
+                    Get _ReadOverlapTranslation iTable iColumn to strTable.aColumns[iColumn].aOverlappingColumns
+                End
+                Else Begin // It's not an overlap column. Therefore it corresponds to itself:
+                    Move False to strTable.aColumns[iColumn].bOverlap
+                    Move iColumn to strTable.aColumns[iColumn].aOverlappingColumns[0]
+                End
+            Loop
+
+            // Build index overlap information
+            Move 999 to iBestLength
+            Get_Attribute DF_FILE_LAST_INDEX_NUMBER of iTable to iMax
+            For iIndex from 1 to iMax
+                Send _ReadIndex (&strTable) iTable iIndex (&iBestLength)
+            Loop
+            
+            Move (SizeOfArray(strTable.aIndices)-1) to iMax
+            For iIndex from 1 to iMax
+                If (SizeOfArray(strTable.aIndices[iIndex].aSegments)>0 and strTable.aIndices[iIndex].bOnline ;
+                    and strTable.aIndices[iIndex].aSegments[SizeOfArray(strTable.aIndices[iIndex].aSegments)-1].iColumn<>0) Begin
+                    
+                End
+            Loop
+
+
+            
+            // Update cache information
+            Move strTable to gaOCIndexBank[iTable]
+            Move sPhysName to gaOCIndexBank[iTable].sPhysName
+        End
+    End_Procedure
+    
+    Function TableDefinition Integer iTable Returns tOCTable
+        Send ReadTableDefinition iTable
+        Function_Return gaOCIndexBank[iTable]
+    End_Function
+
+    Function IndexDefinition Integer iTable Integer iIndex Returns tOCIndex
+        tOCIndex strIndex
+        Send ReadTableDefinition iTable
+        If (SizeOfArray(gaOCIndexBank[iTable].aIndices)>iIndex) Begin
+            Move gaOCIndexBank[iTable].aIndices[iIndex] to strIndex
+        End
+        Function_Return strIndex
+    End_Function
+    
+    Function IndexDefinitionColumnNumbers Integer iTable Integer iIndex Returns Integer[]
+        Integer iSegment iSegments
+        Integer[] aColumns
+        tOCIndex strIndex
+        Get IndexDefinition iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegments
+        For iSegment from 0 to iSegments
+            Move strIndex.aSegments[iSegment].iColumn to aColumns[iSegment]
+        Loop
+        Function_Return aColumns
+    End_Function
+
+    Function TranslateOverlap Integer iTable Integer iColumn Returns Integer[]
+        Send ReadTableDefinition iTable
+        Function_Return gaOCIndexBank[iTable].aColumns[iColumn].aOverlappingColumns
+    End_Function
+    
+    Procedure AppendArrays Variant[] ByRef aArray1 Variant[] aArray2
+        Integer iIndex1 iIndex2 iMax2
+        Move (SizeOfArray(aArray1)) to iIndex1
+        Move (SizeOfArray(aArray2)-1) to iMax2
+        For iIndex2 from 0 to iMax2
+            Move aArray2[iIndex2] to aArray1[iIndex1]
+            Increment iIndex1
+        Loop
+    End_Procedure
+
+    Function TranslateOverlaps Integer iTable Integer[] aColumns Returns Integer[]
+        Integer iMax iItem
+        Integer[] aColumnsWithoutOverlaps
+        Integer[] aTranslatedColumns
+        Move (SizeOfArray(aColumns)-1) to iMax
+        For iItem from 0 to iMax
+            Get TranslateOverlap iTable aColumns[iItem] to aTranslatedColumns
+            Send AppendArrays (&aColumnsWithoutOverlaps) aTranslatedColumns
+        Loop
+        Function_Return aColumnsWithoutOverlaps
+    End_Function
+    
+    Function TableColumnsRelatingBetweenTables Integer iSourceTable Integer iTargetTable Integer[] ByRef aSourceColumns Integer[] ByRef aTargetColumns Returns Boolean
+        Integer iMaxColumn iSourceColumn iTargetColumn iTest 
+        Integer[] aColumns aSourceTest aTargetTest
+        Move (ResizeArray(aSourceColumns,0)) to aSourceColumns
+        Move (ResizeArray(aTargetColumns,0)) to aTargetColumns
+        Get_Attribute DF_FILE_NUMBER_FIELDS of iSourceTable to iMaxColumn
+        For iSourceColumn from 1 to iMaxColumn
+            Get_Attribute DF_FIELD_RELATED_FILE of iSourceTable iSourceColumn to iTest
+            If (iTest=iTargetTable) Begin
+                Get_Attribute DF_FIELD_RELATED_FIELD of iSourceTable iSourceColumn to iTargetColumn
+                Get TranslateOverlap iSourceTable iSourceColumn to aSourceTest
+                Get TranslateOverlap iTargetTable iTargetColumn to aTargetTest
+                Send AppendArrays (&aSourceColumns) (&aSourceTest)
+                Send AppendArrays (&aTargetColumns) (&aTargetTest)
+            End
+        Loop
+        Function_Return (SizeOfArray(aSourceColumns)>0 and SizeOfArray(aSourceColumns)=SizeOfArray(aTargetColumns))
+    End_Function
+    
+    Function IsOverlap Integer iTable Integer iColumn Returns Boolean
+        Function_Return gaOCIndexBank[iTable].aColumns[iColumn].bOverlap
+    End_Function
+    
+    // This procedure would be used in a well behaved program that is
+    // both capable of changing a tables definition on the fly, and at the
+    // same time use this package for something clever. In that case Reset
+    // should be sent to wipe out cached data now invalid. 
+    Procedure Reset
+        tocTable[] strEmpty
+        Move strEmpty to gaOCIndexBank
+    End_Procedure
+    
+End_Class // cOverlapColumnFunctions
+
+Global_Variable Integer oOverlapColumnFunctions
+
+Object _oOverlapColumnFunctions is a cOverlapColumnFunctions
+    Move Self to oOverlapColumnFunctions
+End_Object

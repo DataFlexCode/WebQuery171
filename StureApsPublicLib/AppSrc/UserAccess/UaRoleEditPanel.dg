@@ -1,0 +1,105 @@
+Use Windows.pkg
+Use UserAccess\cUserAccessControl.pkg
+
+Object oUaRoleEditPanel is a ModalPanel
+    Set Size to 114 161
+    Set Label to "Role"
+    Set Border_Style to Border_Normal
+    Set Locate_Mode to CENTER_ON_PANEL
+    On_Key kEnter Send Close_Panel_OK
+    On_Key kCancel Send Close_Panel
+    On_Key kSave_Record Send Close_Panel_OK
+
+    Object oTitle is a Form
+        Set Size to 13 122
+        Set Location to 19 20
+        Set Label to "Title:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+    End_Object
+
+    Object oDisabled is a CheckBox
+        Set Size to 10 50
+        Set Location to 44 20
+        Set Label to 'Disabled'
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+            Send UpdateEnabled of oReason
+        End_Procedure
+    End_Object
+
+    Object oReason is a Form
+        Set Size to 13 122
+        Set Location to 69 20
+        Set Label to "Reason for disabling:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+        Procedure UpdateEnabled
+            Set Enabled_State to (Checked_State(oDisabled))
+        End_Procedure
+    End_Object
+    
+    Property Boolean _pbOk
+    
+    Function ValidatePanel Returns Boolean
+        Boolean bTitleOK
+        Move (Trim(Value(oTitle))<>"") to bTitleOK
+        If (not(bTitleOK)) Begin
+            Send UserError "Title must be filled in" "Sorry"
+        End
+        Function_Return bTitleOK
+    End_Function
+    
+    Procedure Close_Panel_OK
+        If (ValidatePanel(Self)) Begin
+            Set _pbOk to True
+            Send Close_Panel
+        End
+    End_Procedure
+    
+    Object oSaveBtn is a Button
+        Set Label    to "Save"
+        Set Location to 96 52
+        Set peAnchors To anBottomRight
+        Procedure OnClick
+            Send Close_Panel_OK
+        End_Procedure
+    End_Object
+
+    Object oCancelBtn is a Button
+        Set Label    to "Cancel"
+        Set Location to 96 107
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+    
+    Function UserAccessRole tUserAccessRole strRole Returns tUserAccessRole
+        Get Value of oTitle to strRole.sTitle
+        Get Checked_State of oDisabled to strRole.bDisabled
+        Get Value of oReason to strRole.sDisabledReason
+        Function_Return strRole
+    End_Function
+
+    Function EditRole tUserAccessRole ByRef strRole Returns Boolean
+        Set Value of oTitle to strRole.sTitle
+        Set Checked_State of oDisabled to strRole.bDisabled
+        Set Value of oReason to strRole.sDisabledReason
+        Set Enabled_State of oSaveBtn to False
+        Set _pbOk to False
+        Send UpdateEnabled of oReason
+        Send Popup
+        If (_pbOk(Self)) Begin
+            Get UserAccessRole strRole to strRole
+        End
+        Function_Return (_pbOk(Self))
+    End_Function
+
+End_Object

@@ -1,0 +1,830 @@
+Use Windows.pkg
+Use DFClient.pkg
+
+Use HtmlFragments.pkg
+
+// L‘s denne:
+
+// WebBrowser Customization: http://msdn.microsoft.com/en-us/library/aa770041%28VS.85%29.aspx
+
+Use cComWebBrowser.pkg
+Use cComScriptlet.pkg
+
+Enum_List // All kinds of HTML events
+    Define EVENTID_OnAbort
+    Define EVENTID_OnActivate
+    Define EVENTID_OnAfterprint
+    Define EVENTID_OnAfterupdate
+    Define EVENTID_OnBeforeactivate
+    Define EVENTID_OnBeforecopy
+    Define EVENTID_OnBeforecut
+    Define EVENTID_OnBeforedeactivate
+    Define EVENTID_OnBeforeeditfocus
+    Define EVENTID_OnBeforepaste
+    Define EVENTID_OnBeforeprint
+    Define EVENTID_OnBeforeunload
+    Define EVENTID_OnBeforeupdate
+    Define EVENTID_OnBlur
+    Define EVENTID_OnBounce
+    Define EVENTID_OnCellchange
+    Define EVENTID_OnChange
+    Define EVENTID_OnClick
+    Define EVENTID_OnContextmenu
+    Define EVENTID_OnControlselect
+    Define EVENTID_OnCopy
+    Define EVENTID_OnCut
+    Define EVENTID_OnDataavailable
+    Define EVENTID_OnDatasetchanged
+    Define EVENTID_OnDatasetcomplete
+    Define EVENTID_OnDblclick
+    Define EVENTID_OnDeactivate
+    Define EVENTID_OnDragstart
+    Define EVENTID_OnDrop
+    Define EVENTID_OnErrorupdate
+    Define EVENTID_OnFilterchange
+    Define EVENTID_OnFinish
+    Define EVENTID_OnFocusout
+    Define EVENTID_OnHelp
+    Define EVENTID_OnKeydown
+    Define EVENTID_OnKeypress
+    Define EVENTID_OnKeyup
+    Define EVENTID_OnLayoutcomplete
+    Define EVENTID_OnLoad
+    Define EVENTID_OnLosecapture
+    Define EVENTID_OnMouseDown
+    Define EVENTID_OnMouseEnter
+    Define EVENTID_OnMouseLeave
+    Define EVENTID_OnMouseMove
+    Define EVENTID_OnMouseOut
+    Define EVENTID_OnMouseOver
+    Define EVENTID_OnMouseUp
+    Define EVENTID_OnMouseWheel
+    Define EVENTID_OnMoveStart
+    Define EVENTID_OnPage
+    Define EVENTID_OnPaste
+    Define EVENTID_OnPropertyChange
+    Define EVENTID_OnResize
+    Define EVENTID_OnResizeStart
+    Define EVENTID_OnRowEnter
+    Define EVENTID_OnRowExit
+    Define EVENTID_OnRowSdelete
+    Define EVENTID_OnRowSinserted
+    Define EVENTID_OnScroll
+    Define EVENTID_OnSelectStart
+    Define EVENTID_OnStart
+    Define EVENTID_OnStop
+    Define EVENTID_OnSubmit
+    Define EVENTID_OnTimeout
+    Define EVENTID_OnUnload
+    Define EVENTID_MAX
+End_Enum_List
+
+// Class for mixing into all kinds of ComHtmlElement classes
+Class _cHtmlElementMixin is a Mixin
+    Procedure DefineHtmlEventMixin
+        Property Integer[] _paTargetMessages
+        Property Integer[] _paTargetObjects
+        Property Boolean[] _paDelegateEvent
+        Property Boolean _pbIsEventEnabled True
+        Property Integer _phComHTMLCSSStyleDeclarationObject 0
+    End_Procedure
+    Function _EventTargetMessage Integer iEventID Returns Integer
+        Integer[] aValues
+        Get _paTargetMessages to aValues
+        If (iEventID>=SizeOfArray(aValues)) Begin
+            Function_Return 0
+        End
+        Function_Return aValues[iEventID]
+    End_Function
+    Procedure Set _EventTargetMessage Integer iEventID Integer hMessage
+        Integer[] aValues
+        Get _paTargetMessages to aValues
+        Move hMessage to aValues[iEventID]
+        Set _paTargetMessages to aValues
+    End_Procedure
+    Function _EventTargetObject Integer iEventID Returns Integer
+        Integer[] aValues
+        Get _paTargetObjects to aValues
+        If (iEventID>=SizeOfArray(aValues)) Begin
+            Function_Return 0
+        End
+        Function_Return aValues[iEventID]
+    End_Function
+    Procedure Set _EventTargetObject Integer iEventID Integer hObject
+        Integer[] aValues
+        Get _paTargetObjects to aValues
+        Move hObject to aValues[iEventID]
+        Set _paTargetObjects to aValues
+    End_Procedure
+    Function _EventBubble Integer iEventID Returns Boolean
+        Boolean[] aValues
+        Get _paDelegateEvent to aValues
+        If (iEventID>=SizeOfArray(aValues)) Begin
+            Function_Return False
+        End
+        Function_Return aValues[iEventID]
+    End_Function
+    Procedure Set _EventBubble Integer iEventID Boolean bDelegate
+        Boolean[] aValues
+        Get _paDelegateEvent to aValues
+        Move bDelegate to aValues[iEventID]
+        Set _paDelegateEvent to aValues
+    End_Procedure
+    
+    Function CSSStyleDeclarationObject Returns Integer
+        Integer hObject
+        Variant vStyle
+        // Objects of this point presumably do not need to be destroyed
+        // as they are destroyed with the adjacent element object
+        Get _phComHTMLCSSStyleDeclarationObject to hObject
+        If (hObject=0) Begin
+            Get Create (RefClass(cComHTMLCSSStyleDeclaration)) to hObject
+            Get ComStyle to vStyle
+            Set pvComObject of hObject to vStyle
+            Set _phComHTMLCSSStyleDeclarationObject to hObject
+//            Send _AddElementHandle hObject (destroys itself?)
+        End
+        Function_Return hObject
+    End_Function
+    
+#COMMAND xCreateMixinEvent
+    Procedure !2
+        Integer hMsg hObj
+        Get _EventTargetMessage !1 to hMsg
+        If (hMsg>0) Begin
+            Get _EventTargetObject !1 to hObj
+            If (not(_EventBubble(Self,!1))) Begin
+                Send CancelBubbleEvent
+            End
+            Send hMsg of hObj !1 Self // Event handler receives eventID and HandlerObject as parameters
+        End
+    End_Procedure
+#ENDCOMMAND
+
+    xCreateMixinEvent EVENTID_OnAbort             OnComOnAbort
+    xCreateMixinEvent EVENTID_OnActivate          OnComOnActivate
+    xCreateMixinEvent EVENTID_OnAfterprint        OnComOnAfterprint
+    xCreateMixinEvent EVENTID_OnAfterupdate       OnComOnAfterupdate
+    xCreateMixinEvent EVENTID_OnBeforeactivate    OnComOnBeforeactivate
+    xCreateMixinEvent EVENTID_OnBeforecopy        OnComOnBeforecopy
+    xCreateMixinEvent EVENTID_OnBeforecut         OnComOnBeforecut
+    xCreateMixinEvent EVENTID_OnBeforedeactivate  OnComOnBeforedeactivate
+    xCreateMixinEvent EVENTID_OnBeforeeditfocus   OnComOnBeforeeditfocus
+    xCreateMixinEvent EVENTID_OnBeforepaste       OnComOnBeforepaste
+    xCreateMixinEvent EVENTID_OnBeforeprint       OnComOnBeforeprint
+    xCreateMixinEvent EVENTID_OnBeforeunload      OnComOnBeforeunload
+    xCreateMixinEvent EVENTID_OnBeforeupdate      OnComOnBeforeupdate
+    xCreateMixinEvent EVENTID_OnBlur              OnComOnBlur
+    xCreateMixinEvent EVENTID_OnBounce            OnComOnBounce
+    xCreateMixinEvent EVENTID_OnCellchange        OnComOnCellchange
+    xCreateMixinEvent EVENTID_OnChange            OnComOnChange
+    xCreateMixinEvent EVENTID_OnClick             OnComOnClick
+    xCreateMixinEvent EVENTID_OnContextmenu       OnComOnContextmenu
+    xCreateMixinEvent EVENTID_OnControlselect     OnComOnControlselect
+    xCreateMixinEvent EVENTID_OnCopy              OnComOnCopy
+    xCreateMixinEvent EVENTID_OnCut               OnComOnCut
+    xCreateMixinEvent EVENTID_OnDataavailable     OnComOnDataavailable
+    xCreateMixinEvent EVENTID_OnDatasetchanged    OnComOnDatasetchanged
+    xCreateMixinEvent EVENTID_OnDatasetcomplete   OnComOnDatasetcomplete
+    xCreateMixinEvent EVENTID_OnDblclick          OnComOnDblclick
+    xCreateMixinEvent EVENTID_OnDeactivate        OnComOnDeactivate
+    xCreateMixinEvent EVENTID_OnDragstart         OnComOnDragstart
+    xCreateMixinEvent EVENTID_OnDrop              OnComOnDrop
+    xCreateMixinEvent EVENTID_OnErrorupdate       OnComOnErrorupdate
+    xCreateMixinEvent EVENTID_OnFilterchange      OnComOnFilterchange
+    xCreateMixinEvent EVENTID_OnFinish            OnComOnFinish
+    xCreateMixinEvent EVENTID_OnFocusOut          OnComOnFocusout
+    xCreateMixinEvent EVENTID_OnHelp              OnComOnHelp
+    xCreateMixinEvent EVENTID_OnKeyDown           OnComOnKeydown
+    xCreateMixinEvent EVENTID_OnKeyPress          OnComOnKeypress
+    xCreateMixinEvent EVENTID_OnKeyUp             OnComOnKeyup
+    xCreateMixinEvent EVENTID_OnLayoutComplete    OnComOnLayoutcomplete
+    xCreateMixinEvent EVENTID_OnLoad              OnComOnLoad
+    xCreateMixinEvent EVENTID_OnLoseCapture       OnComOnLosecapture
+    xCreateMixinEvent EVENTID_OnMouseDown         OnComOnMousedown
+    xCreateMixinEvent EVENTID_OnBeforeDeactivate  OnComOnBeforedeactivate
+    xCreateMixinEvent EVENTID_OnMouseenter        OnComOnMouseenter
+    xCreateMixinEvent EVENTID_OnMouseleave        OnComOnMouseleave
+    xCreateMixinEvent EVENTID_OnMousemove         OnComOnMousemove
+    xCreateMixinEvent EVENTID_OnMouseout          OnComOnMouseout
+    xCreateMixinEvent EVENTID_OnMouseover         OnComOnMouseover
+    xCreateMixinEvent EVENTID_OnMouseup           OnComOnMouseup
+    xCreateMixinEvent EVENTID_OnMousewheel        OnComOnMousewheel
+    xCreateMixinEvent EVENTID_OnMovestart         OnComOnMovestart
+    xCreateMixinEvent EVENTID_OnPage              OnComOnPage
+    xCreateMixinEvent EVENTID_OnPaste             OnComOnPaste
+    xCreateMixinEvent EVENTID_OnPropertychange    OnComOnPropertychange
+    xCreateMixinEvent EVENTID_OnResize            OnComOnResize
+    xCreateMixinEvent EVENTID_OnResizestart       OnComOnResizestart
+    xCreateMixinEvent EVENTID_OnRowenter          OnComOnRowenter
+    xCreateMixinEvent EVENTID_OnRowexit           OnComOnRowexit
+    xCreateMixinEvent EVENTID_OnRowsdelete        OnComOnRowsdelete
+    xCreateMixinEvent EVENTID_OnRowsinserted      OnComOnRowsinserted
+    xCreateMixinEvent EVENTID_OnScroll            OnComOnScroll
+    xCreateMixinEvent EVENTID_OnSelectstart       OnComOnSelectstart
+    xCreateMixinEvent EVENTID_OnStart             OnComOnStart
+    xCreateMixinEvent EVENTID_OnStop              OnComOnStop
+    xCreateMixinEvent EVENTID_OnSubmit            OnComOnSubmit
+    xCreateMixinEvent EVENTID_OnTimeout           OnComOnTimeout
+    xCreateMixinEvent EVENTID_OnUnload            OnComOnUnload
+End_Class // _cHtmlElementMixin
+
+#COMMAND xCreateElementSubclass R "FROM" R
+    Class !1 is a !3
+        Import_Class_Protocol _cHtmlElementMixin
+        Procedure Construct_Object
+            Forward Send Construct_Object
+            Send DefineHtmlEventMixin
+        End_Procedure
+    End_Class
+#ENDCOMMAND
+
+xCreateElementSubclass cComHTMLAnchorElementSture from cComHTMLAnchorElement
+xCreateElementSubclass cComHTMLButtonElementSture from cComHTMLButtonElement
+xCreateElementSubclass cComHTMLDivElementSture    from cComHTMLDivElement
+xCreateElementSubclass cComHTMLSpanElementSture   from cComHTMLSpanElement
+xCreateElementSubclass cComHTMLInputElementSture  from cComHTMLInputElement
+xCreateElementSubclass cComHTMLBodySture          from cComHTMLBody
+xCreateElementSubclass cComHTMLParaElementSture   from cComHTMLParaElement
+
+Use XmlBuilder.pkg
+Use StringFunctions.pkg
+
+Class cComHTMLDocumentSture is a cComHTMLDocument
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Object oHtmlBuilder is a cXmlBuilder
+            Set pbScriptException to True
+        End_Object
+    End_Procedure
+
+            // Function : StrToWStr (Taken from Vincents blog)
+            // Purpose  : Converts a OEM string to a Unicode string
+            Function _StrToWStr String sData Returns String
+                Integer iLength iResult
+                String sBuffer
+
+                // Get size of buffer
+                Move (MultiByteToWideChar(CP_OEMCP,0,AddressOf(sData),-1,0,0)) to iLength
+                If (iLength = 0) Function_Return ""
+
+                // Create output buffer
+                Move (Repeat(Character(0),iLength*2)) to sBuffer
+
+                // Do actual conversion
+
+                Move (MultiByteToWideChar(CP_OEMCP,0,AddressOf(sData),-1,AddressOf(sBuffer),iLength)) to iResult
+                If (iResult = 0) Function_Return ""
+
+                Function_Return sBuffer
+            End_Function
+
+            Function _StrToUCharArray String sDataIn Returns UChar[] // (Taken from Vincents blog)
+                Integer iLength
+                UChar[] ucResult
+                Address aResult
+
+                Move (Length (sDataIn)) to iLength
+                Move (ResizeArray (ucResult, iLength)) to ucResult
+                Move (AddressOf (ucResult)) to aResult
+                Move sDataIn to aResult
+                Function_Return ucResult
+            End_Function
+
+    Procedure _NewDocument Integer hBrowserObject
+        Variant vDocument vWindow
+
+        Get ComDocument of hBrowserObject to vDocument // Get the document in the browser
+        Set pvComObject to vDocument // Make it our own
+
+        Get ComOpen "text/html" "replace" Nothing True to vDocument // Open it for input
+        Set pvComObject to vDocument // Make it our own
+        
+        Set pvComObject of _oIHTMLDocument2 to vDocument
+        
+        Get ComParentWindow of _oIHTMLDocument2 to vWindow
+        Set pvComObject of _oIHTMLWindow2 to vWindow
+        
+        Send Write ("<!"+"DOCTYPE html>") // Might as well. We don't have to concern ourselves with other browsers than IE 8, 9 and on.
+        Send XmlToDelegatedWrite of oHtmlBuilder
+    End_Procedure
+
+    Procedure Write String sHtml // Delegated to here by oHtmlBuilder. Should not be called by anybody else
+        UChar[] ucHTML
+        Move (_StrToWStr(Self,sHTML)) to sHtml
+        Move (_StrToUCharArray(Self,sHtml)) to ucHTML
+        Send ComWrite ucHTML
+    End_Procedure
+
+    Procedure _CommitToBrowser
+        Send EndXml of oHtmlBuilder
+        Send ComClose
+    End_Procedure
+End_Class
+
+Class _cInnerHTMLBuilder is a cXmlBuilder
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set pbScriptException to True // Makes sure <script/> is written as <script></script>
+        Send XmlToString
+    End_Procedure
+    
+    Procedure UpdateElement Integer hElement
+        Integer iSize
+        String sInnerHTML
+        
+        Send EndXml
+        
+        If (hElement) Begin
+
+            Get XmlStringValueLength to iSize
+            Send MaxArgumentSizeAdjust of oStringFunctions iSize False
+
+            Get XmlStringValue to sInnerHTML
+            Set ComInnerHTML of hElement to sInnerHTML
+
+            Send MaxArgumentSizeRestore of oStringFunctions
+        End
+        Send Destroy
+    End_Procedure
+End_Class
+
+Class cComWebBrowserSture is a cComWebBrowser
+    Procedure Construct_Object
+        Handle hObject
+        Forward Send Construct_Object
+
+        Object _oBrowserHTMLDocument is a cComHTMLDocumentSture
+        End_Object
+        Object _oIHTMLDocument2 is a cComIHTMLDocument2
+        End_Object
+        Object _oIHTMLWindow2 is a cComIHTMLWindow2
+        End_Object
+
+        Property Integer[] _paElementHandles
+        
+        // Let the control itself handle these keys:
+        On_Key Key_Tab Send Default_Key
+        On_Key Key_Shift+Key_Tab Send Default_Key
+        On_Key Key_F11 Send Default_Key
+        
+        On_Key Key_Back_Space Send HistoryPrevious
+        On_Key Key_F7 Send HistoryPrevious
+        On_Key Key_F8 Send HistoryNext
+        On_Key Key_F9 Send HistoryCurrent
+        On_Key Key_Shift+Key_F7 Send HistoryFirst
+        On_Key Key_Shift+Key_F8 Send HistoryLast
+        
+        
+        Property String[] paPageNames
+        Property Integer[] paPageObjectHandles
+        
+        Property tHTMLDirectLink[] _paHistory
+        Property Integer _piHistoryPointer
+        Property Boolean _pbHistoryInProgress False
+    End_Procedure
+    
+    Function _HistoryAtIndex Integer iIndex Returns tHTMLDirectLink
+        String sValue
+        tHTMLDirectLink[] aHistory
+        Get _paHistory to aHistory
+        If (SizeOfArray(aHistory)=0) Begin
+            Get NewDirectLinkAsString of oHTMLDirectLinkFunctions 0 0 0 "startpage" "" "" to sValue
+            Get StringToDirectLink of oHTMLDirectLinkFunctions sValue to aHistory[0]
+            Set _paHistory to aHistory
+            Move 0 to iIndex
+        End
+        If (iIndex>=SizeOfArray(aHistory)) Begin
+            Move (SizeOfArray(aHistory)-1) to iIndex
+        End
+        If (iIndex<0) Begin
+            Move 0 to iIndex
+        End
+        Set _piHistoryPointer to iIndex
+        Function_Return aHistory[iIndex]
+    End_Function
+    
+    Procedure HistoryCurrent 
+        Set _pbHistoryInProgress to True
+        Send HandleDirectLinkNavigation (_HistoryAtIndex(Self,_piHistoryPointer(Self)))
+    End_Procedure
+    Procedure HistoryPrevious 
+        Set _pbHistoryInProgress to True
+        Send HandleDirectLinkNavigation (_HistoryAtIndex(Self,_piHistoryPointer(Self)-1))
+    End_Procedure
+    Procedure HistoryNext 
+        Set _pbHistoryInProgress to True
+        Send HandleDirectLinkNavigation (_HistoryAtIndex(Self,_piHistoryPointer(Self)+1))
+    End_Procedure
+    Procedure HistoryFirst 
+        Set _pbHistoryInProgress to True
+        Send HandleDirectLinkNavigation (_HistoryAtIndex(Self,0))
+    End_Procedure
+    Procedure HistoryLast 
+        Set _pbHistoryInProgress to True
+        Send HandleDirectLinkNavigation (_HistoryAtIndex(Self,999999))
+    End_Procedure
+    Procedure HistoryAppend tHTMLDirectLink strNewCurrent
+        tHTMLDirectLink[] aHistory
+        If (_pbHistoryInProgress(Self)) Begin
+            Set _pbHistoryInProgress to False
+        End
+        Else Begin
+            Get _paHistory to aHistory
+            Move strNewCurrent to aHistory[SizeOfArray(aHistory)]
+            Set _paHistory to aHistory
+            Set _piHistoryPointer to (SizeOfArray(aHistory)-1)
+        End
+    End_Procedure
+    
+    Procedure RegisterPageObject String sPageName Integer hPageObjectHandle
+        Integer iIndex
+        String[] aPageNames          
+        Integer[] aPageObjectHandles 
+        Get paPageNames to aPageNames
+        Get paPageObjectHandles to aPageObjectHandles
+        Move (SizeOfArray(aPageNames)) to iIndex
+        Move sPageName to aPageNames[iIndex]
+        Move hPageObjectHandle to aPageObjectHandles[iIndex]
+        Set paPageNames to aPageNames
+        Set paPageObjectHandles to aPageObjectHandles
+    End_Procedure
+    
+    Function PageObjectHandle String sPageName Returns Integer
+        Integer iIndex
+        String[] aPageNames          
+        Integer[] aPageObjectHandles 
+        Get paPageNames to aPageNames
+        Move (SearchArray(sPageName,aPageNames)) to iIndex
+        If (iIndex<>-1) Begin
+            Get paPageObjectHandles to aPageObjectHandles
+            Function_Return aPageObjectHandles[iIndex]
+        End
+        Function_Return 0
+    End_Function
+    
+    Procedure GotoPage String sPage String sAction
+        Integer hPageObject
+        Get PageObjectHandle sPage to hPageObject
+        If (hPageObject>0) Begin
+            Send BeginDocument
+            Send OutputHtml of hPageObject sAction
+            Send EndDocument
+        End
+        Else Begin
+            Error 480 ("Page not found: '"+sPage+"'")
+        End
+    End_Procedure
+    
+    Function EventIDtoString Integer iEventID Returns String
+             If (iEventID=EVENTID_OnAbort)            Function_Return "Abort"
+        Else If (iEventID=EVENTID_OnActivate)         Function_Return "Activate"
+        Else If (iEventID=EVENTID_OnAfterprint)       Function_Return "Afterprint"
+        Else If (iEventID=EVENTID_OnAfterupdate)      Function_Return "Afterupdate"
+        Else If (iEventID=EVENTID_OnBeforeactivate)   Function_Return "Beforeactivate"
+        Else If (iEventID=EVENTID_OnBeforecopy)       Function_Return "Beforecopy"
+        Else If (iEventID=EVENTID_OnBeforecut)        Function_Return "Beforecut"
+        Else If (iEventID=EVENTID_OnBeforedeactivate) Function_Return "Beforedeactivate"
+        Else If (iEventID=EVENTID_OnBeforeeditfocus)  Function_Return "Beforeeditfocus"
+        Else If (iEventID=EVENTID_OnBeforepaste)      Function_Return "Beforepaste"
+        Else If (iEventID=EVENTID_OnBeforeprint)      Function_Return "Beforeprint"
+        Else If (iEventID=EVENTID_OnBeforeunload)     Function_Return "Beforeunload"
+        Else If (iEventID=EVENTID_OnBeforeupdate)     Function_Return "Beforeupdate"
+        Else If (iEventID=EVENTID_OnBlur)             Function_Return "Blur"
+        Else If (iEventID=EVENTID_OnBounce)           Function_Return "Bounce"
+        Else If (iEventID=EVENTID_OnCellchange)       Function_Return "Cellchange"
+        Else If (iEventID=EVENTID_OnChange)           Function_Return "Change"
+        Else If (iEventID=EVENTID_OnClick)            Function_Return "Click"
+        Else If (iEventID=EVENTID_OnContextmenu)      Function_Return "Contextmenu"
+        Else If (iEventID=EVENTID_OnControlselect)    Function_Return "Controlselect"
+        Else If (iEventID=EVENTID_OnCopy)             Function_Return "Copy"
+        Else If (iEventID=EVENTID_OnCut)              Function_Return "Cut"
+        Else If (iEventID=EVENTID_OnDataavailable)    Function_Return "Dataavailable"
+        Else If (iEventID=EVENTID_OnDatasetchanged)   Function_Return "Datasetchanged"
+        Else If (iEventID=EVENTID_OnDatasetcomplete)  Function_Return "Datasetcomplete"
+        Else If (iEventID=EVENTID_OnDblclick)         Function_Return "Dblclick"
+        Else If (iEventID=EVENTID_OnDeactivate)       Function_Return "Deactivate"
+        Else If (iEventID=EVENTID_OnDragstart)        Function_Return "Dragstart"
+        Else If (iEventID=EVENTID_OnDrop)             Function_Return "Drop"
+        Else If (iEventID=EVENTID_OnErrorupdate)      Function_Return "Errorupdate"
+        Else If (iEventID=EVENTID_OnFilterchange)     Function_Return "Filterchange"
+        Else If (iEventID=EVENTID_OnFinish)           Function_Return "Finish"
+        Else If (iEventID=EVENTID_OnFocusOut)         Function_Return "Focusout"
+        Else If (iEventID=EVENTID_OnHelp)             Function_Return "Help"
+        Else If (iEventID=EVENTID_OnKeyDown)          Function_Return "Keydown"
+        Else If (iEventID=EVENTID_OnKeyPress)         Function_Return "Keypress"
+        Else If (iEventID=EVENTID_OnKeyUp)            Function_Return "Keyup"
+        Else If (iEventID=EVENTID_OnLayoutComplete)   Function_Return "Layoutcomplete"
+        Else If (iEventID=EVENTID_OnLoad)             Function_Return "Load"
+        Else If (iEventID=EVENTID_OnLoseCapture)      Function_Return "Losecapture"
+        Else If (iEventID=EVENTID_OnMouseDown)        Function_Return "Mousedown"
+        Else If (iEventID=EVENTID_OnBeforeDeactivate) Function_Return "Beforedeactivate"
+        Else If (iEventID=EVENTID_OnMouseenter)       Function_Return "Mouseenter"
+        Else If (iEventID=EVENTID_OnMouseleave)       Function_Return "Mouseleave"
+        Else If (iEventID=EVENTID_OnMousemove)        Function_Return "Mousemove"
+        Else If (iEventID=EVENTID_OnMouseout)         Function_Return "Mouseout"
+        Else If (iEventID=EVENTID_OnMouseover)        Function_Return "Mouseover"
+        Else If (iEventID=EVENTID_OnMouseup)          Function_Return "Mouseup"
+        Else If (iEventID=EVENTID_OnMousewheel)       Function_Return "Mousewheel"
+        Else If (iEventID=EVENTID_OnMovestart)        Function_Return "Movestart"
+        Else If (iEventID=EVENTID_OnPage)             Function_Return "Page"
+        Else If (iEventID=EVENTID_OnPaste)            Function_Return "Paste"
+        Else If (iEventID=EVENTID_OnPropertychange)   Function_Return "Propertychange"
+        Else If (iEventID=EVENTID_OnResize)           Function_Return "Resize"
+        Else If (iEventID=EVENTID_OnResizestart)      Function_Return "Resizestart"
+        Else If (iEventID=EVENTID_OnRowenter)         Function_Return "Rowenter"
+        Else If (iEventID=EVENTID_OnRowexit)          Function_Return "Rowexit"
+        Else If (iEventID=EVENTID_OnRowsdelete)       Function_Return "Rowsdelete"
+        Else If (iEventID=EVENTID_OnRowsinserted)     Function_Return "Rowsinserted"
+        Else If (iEventID=EVENTID_OnScroll)           Function_Return "Scroll"
+        Else If (iEventID=EVENTID_OnSelectstart)      Function_Return "Selectstart"
+        Else If (iEventID=EVENTID_OnStart)            Function_Return "Start"
+        Else If (iEventID=EVENTID_OnStop)             Function_Return "Stop"
+        Else If (iEventID=EVENTID_OnSubmit)           Function_Return "Submit"
+        Else If (iEventID=EVENTID_OnTimeout)          Function_Return "Timeout"
+        Else If (iEventID=EVENTID_OnUnload)           Function_Return "Unload"
+        Function_Return ("Unknown eventID ("+String(iEventID)+")")
+    End_Function
+
+    // private
+    Procedure _DestroyAllElementHandles
+        Integer iMax iIndex
+        Integer[] aElementHandles
+        Get _paElementHandles to aElementHandles
+        Move (SizeOfArray(aElementHandles)-1) to iMax
+        For iIndex from 0 to iMax
+            Send ReleaseComObject of aElementHandles[iIndex]
+            Send Destroy of aElementHandles[iIndex]
+        Loop
+        Set _paElementHandles to (ResizeArray(aElementHandles,0))
+    End_Procedure
+
+    Procedure _AddElementHandle Integer hElementHandle
+        Integer[] aElementHandles
+        Get _paElementHandles to aElementHandles
+        Move hElementHandle to aElementHandles[SizeOfArray(aElementHandles)]
+        Set _paElementHandles to aElementHandles
+    End_Procedure
+
+    Procedure DestroyElementHandle Integer hElementHandle
+        Integer iIndex
+        Integer[] aElementHandles
+        Get _paElementHandles to aElementHandles
+        Move (SearchArray(hElementHandle,aElementHandles)) to iIndex
+        If (iIndex>-1) Begin
+            Send ReleaseComObject of hElementHandle
+            Send Destroy of hElementHandle
+            Move (RemoveFromArray(aElementHandles,iIndex)) to aElementHandles
+            Set _paElementHandles to aElementHandles
+        End
+    End_Procedure
+
+    // Interface for defining the document
+    Procedure BeginDocument
+        Send _DestroyAllElementHandles // previous leftovers
+        Send _NewDocument of _oBrowserHTMLDocument Self
+    End_Procedure
+    Procedure AddOpenElement String sElement
+        Send AddOpenElement of (oHtmlBuilder(_oBrowserHTMLDocument)) sElement
+    End_Procedure
+    Procedure AddElement String sElement String sValue
+        Send AddElement of (oHtmlBuilder(_oBrowserHTMLDocument)) sElement sValue
+    End_Procedure
+    Procedure AddCDATAElement String sElement String sValue // Same as AddElement but marks up the data in sValue as CDATA
+        Send AddCDATAElement of (oHtmlBuilder(_oBrowserHTMLDocument)) sElement sValue
+    End_Procedure
+    Procedure CloseElement
+        Send CloseElement of (oHtmlBuilder(_oBrowserHTMLDocument))
+    End_Procedure
+    Procedure AddAttribute String sAttr String sValue
+        Send AddAttribute of (oHtmlBuilder(_oBrowserHTMLDocument)) sAttr sValue
+    End_Procedure
+    Procedure AddAttributeToNextElement String sAttr String sValue
+        Send AddAttributeToNextElement of (oHtmlBuilder(_oBrowserHTMLDocument)) sAttr sValue
+    End_Procedure
+    Procedure EndDocument
+        Send _CommitToBrowser of _oBrowserHTMLDocument
+    End_Procedure
+    Procedure BeginInnerHTML
+        Send XmlToString of (oHtmlBuilder(_oBrowserHTMLDocument))
+    End_Procedure
+    Procedure EndInnerHTML Handle hElement
+        Integer iSize
+        String sInnerHTML
+        
+        Send EndXml of (oHtmlBuilder(_oBrowserHTMLDocument))
+        
+        If (hElement) Begin
+
+            Get XmlStringValueLength of (oHtmlBuilder(_oBrowserHTMLDocument)) to iSize
+            Send MaxArgumentSizeAdjust of oStringFunctions iSize False
+
+            Get XmlStringValue of (oHtmlBuilder(_oBrowserHTMLDocument)) to sInnerHTML
+            Set ComInnerHTML of hElement to sInnerHTML
+
+            Send MaxArgumentSizeRestore of oStringFunctions
+        End
+    End_Procedure
+
+    Function NewInnerHTML Returns Handle
+        Handle hInnerHTMLHandler
+        Get Create (RefClass(_cInnerHTMLBuilder)) to hInnerHTMLHandler
+        Function_Return hInnerHTMLHandler
+    End_Function
+
+
+        Function FindElementHandle String sElemID Returns Integer
+            Integer iMax iIndex
+            Integer[] aElementHandles
+            String sID
+            Get _paElementHandles to aElementHandles
+            Move (SizeOfArray(aElementHandles)-1) to iMax
+            For iIndex from 0 to iMax
+                Get ComId of aElementHandles[iIndex] to sID
+                If (sID=sElemID) Begin
+                    Function_Return aElementHandles[iIndex]
+                End
+            Loop
+            Function_Return 0 // Don't exist
+        End_Function
+
+    Function ElementHandleByID String sElemID Returns Handle
+        Handle hElementHandle
+        Variant vElement
+        String sTagName
+
+        Get FindElementHandle sElemID to hElementHandle
+
+        If (hElementHandle=0) Begin // If it's not there already: create it
+            Get ComGetElementById of _oBrowserHTMLDocument sElemID to vElement
+
+            If (IsNullComObject(vElement)) Begin
+                Move 0 to hElementHandle
+            End
+            Else Begin
+                Object oHtmlElement is a cComIHTMLElement
+                    Set pvComObject to vElement
+                    Get ComTagName to sTagName
+                    Move Self to hElementHandle
+                End_Object
+
+                Move (Lowercase(sTagName)) to sTagName
+
+                If (sTagName="a" or sTagName="button" or sTagName="div" or sTagName="span" or sTagName="input" or sTagName="p" or sTagName="body") Begin
+                    // replace with specific element interface:
+                    Send ReleaseComObject of hElementHandle
+                    Send Destroy of hElementHandle
+
+                    If (sTagName="a") Begin
+                        Get Create (RefClass(cComHTMLAnchorElementSture)) to hElementHandle
+                    End
+                    If (sTagName="button") Begin
+                        Get Create (RefClass(cComHTMLButtonElementSture)) to hElementHandle
+                    End
+                    Else If (sTagName="div") Begin
+                        Get Create (RefClass(cComHTMLDivElementSture)) to hElementHandle
+                    End
+                    Else If (sTagName="span") Begin
+                        Get Create (RefClass(cComHTMLSpanElementSture)) to hElementHandle
+                    End
+                    Else If (sTagName="input") Begin
+                        Get Create (RefClass(cComHTMLInputElementSture)) to hElementHandle
+                    End
+                    Else If (sTagName="p") Begin
+                        Get Create (RefClass(cComHTMLParaElementSture)) to hElementHandle
+                    End
+                    Else If (sTagName="body") Begin
+                        Get Create (RefClass(cComHTMLBodySture)) to hElementHandle
+                    End
+
+                    Set pvComObject of hElementHandle to vElement
+                End
+
+                Send _AddElementHandle hElementHandle
+            End
+        End
+        Function_Return hElementHandle
+    End_Function
+
+    Procedure AddEventListener Integer hElementHandle Integer iEventID Integer hTargetMessage Integer hTargetObject Boolean bEventBubble
+        String sTagName
+        Integer iDM
+        Boolean bIsEventEnabled
+        Get Delegation_Mode of hElementHandle to iDM
+        Set Delegation_Mode of hElementHandle to No_Delegate_Or_Error
+        Get _pbIsEventEnabled of hElementHandle to bIsEventEnabled
+        Set Delegation_Mode of hElementHandle to iDM
+
+        If (bIsEventEnabled) Begin
+            Set _EventTargetMessage of hElementHandle iEventID to hTargetMessage
+            Set _EventTargetObject of hElementHandle iEventID to hTargetObject
+            Set _EventBubble of hElementHandle iEventID to bEventBubble
+        End
+        Else Begin
+            Get ComTagName of hElementHandle to sTagName
+            Error DFERR_PROGRAM ("Object not event-enabled ("+sTagName+")")
+        End
+        
+    End_Procedure
+    
+    Procedure CancelBubbleEvent
+        Handle hIHTMLEventObj
+        Variant vEvent 
+
+        Get ComEvent of _oIHTMLWindow2 to vEvent // http://msdn.microsoft.com/en-us/library/aa741461(v=vs.85).aspx
+
+        Get Create (RefClass(cComIHTMLEventObj)) to hIHTMLEventObj // nonono: cComDOMEvent cComIDOMEvent cComDOMMouseEvent
+        Set pvComObject of hIHTMLEventObj to vEvent
+        
+        Set ComCancelBubble of hIHTMLEventObj to True
+        Send ReleaseComObject of hIHTMLEventObj
+        Send Destroy of hIHTMLEventObj
+    End_Procedure
+
+    Procedure OnDirectLinkClicked Boolean bRecordFound tHTMLDirectLink strDirectLink
+    End_Procedure
+
+    Function _DirectLinkValue String sUrl Integer ByRef iLinkType Returns String
+        Integer iPosBegin iPosEnd
+        String sLink
+        Move 0 to iLinkType
+        If (BeginsWith(oStringFunctions,sUrl,"about:dl(") and Right(sUrl,1)=")") Begin
+            Move (Replace("about:dl(",sUrl,"")) to sUrl
+            Move (rRemove(oStringFunctions,sUrl,1)) to sLink
+            Move 1 to iLinkType
+        End
+        Else If (BeginsWith(oStringFunctions,sUrl,"about:dlhf(") and Right(sUrl,1)=")") Begin
+            Move (Replace("about:dlhf(",sUrl,"")) to sUrl
+            Move (rRemove(oStringFunctions,sUrl,1)) to sLink
+            Move 2 to iLinkType
+        End
+        Function_Return sLink
+    End_Function
+    
+    Function DirectLinkToUrl tHTMLDirectLink strDirectLink Returns String
+        String sUrl
+        Get DirectLinkToString of oHTMLDirectLinkFunctions strDirectLink to sUrl
+        Function_Return ("dlhf("+sUrl+")")
+    End_Function
+
+//    //> Encode link in a way that enables a cComWebBrowserSture to redirect
+//    //> the message to here by calling the HandleDirectLinkNavigation method.
+    Function DirectLinkEncode String sLink Returns String
+        Function_Return ("dl("+sLink+")")
+    End_Function
+    
+    Function FindDirectLinkRecord tHTMLDirectLink strDirectLink Returns Boolean
+        Boolean bFound
+        If (strDirectLink.iTable<>0) Begin
+            Get FindRecordByLID of oHTMLDirectLinkFunctions strDirectLink.iTable strDirectLink.sRowID to bFound
+        End
+        Else Begin
+            Move False to bFound
+        End
+        Function_Return bFound
+    End_Function
+    
+    Procedure HandleDirectLinkNavigation tHTMLDirectLink strDirectLink
+        Boolean bFound
+        Get FindDirectLinkRecord strDirectLink to bFound
+        If (bFound) Begin
+            Relate strDirectLink.iTable
+        End
+        If (strDirectLink.hEventRecipientObject>0) Begin
+            If (strDirectLink.hEventRecipientMessage<>0) Begin
+                Send strDirectLink.hEventRecipientMessage of strDirectLink.hEventRecipientObject bFound strDirectLink
+            End
+            Else Begin
+                Send OnDirectLinkClicked of strDirectLink.hEventRecipientObject bFound strDirectLink
+            End
+        End
+        If (strDirectLink.sPage<>"") Begin
+            Send GotoPage strDirectLink.sPage strDirectLink.sFlavour
+            Send HistoryAppend strDirectLink
+        End
+    End_Procedure
+
+    Procedure OnComBeforeNavigate2 Variant llpDisp Variant llURL Variant llFlags Variant llTargetFrameName Variant llPostData Variant llHeaders Boolean ByRef llCancel
+        Integer iLinkType
+        String sValue sLink
+        tHTMLDirectLink strDirectLink
+        Move llURL to sValue
+        Get _DirectLinkValue sValue (&iLinkType) to sLink
+        If (sLink<>"") Begin
+            If (iLinkType=1) Begin
+                Send OnDirectLinkClicked sLink // to the browser itself
+            End
+            Else If (iLinkType=2) Begin
+                Get StringToDirectLink of oHTMLDirectLinkFunctions sLink to strDirectLink
+                Send HandleDirectLinkNavigation strDirectLink
+            End
+            Move True to llCancel
+        End
+    End_Procedure
+    
+    // Other
+    Procedure OnCreate
+        Send ComNavigate "about:blank" 0 0 0 0
+    End_Procedure
+End_Class
+

@@ -1,0 +1,150 @@
+// C:\Visual DataFlex 17.1 Examples\WebOrder\AppSrc\WebVendor.wo
+// Vendor Maintenance
+//
+
+Use cWebView.pkg
+Use cWebPanel.pkg
+Use cWebForm.pkg
+Use cWebCombo.pkg
+Use TestProjects\Web\cWebHtmlBoxSture.pkg
+Use RecordBufferFunctions.pkg
+Use StringFunctions.pkg
+
+Use Vendor.DD
+
+Object oVendor_HtmlBox1 is a cWebView
+    Set piColumnCount to 10
+    Set psCaption to "Vendor Maintenance"
+    Set piWidth to 700
+
+    Object oVendor_DD is a Vendor_DataDictionary
+    End_Object 
+
+    Set Main_DD To oVendor_DD
+    Set Server  To oVendor_DD
+
+    Object oWebMainPanel is a cWebPanel
+        Set piColumnCount to 10
+        Set pbFillHeight to False
+
+        Object oVendorID is a cWebForm
+            Entry_Item Vendor.ID
+            Set piColumnSpan to 4
+            Set piColumnIndex to 0
+            Set psLabel to "ID:"
+            Set peLabelAlign to alignRight
+        End_Object 
+
+        Object oVendorName is a cWebForm
+            Entry_Item Vendor.Name
+            Set piColumnSpan to 6
+            Set piColumnIndex to 4
+            Set psLabel to "Name:"
+            Set peLabelAlign to alignRight
+            Set piLabelOffset to 70
+        End_Object 
+
+        Object oVendorAddress is a cWebForm
+            Entry_Item Vendor.Address
+            Set piColumnSpan to 10
+            Set piColumnIndex to 0
+            Set psLabel to "Street:"
+            Set peLabelAlign to alignRight
+        End_Object 
+
+        Object oVendorCity is a cWebForm
+            Entry_Item Vendor.City
+            Set piColumnSpan to 5
+            Set piColumnIndex to 0
+            Set psLabel to "City \ State \ ZIP:"
+            Set peLabelAlign to alignRight
+        End_Object
+
+        Object oVendorState is a cWebCombo
+            Entry_Item Vendor.State
+            Set piColumnSpan to 3
+            Set piColumnIndex to 5
+            Set peLabelAlign to alignRight
+            Set pbShowLabel to False
+        End_Object
+
+        Object oVendorZip is a cWebForm
+            Entry_Item Vendor.Zip
+            Set piColumnSpan to 2
+            Set piColumnIndex to 8
+            Set peLabelAlign to alignRight
+            Set pbShowLabel to False
+        End_Object
+
+        Object oVendorPhone_Number is a cWebForm
+            Entry_Item Vendor.Phone_Number
+            Set piColumnSpan to 5
+            Set piColumnIndex to 0
+            Set psLabel to "Phone:"
+            Set peLabelAlign to alignRight
+        End_Object
+
+        Object oVendorFax_Number is a cWebForm
+            Entry_Item Vendor.Fax_Number
+            Set piColumnSpan to 5
+            Set piColumnIndex to 5
+            Set psLabel to "Fax:"
+            Set peLabelAlign to alignRight
+        End_Object
+
+        Object oHtmlBox is a cWebHtmlBoxSture
+            Set pbFillHeight to True
+            Set piColumnSpan to 10
+            Set piColumnIndex to 0
+            Set pbServerOnClick to True
+            
+            Object oHtmlTQ is a cHtmlGeneratorTQ
+                Function HtmlTQ Returns tHtmlTQ
+                    tHtmlTQ strHtmlTQ
+                    Move "Orderlines on vendor items" to strHtmlTQ.sTitle
+
+                    Get NewQuery of oTQ OrderDtl.File_Number to strHtmlTQ.strQ
+                    Send AddTableRelationAuto of oTQ (&strHtmlTQ.strQ) OrderDtl.File_Number Invt.File_Number
+                    Send AddTableRelationAuto of oTQ (&strHtmlTQ.strQ) OrderDtl.File_Number OrderHea.File_Number
+                    Send AddTableRelationAuto of oTQ (&strHtmlTQ.strQ) OrderHea.File_Number Customer.File_Number
+                    Send AddFilter of oTQ (&strHtmlTQ.strQ) File_Field Invt.Vendor_ID tqEQ Vendor.ID
+                    Send AddResultTable of oTQ (&strHtmlTQ.strQ) OrderDtl.File_Number
+                    Send AddResultTable of oTQ (&strHtmlTQ.strQ) Invt.File_Number
+                    Send AddResultTable of oTQ (&strHtmlTQ.strQ) OrderHea.File_Number
+                    Send AddResultTable of oTQ (&strHtmlTQ.strQ) Customer.File_Number
+                    Send AddOrderBy of oTQ (&strHtmlTQ.strQ) File_Field OrderHea.Order_Date True False
+                    Send AddOrderBy of oTQ (&strHtmlTQ.strQ) File_Field OrderHea.Order_Number False False
+
+                    Get SimpleTableNewLayout of oHTMLSequenceFunctions "vendororders" "100%" 0 to strHtmlTQ.strTableLayout
+                    Send SimpleTableLayoutAddColumnDB of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) File_Field OrderHea.Order_Date "Date" "100px"
+                    Send SimpleTableLayoutAddColumnDB of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) File_Field OrderDtl.Order_Number "Order" "50px"
+                    Send SimpleTableSetColumnLink     of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) "do-order" OrderHea.File_Number 0 0
+                    Send SimpleTableLayoutAddColumnDB of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) File_Field Customer.Name "Customer" "200px"
+                    Send SimpleTableSetColumnLink     of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) "do-customer" Customer.File_Number 0 0
+                    Send SimpleTableLayoutAddColumnDB of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) File_Field Invt.Description "Product" ""
+                    Send SimpleTableLayoutAddColumnDB of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) File_Field OrderDtl.Qty_Ordered "Qty" "50px"
+                    Send SimpleTableLayoutAddColumnDB of oHTMLSequenceFunctions (&strHtmlTQ.strTableLayout) File_Field OrderDtl.Extended_Price "Price" "50px"
+
+                    Function_Return strHtmlTQ
+                End_Function
+            End_Object
+            
+            Procedure OnBuildHtml
+                Send OutputHTML of oHtmlTQ (HtmlTQ(oHtmlTQ))
+            End_Procedure
+            
+            Procedure Refresh Integer eMode
+                Boolean bAppSynching
+                Get AppSynching to bAppSynching
+                Forward Send Refresh eMode
+                If (bAppSynching) Begin
+                    Procedure_Return
+                End
+                If (not(bAppSynching) and (eMode=MODE_FIND_OR_CLEAR_SET or eMode=MODE_CLEAR or eMode=MODE_CLEAR_ALL)) Begin
+                    Send UpdateHtml (InnerHtml(Self))
+                End
+            End_Procedure
+        End_Object
+    End_Object
+
+End_Object

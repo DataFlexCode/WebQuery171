@@ -1,0 +1,249 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebHtmlBox.pkg
+Use cWebSlider.pkg
+Use cWebQueryFunctions.pkg
+
+Object oWqColourPicker is a cWebModalDialog
+    Set psCaption to "Select Colour"
+    Set piMinWidth to 500
+    Set piMinHeight to 200
+    Set pbServerOnSubmit to true    // enable the OnSubmit event
+    Set pbServerOnShow   to True
+    
+    { WebProperty=True }
+    Property Handle  wphoTarget
+    { WebProperty=True }
+    Property Integer wpiRed
+    { WebProperty=True }
+    Property Integer wpiGreen
+    { WebProperty=True }
+    Property Integer wpiBlue
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+        
+        Object oRedSlider is a cWebSlider
+            Set psLabel             to "Red:"
+            Set piColumnSpan        to 0
+            Set piLabelOffset       to 50
+            Set piMinValue          to 0
+            Set piMaxValue          to 255
+            Set pbShowValue         to True
+            Set piInterval          to 1
+            Set pbShowMarkers       to True
+            Set psValue             to 0
+            Set pbServerOnChange    to True
+            
+            Procedure OnChange String sNewValue String sOldValue
+                Send AdjustColour
+            End_Procedure  // EndProcedure
+            
+            Procedure OnFillLabels
+                Send AddLabel  0    0
+                Send AddLabel  32  32
+                Send AddLabel  64  64
+                Send AddLabel  96  96
+                Send AddLabel 128 128
+                Send AddLabel 160 160
+                Send AddLabel 192 192
+                Send AddLabel 224 224
+                Send AddLabel 255 255
+            End_Procedure
+            
+        End_Object               
+                
+        Object oGreenSlider is a cWebSlider
+            Set psLabel       to "Green:"
+            Set piColumnSpan  to 0
+            Set piLabelOffset to 50
+            Set piMinValue    to 0
+            Set piMaxValue    to 255
+            Set piInterval    to 1
+            Set pbShowValue   to True
+            Set pbShowMarkers to True
+            Set psValue       to 0
+            Set pbServerOnChange    to True
+            
+            Procedure OnChange String sNewValue String sOldValue
+                Send AdjustColour
+            End_Procedure  // EndProcedure
+            
+            Procedure OnFillLabels
+                Send AddLabel  0    0
+                Send AddLabel  32  32
+                Send AddLabel  64  64
+                Send AddLabel  96  96
+                Send AddLabel 128 128
+                Send AddLabel 160 160
+                Send AddLabel 192 192
+                Send AddLabel 224 224
+                Send AddLabel 255 255
+            End_Procedure
+            
+        End_Object               
+                
+        Object oBlueSlider is a cWebSlider
+            Set psLabel to "Blue:"
+            Set piColumnSpan to 0
+            Set piLabelOffset to 50
+            Set piMinValue    to 0
+            Set piMaxValue    to 255
+            Set piInterval    to 1
+            Set pbShowValue   to True
+            Set pbShowMarkers to True
+            Set psValue       to 0
+            Set pbServerOnChange    to True
+            
+            Procedure OnChange String sNewValue String sOldValue
+                Send AdjustColour
+            End_Procedure  // EndProcedure
+            
+            Procedure OnFillLabels
+                Send AddLabel  0    0
+                Send AddLabel  32  32
+                Send AddLabel  64  64
+                Send AddLabel  96  96
+                Send AddLabel 128 128
+                Send AddLabel 160 160
+                Send AddLabel 192 192
+                Send AddLabel 224 224
+                Send AddLabel 255 255
+            End_Procedure
+            
+        End_Object
+
+        Object oColourBox is a cWebHtmlBox
+            Set piColumnSpan to 4
+            Set piColumnIndex to 0
+            Set piHeight to 70
+            Set psHtml to "<br><div style='text-align: center; text-color: #000000; bgcolor: #FFFFFF'>#FFFFFF</div>"
+            Set psBackgroundColor to "#FFFFFF"
+            Set psLabel to "Colour:"
+            Set pbShowLabel to True
+            Set piLabelOffset to 60
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 4
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+        End_Object 
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+        End_Object 
+        
+    End_Object 
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        Forward Send Ok
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure AdjustColour
+        Integer iRed iGreen iBlue
+        String  sBG sText
+        
+        WebGet piSliderValue of oRedSlider   to iRed
+        WebGet piSliderValue of oGreenSlider to iGreen
+        WebGet piSliderValue of oBlueSlider  to iBlue
+        Move ("#" + ByteToHex(oStringFunctions, iRed) + ;
+                    ByteToHex(oStringFunctions, iGreen) + ;
+                    ByteToHex(oStringFunctions, iBlue)) to sBG
+        If (((iRed + iGreen + iBlue) / 3) > 128) Move "#000000" to sText
+        Else                                     Move "#FFFFFF" to sText
+        
+        WebSet psBackgroundColor of oColourBox to sBG
+        Send UpdateHtml of oColourBox ('<br><div style="text-align: center; color: ' + sText + '; font-size: x-large;">' + sBG + '</div>')
+    End_Procedure  // AdjustColour
+        
+    Procedure OnShow
+        Integer iRed iGreen iBlue
+        
+        WebGet wpiRed   to iRed
+        WebGet wpiGreen to iGreen
+        WebGet wpiBlue  to iBlue
+        
+        WebSet piSliderValue of oRedSlider      to iRed
+        WebSet piSliderValue of oGreenSlider    to iGreen
+        WebSet piSliderValue of oBlueSlider     to iBlue
+        Send AdjustColour
+    End_Procedure  // OnShow
+    
+    Procedure ColourPopup Handle hoObj String sVal Handle hoTarg
+        String  sRed sGreen sBlue
+        Integer iRed iGreen iBlue
+        wqColour tCol
+        
+        WebSet wphoTarget to hoTarg
+        
+        If (Left(sVal, 1) = "#") Begin
+            Move (Mid(sVal, 2, 2)) to sRed
+            Move (Mid(sVal, 2, 4)) to sGreen
+            Move (Mid(sVal, 2, 6)) to sBlue
+            Move (HexToByte(oStringFunctions, sRed))    to iRed
+            Move (HexToByte(oStringFunctions, sGreen))  to iGreen
+            Move (HexToByte(oStringFunctions, sBlue))   to iBlue
+        End
+        Else Begin
+            Get NameToColour of ghoWQF sVal to tCol
+            Move tCol.iRed   to iRed
+            Move tCol.iGreen to iGreen
+            Move tCol.iBlue  to iBlue
+        End
+        
+        WebSet wpiRed   to iRed
+        WebSet wpiGreen to iGreen
+        WebSet wpiBlue  to iBlue
+        
+        Send Popup hoObj
+    End_Procedure  // ColourPopup
+    
+    Function ColourValue Returns String
+        Integer iRed iGreen iBlue
+        String  sVal
+        
+        WebGet piSliderValue of oRedSlider   to iRed
+        WebGet piSliderValue of oGreenSlider to iGreen
+        WebGet piSliderValue of oBlueSlider  to iBlue
+        Move ("#" + ByteToHex(oStringFunctions, iRed) + ;
+                    ByteToHex(oStringFunctions, iGreen) + ;
+                    ByteToHex(oStringFunctions, iBlue)) to sVal
+                    
+        Function_Return sVal
+    End_Function  // ColourValue
+    
+    Function TargetObject Returns Handle
+        Handle hoObj
+        
+        WebGet wphoTarget to hoObj
+        Function_Return hoObj
+    End_Function  // TargetObject
+    
+End_Object

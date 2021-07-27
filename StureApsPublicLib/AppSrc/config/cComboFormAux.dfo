@@ -1,0 +1,29 @@
+Object
+
+    //Combo_Fill_List is called when the list needs filling
+
+    //Procedure Combo_Fill_List
+    //    // Fill the combo list with Send Combo_Add_Item
+    //    Send Combo_Add_Item "{item Value 1}"
+    //    Send Combo_Add_Item "{item Value 2}"
+    //End_Procedure
+
+    //OnChange is called on every changed character
+
+    //Procedure OnChange
+    //    String sValue
+    //
+    //    Get Value To sValue // the current selected item
+    //End_Procedure
+
+    //Notification that the list has dropped down
+
+    //Procedure OnDropDown
+    //End_Procedure
+
+    //Notification that the list was closed
+
+    //Procedure OnCloseUp
+    //End_Procedure
+
+End_Object

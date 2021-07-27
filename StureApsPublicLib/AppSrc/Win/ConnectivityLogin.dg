@@ -1,0 +1,128 @@
+Use Windows.pkg
+Use Connectivity.pkg
+Use TableDriverFunctions.pkg
+
+Object oConnectivityLogin is a ModalPanel
+    Set Label to "Data connectivity login"
+    Set Size to 139 201
+    Set piMinSize to 104 201
+    Set Locate_Mode to CENTER_ON_PANEL
+    Set Border_Style to Border_Normal
+    On_Key kCancel Send Close_Panel
+
+    Object oDriver is a ComboForm
+        Set Size to 14 137
+        Set Location to 10 47
+        Set Label to "Driver:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Right
+        Set Entry_State to False
+        Set Allow_Blank_State to False
+        
+        Procedure AddDriver tConnectivityDriver stDriver
+            If (stDriver.sDll<>"DATAFLEX") Begin
+                Send Combo_Add_Item stDriver.sDll
+            End
+        End_Procedure
+        
+        Procedure Combo_Fill_List
+            Send Combo_Delete_Data
+            Send CallBackDrivers of oTableDriverFunctions MSG_AddDriver Self
+        End_Procedure    
+    End_Object
+
+    Object oServer is a Form
+        Set Size to 14 137
+        Set Location to 27 47
+        Set Label_Col_Offset to 0
+        Set Label to "Server:"
+        Set Label_Justification_Mode to JMode_Right
+    End_Object
+
+    Object oUseNtAuthentication is a CheckBox
+        Set Size to 14 50
+        Set Location to 46 58
+        Set Label to "Use NT Authentication"
+        Procedure OnChange
+            Send DoShadowUserPassword
+        End_Procedure    
+    End_Object
+    
+    Object oUser is a Form
+        Set Size to 14 137
+        Set Location to 62 47
+        Set Label to "User:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Right
+    End_Object
+
+    Object oPassword is a Form
+        Set Size to 14 137
+        Set Location to 83 47
+        Set Label_Justification_Mode to JMode_Right
+        Set Label_Col_Offset to 0
+        Set Label to "Password:"
+        Set Password_State to True
+    End_Object
+    
+    Object oDisplayPassword is a CheckBox
+        Set Size to 10 50
+        Set Location to 98 78
+        Set Label to 'Display characters'
+        Procedure OnChange
+            Boolean bChecked
+            Get Checked_State to bChecked
+            Set Password_State of oPassword to (not(bChecked))
+        End_Procedure
+    End_Object
+    
+    Procedure DoShadowUserPassword
+        Boolean bUseNT
+        Get Checked_State of oUseNtAuthentication to bUseNT
+        Set Enabled_State of oUser to (not(bUseNT))
+        Set Enabled_State of oPassword to (not(bUseNT))
+    End_Procedure
+
+    Object oOK_Btn is a Button
+        Set Label to "Login"
+        Set Location to 120 55
+        Set peAnchors To anBottomRight
+
+        Procedure OnClick
+           tConnectivityLogin stLogin
+           Get Value of oDriver to stLogin.sDriver
+           Get Value of oServer to stLogin.sServer
+           Get Value of oUser to stLogin.sUser
+           Get Value of oPassword to stLogin.sPassword
+           Get Checked_State of oUseNtAuthentication to stLogin.bUseNtAuthentication
+           If (Login(oConnectivity,stLogin)) Begin
+               Send Info_Box "Login succesful" "Yahoo"
+           End
+           Else Begin
+               Send Info_Box "Rats!" "Login failed" 
+           End
+           Send Close_Panel
+        End_Procedure
+
+    End_Object
+
+    Object oCancel_Btn is a Button
+        Set Label    to "Cancel"
+        Set Location to 120 112
+        Set peAnchors to anBottomRight
+
+        Procedure OnClick
+           Send Close_Panel
+        End_Procedure
+
+    End_Object
+
+    Procedure Popup
+        Forward Send popup
+    End_Procedure
+
+End_Object
+
+Procedure Popup_ConnectivityLogin
+    Send Popup of oConnectivityLogin
+End_Procedure

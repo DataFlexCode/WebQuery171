@@ -1,0 +1,167 @@
+Use VdfBase.pkg
+
+Use cli.pkg // DAW package
+
+Enumeration_List // Driver ID's
+    Define TD_DRIVER_ERROR
+    Define TD_DRIVER_UNKNOWN
+    Define TD_DRIVER_DATAFLEX
+    Define TD_DRIVER_PERVASIVE
+    Define TD_DRIVER_ORACLE
+    Define TD_DRIVER_MS_SQL
+    Define TD_DRIVER_DB2
+    Define TD_DRIVER_ODBC
+    Define TD_DRIVER_MS_SQL_DAW
+    Define TD_DRIVER_MAX // Points to the highest known driver ID (as does (SizeOfArray(gaConnectivityDrivers))  )
+End_Enumeration_List
+
+Struct tConnectivityServer
+End_Struct
+
+Struct tConnectivityDriver
+    String sName
+    String sNameAbr
+    String sManufacturer
+    String sDll
+    Boolean bLoaded
+    tConnectivityServer[] aServers
+End_Struct
+
+Global_Variable tConnectivityDriver[] gaConnectivityDrivers
+
+Global_Variable Integer oTableDriverFunctions
+
+Object _oTableDriverFunctions is a cObject
+    Move Self to oTableDriverFunctions
+
+            Procedure _AddDriver tConnectivityDriver[] ByRef aDrivers Integer iDriver String sName String sDll String sManufacturer
+                Move sName to aDrivers[iDriver].sName
+                Move sDll to aDrivers[iDriver].sDll
+                Move sManufacturer to aDrivers[iDriver].sManufacturer
+            End_Procedure
+
+            Procedure _register_known_drivers
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_ERROR      "(Error)"           ""         ""            ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_UNKNOWN    "Unknown"           ""         ""            ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_DATAFLEX   "Embedded"          "DATAFLEX" "Data Access" ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_PERVASIVE  "Pervasive"         "DFBTRDRV" "Data Access" ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_ORACLE     "Oracle"            "ORA_DRV"  "Mertech"     ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_MS_SQL     "MS-SQL (MT)"       "SQL_DRV"  "Mertech"     ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_DB2        "DB/2"              "DB2_DRV"  "Data Access" ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_ODBC       "ODBC"              "ODBC_DRV" "Data Access" ""
+                Send _AddDriver (&gaConnectivityDrivers) TD_DRIVER_MS_SQL_DAW "MS-SQL (DAW)"      "MSSQLDRV" "Data Access" ""
+                // If any drivers are missing, let me know @ sture@stureaps.dk
+            End_Procedure
+            Send _register_known_drivers    
+    
+    Procedure CallBackDrivers Integer hMsg Integer hObj
+        Integer iMax iIndex
+        For iIndex from TD_DRIVER_DATAFLEX to (TD_DRIVER_MAX-1)
+            Send hMsg of hObj gaConnectivityDrivers[iIndex]
+        Loop
+    End_Procedure
+    
+    //> All known drivers except the embedded driver.
+    Function ForeignDriverArray Returns String[]
+        Integer iMax iIndex
+        String[] aDrivers
+        For iIndex from (TD_DRIVER_DATAFLEX+1) to (TD_DRIVER_MAX-1)
+            Move gaConnectivityDrivers[iIndex].sDll to aDrivers[SizeOfArray(aDrivers)]
+        Loop
+        Function_Return aDrivers
+    End_Function
+
+    Function DriverDllToId String sDll Returns Integer
+        Integer iSize iDriver
+        Move (trim(Uppercase(sDll))) to sDll
+        If (sDll<>"") Begin
+            Move (SizeOfArray(gaConnectivityDrivers)) to iSize
+            Decrement iSize
+            For iDriver from TD_DRIVER_DATAFLEX to iSize
+                If (gaConnectivityDrivers[iDriver].sDll=sDll) Begin
+                    Function_Return iDriver
+                End
+            Loop
+        End
+        Function_Return TD_DRIVER_UNKNOWN // Is not zero
+    End_Function
+
+    Function DriverIdToName Integer iDriver Returns String
+        Function_Return gaConnectivityDrivers[iDriver].sName
+    End_Function
+
+    Function DriverIdToDll Integer iDriver Returns String
+        Function_Return gaConnectivityDrivers[iDriver].sDll
+    End_Function
+
+    //> Retrieve driver index as used by driver atrributes setting's and getting's
+    Function DriverIndex String sDriver Returns Integer
+        Integer iNumberOfDrivers iDriverIndex
+        String sTest 
+        Get_Attribute DF_NUMBER_DRIVERS to iNumberOfDrivers
+        Move (Uppercase(sDriver)) to sDriver
+        For iDriverIndex from 1 to iNumberOfDrivers
+            Get_Attribute DF_DRIVER_NAME of iDriverIndex to sTest
+            If (Uppercase(sTest)=sDriver) Begin
+                Function_Return iDriverIndex
+            End
+        Loop
+        Function_Return 0 // Driver not loaded
+    End_Function
+    
+    Function DriverRevision String sDriver Returns String
+        Handle hoCLIHandler
+        String sVersion
+        Get Create U_cCLIHandler to hoCLIHandler
+        Set psDriverID of hoCLIHandler to sDriver
+        Get CKRevision of hoCLIHandler to sVersion
+        Send Destroy of hoCLIHandler
+        Function_Return sVersion
+    End_Function
+
+    Function TableDatabaseHandle Integer iTable Integer ByRef iDriverIndex Integer ByRef iServerIndex Returns Integer
+        String sDriver sServer sLogin
+        Integer hDatabase iNumServers
+        Integer iDriverIndexX iServerIndexX
+        Get_Attribute DF_FILE_DRIVER of iTable to sDriver
+        Get_Attribute DF_FILE_LOGIN of iTable to sLogin
+        Get DriverIndex sDriver to iDriverIndexX
+        If (iDriverIndexX>0) Begin
+            Get_Attribute DF_DRIVER_NUMBER_SERVERS of iDriverIndexX to iNumServers
+            For iServerIndexX from 1 to iNumServers
+                Get_Attribute DF_DRIVER_SERVER_NAME of iDriverIndexX iServerIndexX to sServer
+                If (sServer=sLogin) Begin
+                    Get_Attribute DF_DATABASE_ID of iDriverIndexX iServerIndexX to hDatabase
+                    Move iDriverIndexX to iDriverIndex
+                    Move iServerIndexX to iServerIndex
+                    Function_Return hDatabase
+                End
+            Loop
+        End
+        Function_Return 0
+    End_Function
+    
+    Function TableCacheTimeout Integer iTable Returns Integer
+        Integer hDatabaseHandle iDriverIndex iServerIndex iTimeOutMS
+        Get TableDatabaseHandle iTable (&iDriverIndex) (&iServerIndex) to hDatabaseHandle
+        If (hDatabaseHandle>0) Begin
+            Get_Attribute DF_DATABASE_FIND_CACHE_TIMEOUT of iDriverIndex hDatabaseHandle to iTimeOutMS
+        End
+        Else Begin
+            Error 232 ("Could not get cache timeout for table "+String(iTable))
+        End
+        Function_Return iTimeOutMS
+    End_Function
+    
+    //> It actually influences all tables opened on the
+    Procedure Set TableCacheTimeout Integer iTable Integer iTimeOutMS
+        Integer hDatabaseHandle iDriverIndex iServerIndex
+        Get TableDatabaseHandle iTable (&iDriverIndex) (&iServerIndex) to hDatabaseHandle
+        If (hDatabaseHandle>0) Begin
+            Set_Attribute DF_DATABASE_FIND_CACHE_TIMEOUT of iDriverIndex hDatabaseHandle to iTimeOutMS
+        End
+        Else Begin
+            Error 231 ("Could not set cache timeout for table "+String(iTable))
+        End
+    End_Procedure
+End_Object

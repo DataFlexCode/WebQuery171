@@ -1,0 +1,1032 @@
+// String functions encapsulated in oStringFunctions (SturesPublicLibrary)
+
+//> The oStringFunctions.pkg package defines an object called oStringFunctions that encapsulates a number of
+//> general purpose string functions.
+//>
+//> For example, to call the function NumberToString the syntax is therefore
+//>
+//>     get NumberToString of oStringFunctions 3.1415926 3 to sResult
+//>
+//> or on expressional form
+//>
+//>     move (NumberToString(oStringFunctions,3.1415926,3)) to sResult
+//>
+//> (both of the above examples places the result "3.142" in string variable sResult)
+//>
+//> Since quite a number of functions in this package are concerned with formatting numbers
+//> a general note is in its place. Converting numbers to strings was never very difficult
+//> in VDF. Simply move a number to a string, end of conversion. However, that type of conversion
+//> leaves you no control over the number of decimals in the resulting string.
+//>
+//>     String sValue
+//>     Move 2.500 to sValue
+//>
+//> places the value "2.5" in the string variable because a number moved to a string variable
+//> gets truncated at the least significant digit that is non-zero (after the decimal point). The
+//> NumberToString function mentioned just above, or one of its cousins, helps you overcome this.
+//>
+//> pkg.doc.end
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+// Internally for use with wildcard* functions
+Enum_List
+    Define _WILDC_THE_HARD_WAY         //>
+    Define _WILDC_ALWAYS_TRUE          //> *
+    Define _WILDC_EQUAL                //> Sture
+    Define _WILDC_LEFT_MATCH           //> Sture*
+    Define _WILDC_RIGHT_MATCH          //> *Andersen
+    Define _WILDC_LEFT_AND_RIGHT_MATCH //> Sture*Andersen
+    Define _WILDC_CONTAINS             //> *B*
+    Define _WILDC_CONTAINS_WORDONLY
+End_Enum_List
+
+Enum_List
+    Define _WILDC_CONSTANT
+    Define _WILDC_QUESTIONMARK
+    Define _WILDC_ASTERISK
+End_Enum_List
+
+Struct tWildCardEvalSequenceItem
+    Integer iType // 0=constant 1=? 2=*
+    String sValue // Only relevant when iType is 0
+End_Struct
+
+//> A value of this type describes a series of string comparisons to perform
+//> in order to validate a string against a particular mask. The WildCard* functions
+//> defined in the cStringFunctions class uses this.
+Struct tWildCardEvalSequence
+    // The properties defined here are used only to try to optimize
+    // the evaluation sequence.
+    Integer iAltStrategy
+    // If an alternative strategy is active, can we use it to accept a
+    // value (bAltStrategyRejectOnly=TRUE) or must we run it the hard
+    // way afterwards (bAltStrategyRejectOnly=FALSE)?
+    Boolean bAltStrategyRejectOnly
+    String  sAltStrategyLeftValue
+    String  sAltStrategyRightValue
+    tWildCardEvalSequenceItem[] aSequence
+End_Struct
+
+String gStr$ReversedCollateString 255
+
+Struct _tsfMaxArgSize
+    Integer iSize
+    Boolean bSet
+End_Struct
+
+Global_Variable _tsfMaxArgSize[] _gasfMAS
+
+//> The oStringFunctions object is based on the cStringFunctions class.
+Class cStringFunctions is a cObject
+    
+    Procedure Construct_Object
+        Integer iAscii
+        Forward Send Construct_Object
+        //> The coolest little property
+        Property String psDecimalSeparator
+        Property Boolean _pbInsertThousandsSeparators False
+
+        Get_Attribute DF_DECIMAL_SEPARATOR to iAscii
+        Set psDecimalSeparator to (Character(iAscii))
+        
+        Property String psWildCardWordCharacters "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_#0123456789"
+        
+        Property String _psCurrentCollateString ""
+    End_Procedure
+
+    //> 
+    Procedure MaxArgumentSizeAdjust Integer iSize Boolean bDownsizeIfPossible
+        Integer iCurrentSize iIndex
+        Boolean bSet
+        Move (SizeOfArray(_gasfMAS)) to iIndex
+        Get_Argument_Size to iCurrentSize
+        Move (iSize>iCurrentSize or bDownsizeIfPossible) to bSet
+        If (bSet) Begin
+            Set_Argument_Size iSize
+            Move iCurrentSize to _gasfMAS[iIndex].iSize
+        End
+        Move bSet to _gasfMAS[iIndex].bSet
+    End_Procedure
+    
+    //> See: Class:cStringFunctions,Procedure:MaxArgumentSizeAdjust
+    Procedure MaxArgumentSizeRestore
+        Integer iIndex iSize
+        Move (SizeOfArray(_gasfMAS)-1) to iIndex
+        If (iIndex>=0) Begin
+            If (_gasfMAS[iIndex].bSet) Begin
+                Move _gasfMAS[iIndex].iSize to iSize
+                Set_Argument_Size iSize
+            End
+            Move (ResizeArray(_gasfMAS,iIndex)) to _gasfMAS
+        End
+        Else Begin
+            Error 666 "Unbalanced argument size push/pop (StringFunctions.pkg)"
+        End
+    End_Procedure
+    
+    Function MaxArgumentSize Returns Integer
+        Integer iCurrentSize
+        Get_Argument_Size to iCurrentSize
+        Function_Return iCurrentSize
+    End_Function
+
+    Function CurrentCollateString Returns String
+        Integer iChar iItem iMax hArr
+        String sValue
+        If (_psCurrentCollateString(Self)="") Begin
+            Get Create U_Array to hArr
+            Send Delete_Data of hArr
+            For iChar from 32 to 255
+                Set Value of hArr (iChar-32) to (Character(iChar))
+            Loop
+            Send Sort_Items of hArr Ascending // This reveals the true sorting of the current runtime.
+            Get Item_Count of hArr to iMax
+            Decrement iMax
+            Move "" to sValue
+            For iItem from 0 to iMax
+                Move (sValue+Value(hArr,iItem)) to sValue
+            Loop
+            Send Destroy of hArr
+            Set _psCurrentCollateString to sValue
+        End
+        Function_Return (_psCurrentCollateString(Self))
+    End_Function
+    
+    //> Flip string
+    Function ReverseString String sValue Returns String
+        Integer iLen iPos
+        String sRval sChar
+        Move "" to sRval
+        Move (Length(sValue)) to iLen
+        For iPos from 1 to iLen 
+            Move (Mid(sValue,1,iPos)+sRval) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+    
+    //> Negate value so that sorting it as a string will reverse the direction of the original value
+    Function NegateString String sValue Returns String
+        Integer iPos iLen
+        String sRval sChar
+        Move (length(sValue)) to iLen
+        Move "" to sRval
+        For iPos from 1 to iLen
+            Move (Mid(sValue,1,iPos)) to sChar
+            Move (sRval+Mid(gStr$ReversedCollateString,1,Ascii(sChar))) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+    
+        Function _CurrentCollateStringReversed Returns String
+            Function_Return (ReverseString(Self,CurrentCollateString(Self)))
+        End_Function
+        
+    //> Function rPos returns the position of the last occurance of sSubString in sHostString. If
+    //> there are no occurances, 0 will be returned.
+    //>
+    //> Parameters:
+    //>     sSubString: The sequence of characters to be searched for.
+    //>     sHostString: The string in which to search for the 'sub string'.
+    //>
+    //>     returns: The highest position at which the 'sub string' was found. 0 if it wasn't.
+    //>
+    //> Examples:
+    //>
+    //>     get rPos of oStringFunctions "be" "tobeornottobe" to iPos // returns 12 to iPos
+    //>
+    Function rPos String sSubString String sHostString Returns Integer
+        Integer iPos iSubLen
+        If (Length(sSubString)=0) Function_Return 0
+        Move (Length(sHostString)-Length(sSubString)+1) to iPos
+        Move (Length(sSubString)) to iSubLen
+        While (iPos>0)
+            If (Mid(sHostString,iSubLen,iPos)=sSubString) Function_Return iPos
+            Decrement iPos
+        End
+        Function_Return 0 // not found
+    End_Function
+
+    //> Function rRemove removes iNumChars characters from the right end of sValue.
+    Function rRemove String sValue Integer iNumChars Returns String
+        Function_Return (Left(sValue,Length(sValue)-iNumChars))
+    End_Function
+
+//  //> Function RightFromPos returns the right part of the string starting at position iPos.
+//  Function RightFromPos String sValue Integer iPos Returns String
+//      Function_Return (remove(sValue,1,iPos-1))
+//  End_Function
+
+    Function BeginsWith String sHostString String sLeadInCharacters Returns Boolean
+        If (Length(sLeadInCharacters)>Length(sHostString)) Function_Return False
+        Function_Return (Left(sHostString,Length(sLeadInCharacters))=sLeadInCharacters)
+    End_Function
+
+    Function EndsWith String sHostString String sTrailingCharacters Returns Boolean
+        If (Length(sTrailingCharacters)>Length(sHostString)) Function_Return False
+        Function_Return (Right(sHostString,Length(sTrailingCharacters))=sTrailingCharacters)
+    End_Function
+
+    Function SearchPos String sSubString String sHostString Integer iStartPos Returns Integer
+        Integer iRval
+        Move (Pos(sSubString,Remove(sHostString,1,iStartPos-1))) to iRval
+        If (iRval) Move (iRval+iStartPos-1) to iRval
+        Function_Return iRval
+    End_Function
+
+    Function psThousandsSeparator Returns String
+        If (psDecimalSeparator(Self)=",") Function_Return "." // Dot
+        Function_Return "," // Comma
+    End_Function
+
+    //> The string sValue is returned right justified in a string of length iLen
+    Function RightAdjust String sValue Integer iLen Returns String
+        Move (Trim(sValue)) to sValue
+        Move (Repeat(" ", 0 max (iLen-length(sValue)))+sValue) to sValue
+        Function_Return sValue
+    End_Function
+
+    //> Inserts thousands separators into the number passed.
+    Function InsertThousandsSeparators String sValue Returns String
+        Integer iPos
+        Boolean bNegative
+        String sDecimalSeparator sThousandsSeparator
+
+        Move (Trim(sValue)) to sValue
+        Move (Left(sValue,1)="-") to bNegative
+
+        If (bNegative) Move (Remove(sValue,1,1)) to sValue // if (lbNegative) get StringRightBut sValue 1 to sValue
+
+        Get psDecimalSeparator to sDecimalSeparator
+        Move (Pos(sDecimalSeparator,sValue)) to iPos
+        If (iPos=0) Move (Length(sValue)+1) to iPos
+ 
+        Get psThousandsSeparator to sThousandsSeparator
+
+        While (iPos>4)
+            Move (iPos-3) to iPos
+            Move (Insert(sThousandsSeparator,sValue,iPos)) to sValue
+        Loop
+        If (bNegative) Move ("-"+sValue) to sValue
+        Function_Return sValue
+    End_Function
+
+    //> Removes thousands separators from the string passed and dares comvert it into a number.
+    Function RemoveThousandsSeparators String sValue Returns Number
+        Move (Replaces(psThousandsSeparator(Self),sValue,"")) to sValue
+        Function_Return (Number(sValue))
+    End_Function
+
+    //> Calling the function below will convert the number passed in nNumber to a
+    //> string containing iDecimals decimals rounding excess decimals. Parameter iDecimals
+    //> may be negative. The expression (NumberToString(oStringFunctions,1789,-3)) will evaluate to "2000".
+    //> The function handles a maximum of 8 decimals.
+    Function NumberToString Number nValue Integer iDecimals Returns String
+        Integer iPos iAscii
+        Number nCorr
+        String sRval sDecimalSeparator
+        If (iDecimals<0) Function_Return (NumberToString(Self,nValue*(10^iDecimals),0)+left("00000000",-iDecimals))
+        Move (0.5/(10^iDecimals)) to nCorr
+        If (nValue>=0) Move (nCorr+nValue) to nValue
+        Else Move (nValue-nCorr) to nValue
+        Get_Attribute DF_DECIMAL_SEPARATOR to iAscii
+        Move (Character(iAscii)) to sDecimalSeparator
+        Move nValue to sRval
+        If (not(Pos(sDecimalSeparator,sRval))) Move (sRval+sDecimalSeparator) to sRval
+        Move (sRval+"00000000") to sRval
+        Move (Pos(sDecimalSeparator,sRval)) to iPos
+        If (iDecimals=0) Decrement iPos
+        Move (Left(sRval,iPos+iDecimals)) to sRval
+        If (_pbInsertThousandsSeparators(Self)) Get InsertThousandsSeparators sRval to sRval
+        Function_Return sRval
+    End_Function
+
+    //> This function is the same as NumberToString except that you have to specify
+    //> the length of the return value (iLen). The number will be right
+    //> justified accordingly. Post-fix `R' means right adjust.
+    Function NumberToStringR Number nValue Integer iDecimals Integer iLen Returns String
+        Function_Return (RightAdjust(Self,NumberToString(Self,nValue,iDecimals),iLen))
+    End_Function
+
+    //> Function NumberToStringTS is the same as NumberToString except that thousands
+    //> separators are inserted. (TS=Thousands Separator)
+    Function NumberToStringTS Number nValue Integer iDecimals Returns String
+        String sRval
+        Set _pbInsertThousandsSeparators to True
+        Get NumberToString nValue iDecimals to sRval
+        Set _pbInsertThousandsSeparators to False
+        Function_Return sRval
+    End_Function
+
+    //> This function is identical to NumberToStringTS except that you have to specify
+    //> the length of the return value (iLen). The return value will be right
+    //> justified accordingly.
+    Function NumberToStringRTS Number nValue Integer iDecimals Integer iLen Returns String
+        String sRval
+        Get NumberToStringTS nValue iDecimals to sRval
+        Get RightAdjust sRval iLen to sRval
+        Function_Return sRval
+    End_Function
+
+    //> The number nValue is rounded to 0 decimals and returned right justified in a string of
+    //> length iLen. Lead in blanks are substituted for zeros (zf=zero fill).
+    Function IntegerToStringRzf Number nValue Integer iLen Returns String
+        String sRval
+        Get NumberToStringR nValue 0 iLen to sRval
+        Function_Return (replaces(" ",sRval,"0"))
+    End_Function
+    
+    Function StringToNumber String sValue Returns Number
+        String sDec sNotDec
+        Number nValue
+        Get psDecimalSeparator to sDec
+        Get psThousandsSeparator to sNotDec
+        Move (Replace(sNotDec,sValue,sDec)) to sValue
+        Move sValue to nValue
+        Function_Return nValue
+    End_Function
+
+    //> Use this function to obtain the number of the least significant "non zero
+    //> decimal in nValue. 0.702 will return 3 while 100 will return -2.
+    Function NumberOfDecimals Number nValue Returns Integer
+        Integer iCount
+        String sNumber sDecimalSeparator
+
+        If (nValue=0) Function_Return 0 // Special case
+        Move nValue to sNumber // This removes superflous decimals
+
+        Get psDecimalSeparator to sDecimalSeparator
+        If (pos(sDecimalSeparator,sNumber)) Function_Return (length(sNumber)-pos(sDecimalSeparator,sNumber))
+
+        Move 0 to iCount
+        While (right(sNumber,1)="0")
+            Move (left(sNumber,length(sNumber)-1)) to sNumber
+            Decrement iCount
+        End
+        Function_Return iCount
+    End_Function
+
+    //> IsInteger returns True if the value held by the sValue parameter is an integer (the function does not handle thousand seps).
+    //> Note that even if this function returns True it may still not be possible to 'Move' the value to an integer variable. This will
+    //> be the case if the value falls outside of the integer value range (-2147483648 to 2147483647)
+    Function IsInteger String sValue Returns Boolean
+        Integer iPos iLen
+        Move (Trim(sValue)) to sValue
+        If (Left(sValue,1)="-") Move (Replace("-",sValue,"")) to sValue
+        Move (Length(sValue)) to iLen
+        For iPos from 1 to iLen
+            If (not(Pos(Mid(sValue,1,iPos),"0123456789"))) begin
+                Function_Return False
+            End
+        Loop
+        Function_Return True
+    End_Function
+
+    //> This function returns True if sValue is a number or an integer (the function does not handle thousand seps)
+    //> Note that even if this function returns True it may still not be possible to 'Move' the value to a number variable. This will
+    //> be the case if the value falls outside of the number value range (+/-99999999999999.99999999)
+    Function IsNumber String sValue String sDecimalSeparator Returns Boolean
+        Integer iLen iPos iAscii
+        Boolean bDecSepFound
+        String sChar sSep
+        Move False to bDecSepFound
+        Move (Trim(sValue)) to sValue
+        If (Left(sValue,1)="-") Begin
+            Move (Replace("-",sValue,"")) to sValue
+        End
+        If (num_arguments>1) Begin
+            Move sDecimalSeparator to sSep
+            If (not(",." contains sSep)) Begin // This error check may be removed in january 1st 2013
+                Error 666 "Decimal separator must be ',' or '.'"
+            End
+        End
+        Else Begin
+            Get_Attribute DF_DECIMAL_SEPARATOR to iAscii
+            Move (Character(iAscii)) to sSep
+        End
+        Move (Length(sValue)) to iLen
+        For iPos from 1 to iLen
+            Move (Mid(sValue,1,iPos)) to sChar
+            If (sChar=sSep) Begin
+                If bDecSepFound Function_Return False
+                Move True to bDecSepFound
+            End
+            Else If (not("0123456789" contains sChar)) Begin 
+                Function_Return False
+            End
+        Loop
+        Function_Return True
+    End_Function
+    
+    //> Convert a byte value (0-255) to its hex equivalent. Passing for example 27 makes it return "1B".
+    Function ByteToHex Integer iByte Returns String
+        Function_Return (Mid("0123456789ABCDEF",1,iByte/16+1)+Mid("0123456789ABCDEF",1,(iByte iand 15)+1))
+    End_Function
+
+    //> Convert a hexadecimal value to its byte equivalent: Passing "FF" for example makes it return 255.
+    Function HexToByte String sHex Returns Integer
+        Move (Uppercase(sHex)) to sHex
+        Function_Return (Pos(Left(sHex,1),"0123456789ABCDEF")-1*16+Pos(Right(sHex,1),"0123456789ABCDEF")-1)
+    End_Function
+    
+    Function IsHex String sHex Returns Boolean
+        Integer iLen iPos
+        String sChar
+        Move (Length(sHex)) to iLen
+        If (((iLen/2)*2)<>iLen) Function_Return False // Must be an equal number of characters
+        Move (Uppercase(sHex)) to sHex
+        For iPos from 1 to iLen
+            Move (Mid(sHex,1,iPos)) to sChar
+            If not ("0123456789ABCDEF" contains sChar) Function_Return False
+        Loop
+        Function_Return True
+    End_Function
+
+    //> Convert a string of characters to a string of hexadecimal values.
+    Function StringToHex String sValue Returns String
+        Integer iLen iPos
+        String sRval
+        Move (Length(sValue)) to iLen
+        Move "" to sRval
+        For iPos from 1 to iLen
+            Move (String(sRval)+String(ByteToHex(Self,Ascii(Mid(sValue,1,iPos))))) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+    //> Convert a string of hexadecimal values to a string of characters.
+    Function HexToString String sValue Returns String
+        Integer iLen iPos
+        String sRval
+        Move (Length(sValue)/2) to iLen
+        Move "" to sRval
+        For iPos from 1 to iLen
+            Move (String(sRval)+Character(HexToByte(Self,Mid(sValue,2,iPos*2-1)))) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+                    Function _iEncryptXor.iii Integer iXval Integer iYval Integer iBitCount Returns Integer // Private
+                        Integer iRval iBit iXbit iYbit iBitExp
+                        Move 0 to iRval
+                        For iBit from 0 to (iBitCount-1)
+                            Move (2^iBit) to iBitExp
+                            Move ((iXval/iBitExp)-(((iXval/iBitExp)/2)*2)) to iXbit
+                            Move ((iYval/iBitExp)-(((iYval/iBitExp)/2)*2)) to iYbit
+                            If (iXbit<>iYbit) Move (iRval+iBitExp) to iRval
+                        Loop
+                        Function_Return iRval
+                    End_Function
+
+    // The same function (Encrypt) is used to encrypt and decrypt a string:
+    //
+    //          Encrypt(string,code)
+    //                  |  Encrypt(encrypted_string,key)
+    //                  |                      |
+    //                  v                      v
+    //        <string> --> <encrypted string> --> <string>
+    //
+    // The code used to encrypt a string may be any integer value and must
+    // be the same when decrypting.
+    //
+    // Note that this is a very very weak encryption that can be decoded 
+    // easily. It only obscures the content from poeple that do not want
+    // to know.
+
+    Function Encrypt String sInput Integer iKey Integer iLen Returns String
+        Integer iPos
+        String sRval
+        Move "" to sRval
+        For iPos from 1 to iLen
+            Move (sRval+character(_iEncryptXor.iii(Self,ascii(mid(pad(sInput,iLen),1,iPos)),((iKey+(iPos*7)) iand 31),8))) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+    //> The SplitString procedure splits the value in sValue into a number of items based on the character in the sSeparatorChar
+    //> parameter. These items are returned (by reference) in the aValues parameter.
+    //>
+    //> Parameters:
+    //>     sValue: The string to be divided into items.
+    //>
+    //>     sSeparatorChar:  determines which character(s) is considered a "dividing" character.
+    //>     bIgnoreDoubleSeparators: if two or more separater characters are encountered in immediate
+    //>                      succession, this parameter decides whether they should be considered
+    //>                      as one divider or as a number of separate dividers.
+    //>     bProtectQuotes:  if this is true, strings in quotes (single or double) will not be
+    //>                      scanned for separating characters.
+    //>     aValues:         The result. Any values present at the time of calling are removed as
+    //>                      part of the procedure initialization.
+    //>
+    Procedure SplitString String sValue String sSeparatorChar Boolean bIgnoreDoubleSeparators Boolean bProtectQuotes String[] ByRef aValues
+        Integer iLen       // Length of the string we are parsing
+        Integer iItem      // Pointer to the next available index in the target array (aValues)
+        Integer iStartItem // Number of items originally in the target array
+        Integer iPos       // The current position in the string (sValue) we are parsing
+
+        String  sChar      // The character currently being examined by the loop
+        String  sItem      // The value of the next item as it is being built
+        String  sQuoteChar // If " or ', we are currently in a quoted section of the string
+        String  sQuotes    // Quotation characters: "'
+
+        Move "" to sQuoteChar
+
+        Move (ResizeArray(aValues,0)) to aValues
+        Move 0 to iStartItem
+
+        Move iStartItem to iItem
+        Move (length(sValue)) to iLen
+        Move "" to sItem
+        Move ("'"+'"') to sQuotes
+
+        Move 1 to iPos
+        If (bIgnoreDoubleSeparators) Begin // Leadin separating characters are to be disregarded, we advance the position accordingly
+            While (iPos<=iLen and sSeparatorChar contains mid(sValue,1,iPos))
+              Increment iPos
+            End
+        End
+        While (iPos<=iLen)
+            Move (mid(sValue,1,iPos)) to sChar
+            Increment iPos
+
+            If (sQuoteChar<>"") Begin
+                If (sChar=sQuoteChar) Begin
+                    Move "" to sQuoteChar
+                End
+                Move (sItem+sChar) to sItem
+            End
+            Else Begin // We're not in a quote
+                If (sSeparatorChar contains sChar) Begin
+                    Move sItem to aValues[iItem]
+                    Increment iItem
+                    Move "" to sItem
+
+                    If (bIgnoreDoubleSeparators) Begin // succeeding separating characters are to be considered as one, we advance the position accordingly
+                        While (iPos<=iLen and sSeparatorChar contains mid(sValue,1,iPos))
+                          Increment iPos
+                        End
+                    End
+                End
+                Else If (bProtectQuotes<>0 and sQuotes contains sChar and Trim(sItem)="") Begin
+                    Move sChar to sQuoteChar
+                    Move (sItem+sChar) to sItem
+                End
+                Else Begin
+                    Move (sItem+sChar) to sItem
+                End
+            End
+        End
+
+        // Added "or not(bIgnoreDoubleSeparators)" to the below statement to add the last item, even if it's blank
+        If (sItem<>"" or not(bIgnoreDoubleSeparators)) Begin
+            Move sItem to aValues[iItem]
+            Increment iItem
+        End
+    End_Procedure // SplitString
+    
+            Function _SplitStringReverse String[] aValues String sSeparator Integer iMinIndex Integer iMaxIndex Returns String
+                Integer iIndex
+                String sRval
+                String sValue
+                         
+                Move (iMaxIndex min (SizeOfArray(aValues)-1)) to iMaxIndex
+                Move (iMinIndex max 0) to iMinIndex
+                
+                Move "" to sRval
+                For iIndex from iMinIndex to iMaxIndex
+                    Move aValues[iIndex] to sValue
+                    Move (sRval+sValue) to sRval
+                    If (iIndex<>iMaxIndex) Begin
+                        Move (sRval+sSeparator) to sRval
+                    End
+                Loop
+                Function_Return sRval
+            End_Function
+    
+    Function JoinString String[] aValues String sSeparator Integer iSkipHead Integer iSkipTail Returns String 
+        Integer iMax
+        Move (SizeOfArray(aValues)-1) to iMax
+        Function_Return (_SplitStringReverse(Self,aValues,sSeparator,iSkipHead,iMax-iSkipTail))
+    End_Function
+    
+//    Function SplitStringHead String sValue String sSeparatorChar Integer bIgnoreDoubleSeparators Integer bProtectQuotes Returns String
+//        String[] aValues
+//        Send SplitString sValue sSeparatorChar bIgnoreDoubleSeparators bProtectQuotes (&aValues)
+//        If (SizeOfArray(aValues)) Function_Return aValues[0]
+//        Function_Return ""
+//    End_Function
+//    
+//    Procedure SplitStringTail String sValue String sSeparatorChar Integer bIgnoreDoubleSeparators Integer bProtectQuotes String[] ByRef aValues
+//        Integer iSize
+//        Send SplitString sValue sSeparatorChar bIgnoreDoubleSeparators bProtectQuotes (&aValues)
+//        Move (SizeOfArray(aValues)) to iSize
+//        If (iSize>1) Move (CopyArray(aValues,1,iSize-1)) to aValues
+//        Else Move (ResizeArray(aValues,0)) to aValues
+//    End_Procedure
+    
+            Procedure _WildCardAddItem tWildCardEvalSequence ByRef sSequence Integer iType String sValue // Private
+                Integer iSize
+                Move (SizeOfArray(sSequence.aSequence)) to iSize
+                Move iType to sSequence.aSequence[iSize].iType
+                Move sValue to sSequence.aSequence[iSize].sValue
+            End_Procedure
+
+            Procedure _WildCardOptimizeSequence tWildCardEvalSequence ByRef sSequence // Private
+                Integer iSize
+
+                Move (SizeOfArray(sSequence.aSequence)) to iSize
+                Move _WILDC_THE_HARD_WAY to sSequence.iAltStrategy
+                Move False to sSequence.bAltStrategyRejectOnly
+                If (iSize=1) Begin
+                    If (sSequence.aSequence[0].iType=_WILDC_ASTERISK) Move _WILDC_ALWAYS_TRUE to sSequence.iAltStrategy
+                    If (sSequence.aSequence[0].iType=_WILDC_CONSTANT) Begin
+                        Move _WILDC_EQUAL to sSequence.iAltStrategy
+                        Move sSequence.aSequence[0].sValue to sSequence.sAltStrategyLeftValue
+                    End
+                End
+                Else if (iSize>0) Begin
+                    If (sSequence.aSequence[0].iType=_WILDC_CONSTANT) Begin // If leftmost is a constant
+                        If (sSequence.aSequence[iSize-1].iType=_WILDC_CONSTANT) Begin // if rightmost is also a constant
+                            If (iSize=3 and sSequence.aSequence[1].iType=_WILDC_ASTERISK) Begin
+                                Move _WILDC_LEFT_AND_RIGHT_MATCH to sSequence.iAltStrategy
+                                Move sSequence.aSequence[0].sValue to sSequence.sAltStrategyLeftValue
+                                Move sSequence.aSequence[iSize-1].sValue to sSequence.sAltStrategyRightValue
+                            End
+                            Else Begin
+                                Move _WILDC_LEFT_AND_RIGHT_MATCH to sSequence.iAltStrategy
+                                Move sSequence.aSequence[0].sValue to sSequence.sAltStrategyLeftValue
+                                Move sSequence.aSequence[iSize-1].sValue to sSequence.sAltStrategyRightValue
+                                Move True to sSequence.bAltStrategyRejectOnly
+                            End
+                        End
+                        Else Begin
+                            If (iSize=2 and sSequence.aSequence[1].iType=_WILDC_ASTERISK) Begin
+                                Move _WILDC_LEFT_MATCH to sSequence.iAltStrategy
+                                Move sSequence.aSequence[0].sValue to sSequence.sAltStrategyLeftValue
+                            End
+                            Else Begin
+                                Move _WILDC_LEFT_MATCH to sSequence.iAltStrategy
+                                Move sSequence.aSequence[0].sValue to sSequence.sAltStrategyLeftValue
+                                Move True to sSequence.bAltStrategyRejectOnly
+                            End
+                        End
+                    End
+                    Else Begin
+                        If (sSequence.aSequence[iSize-1].iType=_WILDC_CONSTANT) Begin // If rightmost is a constant
+                            If (iSize=2 and sSequence.aSequence[0].iType=_WILDC_ASTERISK) Begin
+                                Move _WILDC_RIGHT_MATCH to sSequence.iAltStrategy
+                                Move sSequence.aSequence[iSize-1].sValue to sSequence.sAltStrategyRightValue
+                            End
+                            Else Begin
+                                Move _WILDC_RIGHT_MATCH to sSequence.iAltStrategy
+                                Move sSequence.aSequence[iSize-1].sValue to sSequence.sAltStrategyRightValue
+                                Move True to sSequence.bAltStrategyRejectOnly
+                            End
+                        End
+                        Else Begin // Now we check if first and last are asterisks
+                            If (iSize=3 and sSequence.aSequence[0].iType=_WILDC_ASTERISK and sSequence.aSequence[1].iType=_WILDC_CONSTANT and sSequence.aSequence[2].iType=_WILDC_ASTERISK) Begin
+                                Move _WILDC_CONTAINS to sSequence.iAltStrategy
+                                Move sSequence.aSequence[1].sValue to sSequence.sAltStrategyLeftValue
+                            End
+                        End
+                    End
+                End
+            End_Procedure
+
+    Function WildCardEvalSequence String sMask Returns tWildCardEvalSequence
+        Integer iLen iPos
+        String sItem sChar
+        tWildCardEvalSequence sSequence
+        Move _WILDC_THE_HARD_WAY to sSequence.iAltStrategy
+        Move (Replaces("**",sMask,"*")) to sMask // Simple reduction
+        Move (Length(sMask)) to iLen
+        Move "" to sItem
+        For iPos from 1 to iLen
+            Move (Mid(sMask,1,iPos)) to sChar
+            If (sChar="*") Begin
+                If (sItem<>"") Begin
+                    Send _WildCardAddItem (&sSequence) _WILDC_CONSTANT sItem
+                    Move "" to sItem
+                End
+                Send _WildCardAddItem (&sSequence) _WILDC_ASTERISK ""
+            End
+            Else If (sChar="?") Begin
+                If (sItem<>"") Begin
+                    Send _WildCardAddItem (&sSequence) _WILDC_CONSTANT sItem
+                    Move "" to sItem
+                End
+                Send _WildCardAddItem (&sSequence) _WILDC_QUESTIONMARK ""
+            End
+            Else Move (sItem+sChar) to sItem
+        Loop
+        If (sItem<>"") Send _WildCardAddItem (&sSequence) _WILDC_CONSTANT sItem
+        Send _WildCardOptimizeSequence (&sSequence)
+        Function_Return sSequence
+    End_Function
+    
+    Function WildCardEvalSequences String[] aMasks Returns tWildCardEvalSequence[]
+        Integer iItem iMax
+        tWildCardEvalSequence[] aSeq
+        Move (SizeOfArray(aMasks)-1) to iMax
+        For iItem from 0 to iMax
+            Get WildCardEvalSequence aMasks[iItem] to aSeq[iItem]
+        Loop
+        Function_Return aSeq
+    End_Function
+    
+    Procedure AddWildCardEvalSequence String sMask tWildCardEvalSequence[] ByRef aEvalSequences
+        Integer iIndex
+        Move (SizeOfArray(aEvalSequences)) to iIndex
+        Get WildCardEvalSequence sMask to aEvalSequences[iIndex]
+    End_Procedure
+
+    Procedure AddWildCardEvalSequences String[] aMasks tWildCardEvalSequence[] ByRef aEvalSequences
+        Integer iIndex iMax
+        Move (SizeOfArray(aMasks)-1) to iMax
+        For iIndex from 0 to iMax
+            Send AddWildCardEvalSequence aMasks[iIndex] (&aEvalSequences)
+        Loop
+    End_Procedure
+
+            Function _WildCardMatchRecursive Integer iItem String sValue tWildCardEvalSequence ByRef sSequence Returns Boolean // Private
+                Integer iMax iType iLen iPos
+                String sItem
+                Move (SizeOfArray(sSequence.aSequence)) to iMax
+                If (iItem>=iMax) Begin
+                    If (sValue="") Function_Return True
+                    Function_Return False
+                End
+                Move sSequence.aSequence[iItem].iType to iType
+                If (iType=_WILDC_CONSTANT) Begin // constant
+                    If (length(sValue)=0) Function_Return False
+                    Move sSequence.aSequence[iItem].sValue to sItem
+                    Move (length(sItem)) to iLen
+                  //If (sItem=left(sValue,iLen)) Function_Return (_WildCardMatchRecursive(Self,iItem+1,RightFromPos(Self,sValue,iLen+1),&sSequence))
+                    If (sItem=left(sValue,iLen)) Function_Return (_WildCardMatchRecursive(Self,iItem+1,Remove(sValue,1,iLen),&sSequence))
+                    Function_Return 0
+                End
+                If (iType=_WILDC_QUESTIONMARK) Begin // ?
+                    If (length(sValue)=0) Function_Return False
+                  //Function_Return (_WildCardMatchRecursive(Self,iItem+1,RightFromPos(Self,sValue,2),&sSequence))
+                    Function_Return (_WildCardMatchRecursive(Self,iItem+1,Remove(sValue,1,1),&sSequence))
+                End
+                If (iType=_WILDC_ASTERISK) Begin // *
+                    If (iItem=(iMax-1)) Function_Return True
+                    Move (length(sValue)) to iLen
+                    For iPos from 0 to iLen
+                      //If (_WildCardMatchRecursive(Self,iItem+1,RightFromPos(Self,sValue,iPos+1),&sSequence)) Function_Return True
+                        If (_WildCardMatchRecursive(Self,iItem+1,Remove(sValue,1,iPos),&sSequence)) Function_Return True
+                    Loop
+                End
+                Function_Return False
+            End_Function
+            
+#IF (FMAC_VERSION < 15)
+            Function _PosEx String sSubString String sHostString Integer iStartingPosition Returns Integer
+                Integer iPos
+                If (iStartingPosition>0) Begin
+                    Move (Remove(sHostString,1,iStartingPosition-1)) to sHostString
+                End
+                Move (Pos(sSubString,sHostString)) to iPos
+                If (iPos>0) Begin
+                    Move (iPos+iStartingPosition) to iPos
+                End
+                Function_Return iPos
+            End_Function
+#ENDIF
+    Function WildCardMatch String sValue tWildCardEvalSequence sSequence Returns Boolean
+        Integer iPos iPosEnd
+        String sWordCharacters
+        If (sSequence.iAltStrategy=_WILDC_ALWAYS_TRUE) Function_Return True
+        If (sSequence.iAltStrategy=_WILDC_EQUAL) Function_Return (sValue=sSequence.sAltStrategyLeftValue)
+        If (sSequence.iAltStrategy=_WILDC_LEFT_MATCH) Begin
+            If (sSequence.bAltStrategyRejectOnly) Begin
+                If (not(BeginsWith(Self,sValue,sSequence.sAltStrategyLeftValue))) Begin
+                    Function_Return False
+                End
+            End
+            Else Function_Return (BeginsWith(Self,sValue,sSequence.sAltStrategyLeftValue))
+        End
+        If (sSequence.iAltStrategy=_WILDC_RIGHT_MATCH) Begin
+            If (sSequence.bAltStrategyRejectOnly) Begin
+                If (not(EndsWith(Self,sValue,sSequence.sAltStrategyRightValue))) Begin
+                    Function_Return False
+                End
+            End
+            Else Function_Return (EndsWith(Self,sValue,sSequence.sAltStrategyRightValue))
+        End
+        If (sSequence.iAltStrategy=_WILDC_LEFT_AND_RIGHT_MATCH) Begin
+            If (sSequence.bAltStrategyRejectOnly) Begin
+                If (not(BeginsWith(Self,sValue,sSequence.sAltStrategyLeftValue) and EndsWith(Self,sValue,sSequence.sAltStrategyRightValue))) Begin
+                    Function_Return False
+                End
+            End
+            Else Function_Return (BeginsWith(Self,sValue,sSequence.sAltStrategyLeftValue) and EndsWith(Self,sValue,sSequence.sAltStrategyRightValue))
+        End
+        If (sSequence.iAltStrategy=_WILDC_CONTAINS) Begin
+            Function_Return (sValue contains sSequence.sAltStrategyLeftValue)
+        End
+        If (sSequence.iAltStrategy=_WILDC_CONTAINS_WORDONLY) Begin
+            Move 1 to iPos
+            Get psWildCardWordCharacters to sWordCharacters
+            While (iPos>0)
+#IF (FMAC_VERSION < 15)
+                Get _PosEx sSequence.sAltStrategyLeftValue sValue iPos to iPos
+#ELSE
+                Move (Pos(sSequence.sAltStrategyLeftValue,sValue,iPos)) to iPos
+#ENDIF                
+                If (iPos>0) Begin
+                    If (iPos=1 or not(sWordCharacters contains Mid(sValue,1,iPos-1))) Begin
+                        Move (iPos+Length(sSequence.sAltStrategyLeftValue)) to iPosEnd
+                        If (iPosEnd>Length(sValue) or not(sWordCharacters contains Mid(sValue,1,iPosEnd))) Begin
+                            Function_Return True
+                        End
+                    End
+                    Increment iPos
+                End
+            Loop
+            Function_Return False
+        End
+        Function_Return (_WildCardMatchRecursive(Self,0,sValue,&sSequence))
+    End_Function
+
+    Function WildCardMatchAny String sValue tWildCardEvalSequence[] aSequences Returns Boolean
+        Integer iItm iMax
+        Move (SizeOfArray(aSequences)) to iMax
+        Decrement iMax
+        For iItm from 0 to iMax
+            If (WildCardMatch(Self,sValue,aSequences[iItm])) Function_Return True
+        Loop
+        Function_Return False
+    End_Function
+
+    Function WildCardMatchAll String sValue tWildCardEvalSequence[] aSequences Returns Boolean
+        Integer iItm iMax
+        Move (SizeOfArray(aSequences)) to iMax
+        Decrement iMax
+        For iItm from 0 to iMax
+            If not (WildCardMatch(Self,sValue,aSequences[iItm])) Function_Return False
+        Loop
+        Function_Return True
+    End_Function
+
+    Function UppercaseFirstLetters String sValue Returns String
+        Boolean bInWord
+        Integer iLen iPos
+        String sRval sChar
+        Move (Lowercase(sValue)) to sValue
+        Move (Length(sValue)) to iLen
+        Move 0 to bInWord
+        For iPos from 1 to iLen
+            Move (Mid(sValue,1,iPos)) to sChar
+            If (sChar="") Move False to bInWord
+            Else Begin
+                If (not(bInWord)) Begin
+                    Move (Uppercase(sChar)) to sChar
+                    Move True to bInWord
+                End
+            End
+            Move (sRval+sChar) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+    // Knut Sparhell pointed to this address for a thorough explanation: http://www.merriampark.com/ld.htm
+    Function LongestCommonSequence String sWord1 String sWord2 Returns Integer
+        Integer iLen1 iLen2
+        Integer iPos1 iPos2
+        Integer[][] aArray
+        Move (length(sWord1)) to iLen1
+        Move (length(sWord2)) to iLen2
+        If (iLen1=0 or iLen2=0) Function_Return 0
+        For iPos1 from 1 to iLen1
+            Move 0 to aArray[iPos1][0]
+            For iPos2 from 1 to iLen2
+                If (iPos1=1) Move 0 to aArray[0][iPos2]
+                If (mid(sWord1,1,iPos1)=mid(sWord2,1,iPos2)) Begin
+                    Move (aArray[iPos1-1][iPos2-1]+1) to aArray[iPos1][iPos2]
+                End
+                Else If (aArray[iPos1-1][iPos2]>=aArray[iPos1][iPos2-1]) Begin
+                    Move aArray[iPos1-1][iPos2] to aArray[iPos1][iPos2]
+                End
+                Else Begin
+                    Move aArray[iPos1][iPos2-1] to aArray[iPos1][iPos2]
+                End
+            Loop
+        Loop
+        Function_Return aArray[iLen1][iLen2]
+    End_Function
+
+    //> Returns the number of faulty keystrokes needed for sWord1 to accidentally become sWord2 (called the "Levenshtein distance")
+    Function SpellingDistance String sWord1 String sWord2 Returns Integer
+        Integer iLCS iMaxLen
+        Move (length(sWord1) max length(sWord2)) to iMaxLen
+        Get LongestCommonSequence sWord1 sWord2 to iLCS
+        Function_Return (iMaxLen-iLCS)
+        Function_Return (Length(sWord1)+Length(sWord2)-iLCS-iLCS)
+    End_Function
+
+    Define GPW_VOCALS     for "aeiouy"
+    Define GPW_CONSONANTS for "bcdfghjklmnpqrstvwxz"
+
+    //> This function generates a password composed from a number of random syllables (consonant+vocal). The iLen
+    //> parameter specifues the number of syllables (and therefore half the length of the return value measured in characters)
+    Function GenerateRandomPassword Integer iLen Returns String
+        Integer iPos iPosV iPosC iLenV iLenC
+        String sRval
+        Move (Length(GPW_CONSONANTS)) to iLenC
+        Move (Length(GPW_VOCALS)) to iLenV
+        For iPos from 1 to iLen
+            Move (Random(iLenC)) to iPosC
+            Move (Random(iLenV)) to iPosV
+            Move (sRval+Mid(GPW_CONSONANTS,1,iPosC+1)+Mid(GPW_VOCALS,1,iPosV+1)) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+    Function QuickHtmlEncode String sValue Returns String
+        Integer iLen iPos
+        String sRval sChar
+        Move (Length(sValue)) to iLen
+        For iPos from 1 to iLen
+            Move (Mid(sValue,1,iPos)) to sChar
+            If (sChar='"') Move (sRval+"&quot;") to sRval
+            Else If (sChar="&") Move (sRval+"&amp;") to sRval
+            Else If (sChar="<") Move (sRval+"&lt;") to sRval
+            Else If (sChar=">") Move (sRval+"&gt;") to sRval
+            Else Move (sRval+sChar) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+    
+    Function MakeColumnNameNice String sLabel Returns String
+        Integer iPos iLen
+        String sRval sChar
+        If (sLabel=Uppercase(sLabel)) Begin
+            Move (Lowercase(sLabel)) to sLabel
+        End
+        Move (Replaces("_",sLabel," ")) to sLabel
+        Move (Length(sLabel)) to iLen
+        Move (Left(sLabel,1)) to sRval
+        For iPos from 2 to iLen
+            Move (Mid(sLabel,1,iPos)) to sChar
+            If (sChar=Uppercase(sChar)) Begin
+                Move (sRval+" ") to sRval
+            End
+            Move (sRval+sChar) to sRval
+        Loop
+        Move (Replaces("  ",sRval," ")) to sRval
+        Function_Return (UppercaseFirstLetters(Self,sRval))
+    End_Function
+    
+    Procedure StripQuotes String ByRef sValue
+        Integer iLen
+        String sFirst sLast
+        Move (Length(sValue)) to iLen
+        If (iLen>1) Begin
+            Move (Left(sValue,1)) to sFirst
+            Move (Right(sValue,1)) to sLast
+            If (("'"+'"') contains sFirst and sFirst=sLast) Begin
+                Move (Mid(sValue,iLen-2,2)) to sValue
+            End
+        End
+    End_Procedure
+    
+    Function AddQuotes String ByRef sValue String sQuoteToCharacterPreferred Returns Boolean
+        If (sQuoteToCharacterPreferred="") Begin
+            Move '"' to sQuoteToCharacterPreferred
+        End                           
+        
+        If (Pos(sQuoteToCharacterPreferred,sValue)>0) Begin
+            Move (If(sQuoteToCharacterPreferred="'",'"',"'")) to sQuoteToCharacterPreferred
+        End
+        If (Pos(sQuoteToCharacterPreferred,sValue)=0) Begin
+            Move (sQuoteToCharacterPreferred+sValue+sQuoteToCharacterPreferred) to sValue
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+#IFNDEF Is$WebApp // If Windows application
+    Procedure Info_Box_String_Debug String sValue
+        Integer iPos iLength
+        String sShow
+        String[] aValues
+        Move (Length(sValue)) to iLength
+        For iPos from 1 to iLength
+            Move (String(Ascii(Mid(sValue,1,iPos)))) to aValues[iPos-1]
+        Loop
+        Get JoinString aValues "," 0 0 to sShow
+        Send Info_Box sShow
+    End_Procedure
+#ENDIF
+End_Class
+
+Global_Variable Integer oStringFunctions
+
+Object _oStringFunctions is a cStringFunctions 
+    Move Self to oStringFunctions
+    // This only needs to be done once in the lifetime of the app. 
+    Get _CurrentCollateStringReversed to gStr$ReversedCollateString
+    Move (Repeat(" ",31)+gStr$ReversedCollateString) to gStr$ReversedCollateString
+End_Object

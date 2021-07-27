@@ -1,0 +1,118 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebList.pkg
+Use cWebColumn.pkg
+Use cWebQueryFunctions.pkg
+
+Object oWqTableSelection is a cWebModalDialog
+    Set psCaption to "Select Table"
+    Set piMinWidth to 800
+    Set piMinHeight to 500
+    Set pbServerOnSubmit to true    // enable the OnSubmit event
+    Set pbServerOnShow to True
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oTablesList is a cWebList
+            Set pbFillHeight to True
+            Set pbDataAware  to False
+            
+            Object oNumCol is a cWebColumn
+                Set psCaption to "Num"
+                Set piWidth to 5
+                Set peDataType to typeNumber
+            End_Object
+            
+            Object oDipCol is a cWebColumn
+                Set psCaption to "Display Name"
+                Set piWidth to 45
+            End_Object
+            
+            Object oDFCol is a cWebColumn
+                Set psCaption to "DF Name"
+                Set piWidth to 15
+            End_Object
+            
+            Object oRootCol is a cWebColumn
+                Set psCaption to "Root Name"
+                Set piWidth to 35
+            End_Object
+            
+            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                wqTableInfo[] tTabs
+                Integer i
+                
+                Get TableInfo of ghoWQF to tTabs
+                
+                For i from 0 to (SizeOFArray(tTabs) - 1)
+                    Move tTabs[i].iNum      to aTheRows[i].aValues[0]
+                    Move tTabs[i].iNum      to aTheRows[i].aValues[1]
+                    Move tTabs[i].sDispName to aTheRows[i].aValues[2]
+                    Move tTabs[i].sDFName   to aTheRows[i].aValues[3]
+                    Move tTabs[i].sRootName to aTheRows[i].aValues[4]
+                Loop
+                
+            End_Procedure  // OnManualLoadData
+            
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 4
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object 
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+        End_Object 
+    End_Object 
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        //  Do some calculations / saves / validations here ..
+        Forward Send Ok
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure TabListPopup Handle hObj
+        Send Popup hObj
+    End_Procedure  //TabListPopup
+    
+    Procedure OnShow
+        Send GridRefresh of oTablesList
+    End_Procedure  // OnShow
+    
+    Function TableSelected Returns Handle
+        Handle  hTab
+        
+        WebGet psCurrentRowID of oTablesList to hTab
+        Function_Return hTab
+    End_Function  // TableSelected
+    
+End_Object

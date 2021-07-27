@@ -1,0 +1,2182 @@
+/* - - - - - - Generic style - - - - - - */
+
+/*
+The following style is used by the JavaScript framework to determine wether the theme is properly 
+loaded. Please do not remove this style!
+*/
+#df_load_test{
+    height: 10px;
+}
+
+body{
+    font-family: Lucida Sans Unicode, Lucida Grande, Arial, Arial, Helvetica, 'Trebuchet MS', sans-serif;
+    font-size: 80%;
+    color: #212B38;
+    line-height: 1.2;
+}
+
+/*  TODO: Find out why we did this and if we really need this?
+.WebApp *:focus, .WebView *:focus{  
+    outline: none;
+} */ 
+
+
+
+.WebDateForm_Mask, .WebWindow_Mask{
+    background-color: #000000;
+}
+.WebWindow_Mask{
+    filter: alpha(opacity=50);
+    opacity: 0.5;
+}
+.WebDateForm_Mask{
+    filter: alpha(opacity=20);
+    opacity: 0.2;
+}
+
+
+
+/* - - - - - - WebApp - - - - - - */
+.WebApp .WebApp_ViewRegion{
+    
+}
+.WebApp > .WebCon_Sizer >.WebCon_Main{
+    padding: 20px 15px 20px 15px;
+}
+.WebApp.WebContainer {
+    background: #E0E4CC;
+
+    background-image: linear-gradient(bottom, #E0E4CC 0%, #DCE0C6 100%);
+    background-image: -moz-linear-gradient(bottom, #E0E4CC 0%, #DCE0C6 100%);
+    background-image: -webkit-linear-gradient(bottom, #E0E4CC 0%, #DCE0C6 100%);
+    background-image: -ms-linear-gradient(bottom, #E0E4CC 0%, #DCE0C6 100%);
+    
+}
+.df-ie8 .WebApp.WebContainer, .df-ie9 .WebApp.WebContainer{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#E0E4CC', EndColorStr='#DCE0C6', GradientType=0);
+}
+
+
+/* - - - - - - WebPanel - - - - - - */
+
+.WebPanel > .WebPanel_DividerVertical {
+    background: url('divider-dots-vertical.png') no-repeat center center #F2F3F5;
+    width:6px;
+    height: 150px;
+    margin: auto auto;
+}
+
+.WebPanel_divider_ghost {
+    background-color: transparent;
+    border-right: 1px dashed #B1B1B1;
+    width:1px;
+}
+
+.WebPanel > .WebPanel_DividerHorizontal {
+    background: url('divider-dots-horizontal.png') no-repeat center center #F2F3F5;
+    width:150px;
+    height: 6px;
+    margin: auto auto;
+}
+
+.WebPanel_DividerVertical_Ghost{
+    border-left: 2px dotted #C4D274;
+}
+.WebPanel_DividerHorizontal_Ghost{
+    border-top: 2px dotted #C4D274;
+}
+
+/* Panel directly under webapp */
+.WebApp > .WebCon_Sizer >.WebCon_Main > .WebContainer{
+    margin-right: 15px;
+}
+
+/* - - - - - - WebContainer - - - - - -  */
+/* Margins inside the container */
+.WebContainer .WebCon_Content{
+    padding: 5px;
+}
+ 
+ 
+/* - - - - - - WebView - - - - - -  */ 
+.WebView{
+    
+}
+
+.WebView > div > label{
+    background-color: #FFFFFF;
+    padding: 8px 10px 9px 10px;
+    margin: 0px 0px 0px 0px;
+    color: #313436;
+    font-size: 13px;
+    font-weight: bold;
+    display: inline-block;
+    -webkit-border-top-left-radius: 4px;
+    -webkit-border-top-right-radius: 4px;
+    -moz-border-radius-topleft: 4px;
+    -moz-border-radius-topright: 4px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+/*
+Dirty little trick that adds the rounded border on top without screwing anything up
+*/
+.WebView  > div.WebCon_Inner > div:before{
+    -webkit-border-top-right-radius: 4px;
+    -moz-border-radius-topright: 4px;
+    border-top-right-radius: 4px;
+    background: #FFFFFF;
+    content: '';
+    display: block;
+    height: 4px;
+    margin-top: -4px;
+}
+
+/*
+This sets the background color for views & panels
+*/
+.WebContainer, .WebTabContainer .WebTbc_Body .WebContainer{
+    background-color: #FFFFFF;
+}
+.WebWindow .WebContainer{
+    background-color: #E0E4CC;
+}
+
+/* - - - - - - WebControl - - - - - - */
+.WebControl > div.WebCon_Inner{
+    margin: 3px 3px 3px 3px; 
+}
+.WebList > div.WebCon_Inner{
+    margin: 0px 0px 0px 0px; 
+}
+
+/*
+    The label is displayed as block with a fixed width or height. It can be located on the left, right 
+    or at the top of the control. When a control has a label the inner div will get the WebCon_HasLabel
+    class and if left right or top is set explicitly it will also get WebCon_LeftLabel, 
+    WebCon_RightLabel or WebCon_TopLabel. If no position class is set the theme CSS determines where it 
+    is shown.
+*/
+.WebControl > div > label{
+    width: 126px;
+    padding: 5px 2px 2px 2px;
+    -moz-user-select: none;
+}
+
+.WebControl > div.WebCon_HasLabel > div{
+    margin-left: 130px;
+}
+
+.WebControl > div.WebCon_LeftLabel > div{
+   margin-left: 130px;
+}
+
+.WebControl > div.WebCon_RightLabel > label{
+    float: left;
+}
+
+.WebControl > div.WebCon_RightLabel > div{
+   margin-right: 130px;
+   margin-left: 0px;
+}
+
+.WebControl > div.WebCon_RightLabel > label{
+    float: right;
+}
+
+.WebControl > div.WebCon_TopLabel > div{
+    margin-left: 0px;
+}
+
+.WebControl > div.WebCon_TopLabel > label{
+    padding-bottom: 4px;
+    float: none;
+    width: auto;
+}
+
+.WebControl > div.WebCon_Inner > div{
+    
+}
+
+/* This defines the border used arround the WebForm, WebCombo & WebEdit */
+.WebControl .WebFrm_Wrapper{
+    padding: 3px;  
+    background-color: #FDFDFD;
+    border: 1px solid #BEBEBE;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+}
+.df-ie .WebControl .WebFrm_Wrapper{
+    border-radius: 4px;
+}
+
+.WebControl.WebCon_Focus > div > div > .WebFrm_Wrapper{
+    box-shadow: 0 0 2px #8E9947;
+    border: 1px solid #8E9947;
+}
+.WebControl.WebError div > div > div.WebFrm_Wrapper{
+    border: 1px solid #E40000;
+}
+.WebControl.WebError.WebCon_Focus div > div > div.WebFrm_Wrapper{
+    box-shadow: 0 0 2px #C10000;
+}
+
+.WebControl.Web_Disabled > div > div > .WebFrm_Wrapper{
+    background-color: #F8F8F8;
+}
+.WebControl.Web_Disabled input, .WebControl.Web_Disabled select {
+    color: #686668;
+}
+
+
+
+/* - - - - - - WebForm - - - - - - */
+.WebForm input{
+    background-color: transparent;
+    height: 18px;
+}
+
+.WebForm .WebFrm_Prompt{
+    width: 16px;
+    height: 16px;
+    border: 1px solid transparent;
+    border-radius: 2px 2px 2px 2px;
+    background: transparent url('WC_ActionIcons.png') no-repeat 0px -50px;
+}
+
+.WebForm.Web_Disabled .WebFrm_Prompt{
+    opacity: 0.5;
+    filter: alpha(opacity=50);
+}
+.WebForm.Web_Enabled .WebFrm_Prompt:hover{
+    border: 1px solid #ADB967;
+    background-color: #C4D274;  
+}
+
+.WebForm .WebFrm_HasPrompt .WebFrm_PromptSpacer{
+    margin-right: 20px;
+}
+
+
+/* - - - - - - WebButton - - - - - - */
+.WebButton > div.WebCon_Inner{
+    margin: 1px 3px 2px;
+}
+
+.WebButton button{
+    -moz-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    -webkit-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    box-shadow:inset 0px 1px 0px 0px #ffffff;
+
+    /*
+    background:linear-gradient( center top, #ededed 5%, #dfdfdf 100% );
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8cmFkaWFsR3JhZGllbnQgaWQ9Imc3OSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGN4PSI1MCUiIGN5PSIwJSIgcj0iNTAlIj4KPHN0b3Agc3RvcC1jb2xvcj0iI0VERURFRCIgb2Zmc2V0PSIwLjA1Ii8+PHN0b3Agc3RvcC1jb2xvcj0iI0RGREZERiIgb2Zmc2V0PSIxIi8+CjwvcmFkaWFsR3JhZGllbnQ+CjxyZWN0IHg9Ii01MCIgeT0iLTUwIiB3aWR0aD0iMTAxIiBoZWlnaHQ9IjEwMSIgZmlsbD0idXJsKCNnNzkpIiAvPgo8L3N2Zz4=);
+    background-size: 100% 100%;
+    
+    background-color:#ededed;
+    
+    -moz-border-radius:4px;
+    -webkit-border-radius:4px;
+    border-radius:4px;
+    border:1px solid #C7C7C7;
+    display:inline-block;
+    color:#292B2D;
+    font-family:helvetica, arial;
+    font-size:12px;
+    font-weight:bold;
+    padding: 5px 4px 5px;
+    min-height: 26px;
+    text-decoration:none;
+    text-shadow:1px 1px 0px #F0F0F0;
+    cursor: pointer;
+}
+.df-safari .WebButton button{
+    background-image: none;
+    background-image: -webkit-linear-gradient(bottom, #EDEDED 5%, #DFDFDF 100%);
+}
+.df-ie8 .WebButton button{
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#EDEDED', endColorstr='#DFDFDF');
+    min-height: 17px;
+}
+
+.WebButton.Web_Enabled button:hover, 
+.WebButton.Web_Enabled.WebCon_Focus button, /* Changed from :focus for WebUploadBtn */
+.WebButton.Web_Enabled:hover button{   /* Added for WebUploadBtn */
+    outline: none;
+    /*
+    background: linear-gradient(top, #C4D274, #ADB967);
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9Imc2MzEiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiNDNEQyNzQiIG9mZnNldD0iMCIvPjxzdG9wIHN0b3AtY29sb3I9IiNBREI5NjciIG9mZnNldD0iMSIvPgo8L2xpbmVhckdyYWRpZW50Pgo8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJ1cmwoI2c2MzEpIiAvPgo8L3N2Zz4=);
+    border:1px solid #8E9947;
+}
+.df-safari .WebButton.Web_Enabled button:hover, 
+.df-safari .WebButton.Web_Enabled.WebCon_Focus button, /* Changed from :focus for WebUploadBtn */
+.df-safari .WebButton.Web_Enabled:hover button{ /* Added for WebUploadBtn */
+    background-image: none;
+    background-image: -webkit-linear-gradient(bottom, #DFDFDF 5%, #EDEDED 100%);
+}
+.df-ie8 .WebButton.Web_Enabled button:hover, 
+.df-ie8 .WebButton.Web_Enabled.WebCon_Focus button, /* Changed from :focus for WebUploadBtn */
+.df-ie8 .WebButton.Web_Enabled:hover button{ /* Added for WebUploadBtn */
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#DFDFDF', endColorstr='#EDEDED');
+}
+
+.WebButton.Web_Enabled button:active{
+}
+.WebButton.Web_Disabled button{
+    /*
+    background: linear-gradient( center top, #F4F4F4 5%, #e9e9e9 100% );
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8cmFkaWFsR3JhZGllbnQgaWQ9ImcxNSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGN4PSI1MCUiIGN5PSIwJSIgcj0iNTAlIj4KPHN0b3Agc3RvcC1jb2xvcj0iI0Y0RjRGNCIgb2Zmc2V0PSIwLjA1Ii8+PHN0b3Agc3RvcC1jb2xvcj0iI0U5RTlFOSIgb2Zmc2V0PSIxIi8+CjwvcmFkaWFsR3JhZGllbnQ+CjxyZWN0IHg9Ii01MCIgeT0iLTUwIiB3aWR0aD0iMTAxIiBoZWlnaHQ9IjEwMSIgZmlsbD0idXJsKCNnMTUpIiAvPgo8L3N2Zz4=);
+    background-color: #f4f4f4;
+    color: #8A868A;
+    cursor: default;
+}
+.df-safari .WebButton.Web_Disabled button {
+    background-image: none;
+    background-image: -webkit-linear-gradient(bottom, #F4F4F4 5%, #E9E9E9 100%);
+}
+.df-ie8 .WebButton.Web_Disabled button{
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#F4F4F4', endColorstr='#E9E9E9');
+}
+
+
+/* - - - - - - WebLabel - - - - - - */
+.WebLabel .WebLabel_content{
+    line-height: 15px;  /* This line height needs to be fixed because of rounding issues with panels */
+}
+
+
+/* - - - - - - WebCombo - - - - - - */
+.WebCombo select{
+    height: 18px;
+    display: inline;
+}
+.WebCombo .WebFrm_Wrapper{
+    height: 18px;
+    padding-left: 0px;
+}
+
+
+/* - - - - - - WebRadio - - - - - - */
+.WebRadio input{
+    margin: 5px 2px 5px;
+    height: 14px;
+}
+.WebRadio .WebRadio_Caption{
+    padding: 4px 2px 0px 0px;
+    margin-left: 20px;
+}
+.WebRadio.WebCon_Focus input{
+    box-shadow: 0 0 2px #8E9947;
+}
+/* - - - - - - WebCheckbox - - - - - - */
+.WebCheckbox input{
+    margin: 5px 2px 7px;
+    height: 14px;
+}
+.WebCheckbox .WebCheckbox_Caption{
+    padding: 4px 2px 0px 0px;
+    margin-left: 20px;
+}
+.WebCheckbox > .WebCon_Inner > div{
+    height: 24px;
+}
+.df-mozilla .WebCheckbox input:focus,
+.df-webkit .WebCheckbox input:focus{
+   outline: none;
+}
+.WebCheckbox.WebCon_Focus input{
+    box-shadow: 0 0 3px #8E9947;
+}
+
+
+/* - - - - - - WebEdit - - - - - - */
+.WebEdit div.WebFrm_Wrapper{
+    background-color: #ffffff;
+}
+.WebEdit textarea{
+    background-color: transparent;
+    
+}
+
+
+/* - - - - - - WebGrid & WebList - - - - - - */
+/*
+The grid & list share their basic styles.
+*/
+
+/*
+Add some dinstance between the grid and other controls.
+*/
+.WebGrid.WebControl > .WebCon_Inner, .WebList.WebControl > .WebCon_Inner{
+    margin: 10px 3px 3px 3px;
+}
+
+/* Body */
+.WebGrid .WebList_BodyWrp, .WebList .WebList_BodyWrp{
+    border-top: none;
+    border-right: 1px solid #E6E6E6;
+    border-bottom: 1px solid #E6E6E6;
+    border-left: 1px solid #E6E6E6;
+    background-color: #ffffff;
+}
+.WebGrid .WebList_Body, .WebList .WebList_Body{
+    
+}
+
+.WebGrid .WebList_Body .WebList_RowOdd, .WebList .WebList_Body .WebList_RowOdd{
+    background-color: #F2F3EC;
+}
+
+.WebGrid .WebList_Body .WebList_Row, .WebList .WebList_Body .WebList_Row{
+    
+}
+
+.WebGrid .WebList_Body .WebList_Row td, .WebList .WebList_Body .WebList_Row td{
+    padding-left: 6px;
+    padding-right: 6px;
+    
+    height: 24px;
+    border-left: 1px solid #ECECEC;
+}
+/* BUGFIX: Right align acts strange in IE8 with left padding so we remove it */
+.df-ie8 .WebGrid .WebList_Body .WebList_Row td.dfData_BCD, .df-ie8 .WebGrid .WebList_Body .WebList_Row td.dfData_BCD{
+    padding-left: 0px;
+}
+
+.WebGrid .WebList_Body .WebList_Row td:first-child, .WebList .WebList_Body .WebList_Row td:first-child{
+    border-left: none;
+}
+
+.WebGrid .WebList_TableWrp td.Web_Disabled{
+    color: #8A868A;
+}
+
+/* Header */
+
+.WebList th, .WebGrid th{
+    text-align: left;
+    border-left: 1px solid #D9D9DC;
+}
+.WebList th:first-child, .WebGrid th:first-child{
+    border-left: none;
+}
+
+.WebGrid .WebList_Head, .WebList .WebList_Head {
+    background: #F2F3F5;
+    background-image: linear-gradient(top, #FDFDFD 0%, #F2F3F5 100%);
+    background-image: -moz-linear-gradient(top, #FDFDFD 0%, #F2F3F5 100%);
+    background-image: -webkit-linear-gradient(top, #FDFDFD 0%, #F2F3F5 100%);
+    background-image: -ms-linear-gradient(top, #FDFDFD 0%, #F2F3F5 100%);
+    
+    border: 1px solid #D9D9DC;
+}
+
+.df-ie8 .WebGrid .WebList_Head, .df-ie8  .WebList .WebList_Head,
+.df-ie9 .WebGrid .WebList_Head, .df-ie9  .WebList .WebList_Head {
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#FDFDFD', EndColorStr='#F2F3F5', GradientType=0);
+}
+
+/*
+Left & Right margin are needed because of the body borders.
+*/
+.WebGrid .WebList_Head .WebList_HeadWrp, .WebList .WebList_Head .WebList_HeadWrp{
+    margin-left: 1px;
+    margin-right: 1px;
+}
+
+.WebGrid .WebList_Head th > div, .WebList .WebList_Head th > div{
+    
+}
+
+.WebGrid .WebList_Head .WebList_ColCap, .WebList .WebList_Head .WebList_ColCap{
+    overflow: hidden;
+    white-space: nowrap;
+    padding: 8px 6px 4px 6px;
+  
+    -moz-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    -webkit-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    box-shadow:inset 0px 1px 0px 0px #ffffff;
+
+    color:#292B2D;
+    font-family:helvetica, arial;
+    font-size:12px;
+    font-weight:bold;
+    text-decoration:none;
+    text-shadow:1px 1px 0px #ffffff;
+}
+
+/*
+This is the separator that is shown when resizing columns.
+*/
+.WebGrid .WebList_ColResizer, .WebList .WebList_ColResizer{
+    border-left: 1px dotted #AAAAAA;
+}
+
+.WebGrid .WebList_Head .WebList_Sorted, .WebGrid .WebList_Head .WebList_SortedReverse, .WebList .WebList_Head .WebList_Sorted, .WebList .WebList_Head .WebList_SortedReverse{
+    font-weight: bold;
+    background: url('WebGrid-Vert.png') no-repeat right -57px;
+}
+
+.WebGrid .WebList_Head .WebList_Sorted .WebList_ColCap, .WebGrid .WebList_Head .WebList_SortedReverse .WebList_ColCap, .WebList .WebList_Head .WebList_Sorted  .WebList_ColCap, .WebList .WebList_Head .WebList_SortedReverse  .WebList_ColCap{
+    padding-right: 20px;
+}
+
+.WebGrid .WebList_Head .WebList_SortedReverse, .WebList .WebList_Head .WebList_SortedReverse{
+    background-position: right -87px;
+}
+
+.WebGrid .WebList_Head .WebList_Sortable, .WebList .WebList_Head .WebList_Sortable{
+    text-decoration: underline;
+}
+
+.WebGrid .WebList_Head .WebList_ColHead, .WebList .WebList_Head .WebList_ColHead{
+    
+}
+
+/* - - - - - - WebList - - - - - - */
+
+.WebList.Web_Enabled .WebList_Body .WebList_Row:hover, .WebList.Web_Enabled .WebList_Body .WebList_Row:focus{
+
+}
+
+.WebGrid.WebCon_Focus .WebList_Body.WebList_ShowSelected .WebList_Row.WebList_Selected,
+.WebList.WebCon_Focus .WebList_Body.WebList_ShowSelected .WebList_Row.WebList_Selected{
+    background: #C4D274;
+    color: #212B38;
+}
+
+.WebList .WebList_Body .WebList_Row td{
+    border-top: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+}
+
+.WebGrid .WebList_Body.WebList_ShowSelected .WebList_Row.WebList_Selected,
+.WebList .WebList_Body.WebList_ShowSelected .WebList_Row.WebList_Selected{
+    background: #9EA85E;
+    color: #FFFFFF;
+}
+.WebList .WebList_Body .WebList_Row.WebList_Selected:hover{
+
+}
+.WebList .WebList_Body .WebList_Row.WebList_Selected:hover td{
+
+}
+.WebList .WebList_Body .WebList_Row.WebList_Selected td{
+ 
+}
+
+/* - - - - - - WebGrid - - - - - - */
+
+/* - - - - - - WebColumn (Overrides WebForm) - - - - - - */
+
+.WebGrid_EditCell .WebForm input{
+    height: 18px;
+    padding-right: 1px;
+}
+.df-ie8 .WebGrid_EditCell .WebForm input{
+    height: 17px;
+}
+
+.WebGrid_EditCell .WebControl > div.WebCon_Inner{
+    
+}
+
+.WebGrid_EditCell .WebControl .WebFrm_Wrapper{
+    padding: 1px 1px 1px 2px;
+    margin: 1px 3px 1px 3px;
+    background-color: #FFFFFF;
+    border: 1px solid #BABABC;
+}
+.df-mozilla .WebGrid_EditCell .WebControl .WebFrm_Wrapper{
+    padding: 1px;
+}
+.df-webkit .WebGrid_EditCell .WebControl .WebFrm_Wrapper{
+    padding: 0px 1px 2px 2px;
+}
+.df-ie8.WebGrid_EditCell .WebControl .WebFrm_Wrapper{
+    padding: 0px 1px 0px 2px;
+}
+.WebGrid_EditCell .WebControl .WebFrm_Wrapper:focus{
+    border: 1px solid #BABABC;
+}
+
+.WebGrid .WebList_Body .WebList_Row td.WebCol.WebGrid_EditCell,
+.WebGrid .WebList_Body .WebList_Row td.WebColCombo.WebGrid_EditCell{
+    padding: 0px;
+}
+
+.WebCheckboxColumn > .WebCon_Inner > div{
+    height: 18px;
+}
+
+.WebGrid .WebList_Body .WebList_Row td.WebGrid_EditCell .WebCheckboxColumn > .WebCon_Inner > div > input{
+    opacity: 1;
+}
+.WebCheckboxColumn > .WebCon_Inner > div > input{
+    vertical-align: middle;
+    opacity: 0.8;
+    margin: 2px 2px 0;
+}
+.df-ie .WebCheckboxColumn > .WebCon_Inner > div > input{
+    margin: 0px 2px 0;
+}
+.WebGrid_EditCell .WebCheckboxColumn{
+}
+
+
+/* - - - - - - WebColumnButton - - - - - - */
+
+.WebColBtn button{
+   box-shadow:inset 0px 1px 0px 0px #ffffff;
+
+    /* Background image (as used on the button) doesn't perform within the list
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8cmFkaWFsR3JhZGllbnQgaWQ9Imc3OSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGN4PSI1MCUiIGN5PSIwJSIgcj0iNTAlIj4KPHN0b3Agc3RvcC1jb2xvcj0iI0VERURFRCIgb2Zmc2V0PSIwLjA1Ii8+PHN0b3Agc3RvcC1jb2xvcj0iI0RGREZERiIgb2Zmc2V0PSIxIi8+CjwvcmFkaWFsR3JhZGllbnQ+CjxyZWN0IHg9Ii01MCIgeT0iLTUwIiB3aWR0aD0iMTAxIiBoZWlnaHQ9IjEwMSIgZmlsbD0idXJsKCNnNzkpIiAvPgo8L3N2Zz4=);
+    background-size: 100% 100%;
+    
+    */
+    
+    background-color:#ededed;
+    background: -moz-linear-gradient(top, #ededed 5%, #dfdfdf 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(5%,#ededed), color-stop(100%,#dfdfdf)); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top, #ededed 5%,#dfdfdf 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top, #ededed 5%,#dfdfdf 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top, #ededed 5%,#dfdfdf 100%); /* IE10+ */
+    background: linear-gradient(to bottom, #ededed 5%,#dfdfdf 100%); /* W3C */
+    
+    -moz-border-radius:4px;
+    -webkit-border-radius:4px;
+    border-radius:4px;
+    border:1px solid #C7C7C7;
+    display:inline-block;
+    color:#292B2D;
+    font-family:helvetica, arial;
+    font-size:12px;
+    font-weight:bold;
+    padding: 3px 2px 2px;
+    min-height: 20px;
+    text-decoration:none;
+    text-shadow:1px 1px 0px #F0F0F0;
+    
+}
+.df-safari  .WebColBtn button{
+    background-image: none;
+    background-image: -webkit-linear-gradient(bottom, #EDEDED 5%, #DFDFDF 100%);
+}
+.df-ie8 .WebColBtn button{
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#EDEDED', endColorstr='#DFDFDF');
+    min-height: 17px;
+}
+
+.WebColBtn button:hover, 
+.WebColBtn button:focus {
+    outline: none;
+    /*
+    background: linear-gradient(top, #C4D274, #ADB967);
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9Imc2MzEiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiNDNEQyNzQiIG9mZnNldD0iMCIvPjxzdG9wIHN0b3AtY29sb3I9IiNBREI5NjciIG9mZnNldD0iMSIvPgo8L2xpbmVhckdyYWRpZW50Pgo8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJ1cmwoI2c2MzEpIiAvPgo8L3N2Zz4=);
+    border:1px solid #8E9947;
+}
+
+/* - - - - - - WebTabContainer - - - - - - */
+/*
+Add some dinstance between the grid and other controls.
+*/
+.WebTabContainer.WebControl > .WebCon_Inner{
+    margin: 10px 3px 3px 3px;
+}
+
+.WebTabContainer .WebTbc_Head{
+    border-bottom: 1px solid #E6E6E6;
+}
+
+.WebTabContainer .WebTab_Btn{
+    padding-left: 6px;
+    margin: 0px 2px -1px 0px;
+    height: 26px;
+    border-top: 1px solid #E6E6E6;
+    border-right: 1px solid #E6E6E6;
+    border-bottom: none;
+    border-left: 1px solid #E6E6E6;
+    background: #E0E4CC;
+    
+    /*
+    background: linear-gradient(top, #E0E4CC, #DCE0C6);
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9Imc2ODkiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiNFMEU0Q0MiIG9mZnNldD0iMCIvPjxzdG9wIHN0b3AtY29sb3I9IiNEQ0UwQzYiIG9mZnNldD0iMSIvPgo8L2xpbmVhckdyYWRpZW50Pgo8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJ1cmwoI2c2ODkpIiAvPgo8L3N2Zz4=);
+    
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    -moz-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    -webkit-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    
+    box-shadow:inset 0px 1px 0px 0px #ffffff;
+}
+
+.df-ie8 .WebTabContainer .WebTab_Btn{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#E0E4CC', EndColorStr='#DCE0C6', GradientType=0);
+}
+.WebTabContainer .WebTab_Btn span{
+    padding-right: 6px;
+    height: 21px;
+}
+.WebTabContainer .WebTab_Btn span label{
+    height: 17px;
+    padding-top: 6px;
+    vertical-align: bottom;
+    color: #222029;
+    text-decoration: none;
+    outline: 0;
+}
+
+/*
+Focussed tab button
+*/
+.WebTabContainer .WebTab_Btn.WebTab_Enabled:hover, .WebTabContainer .WebTab_Btn.WebTab_Enabled.WebTab_Focus{
+    /*
+    background: linear-gradient(top, #C4D274, #ADB967);
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9Imc2MzEiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiNDNEQyNzQiIG9mZnNldD0iMCIvPjxzdG9wIHN0b3AtY29sb3I9IiNBREI5NjciIG9mZnNldD0iMSIvPgo8L2xpbmVhckdyYWRpZW50Pgo8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJ1cmwoI2c2MzEpIiAvPgo8L3N2Zz4=);
+    
+    border-top: 1px solid #E6E6E6;
+    border-right: 1px solid #E6E6E6;
+    border-bottom: none;
+    border-left: 1px solid #E6E6E6;
+}
+.df-ie8 .WebTabContainer .WebTab_Btn.WebTab_Enabled:hover, .df-ie8 .WebTabContainer .WebTab_Btn.WebTab_Enabled.WebTab_Focus{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#C4D274', EndColorStr='#ADB967', GradientType=0);
+}
+
+/*
+Current tab button
+*/
+.WebTabContainer .WebTab_Btn.WebTab_Current,
+.WebTabContainer .WebTab_Btn.WebTab_Current:focus{
+    border-top: 1px solid #E6E6E6;
+    border-right: 1px solid #E6E6E6;
+    border-bottom: none;
+    border-left: 1px solid #E6E6E6;
+    background: #FFFFFF;
+}
+.df-ie8 .WebTabContainer .WebTab_Btn.WebTab_Current{
+    filter: none;
+}
+
+/*
+Focussed current tab button
+*/
+.WebTabContainer .WebTab_Btn.WebTab_Focus.WebTab_Current.WebTab_Enabled, .WebTabContainer .WebTab_Btn.WebTab_Current.WebTab_Enabled:hover{
+    /*
+    background: linear-gradient(top, #C4D274 40%, #FFFFFF);
+    */
+    /*background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9Imc4MDAiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiNDNEQyNzQiIG9mZnNldD0iMC40Ii8+PHN0b3Agc3RvcC1jb2xvcj0iI0ZGRkZGRiIgb2Zmc2V0PSIxIi8+CjwvbGluZWFyR3JhZGllbnQ+CjxyZWN0IHg9IjAiIHk9IjAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9InVybCgjZzgwMCkiIC8+Cjwvc3ZnPg==);*/
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9Imc3ODEiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiNDNEQyNzQiIG9mZnNldD0iMC40Ii8+PHN0b3Agc3RvcC1jb2xvcj0iI0M0RDI3NCIgc3RvcC1vcGFjaXR5PSIwIiBvZmZzZXQ9IjEiLz4KPC9saW5lYXJHcmFkaWVudD4KPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNnNzgxKSIgLz4KPC9zdmc+);
+}
+.df-ie8 .WebTabContainer .WebTab_Btn.WebTab_Focus.WebTab_Current.WebTab_Enabled, .df-ie8 .WebTabContainer .WebTab_Btn.WebTab_Current.WebTab_Enabled:hover{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#C4D274', EndColorStr='#FFFFFF', GradientType=0);
+}
+
+
+
+.WebTabContainer .WebTbc_Body{
+    border: 1px solid #E6E6E6;
+    border-top: none;
+}
+
+.WebTabContainer .WebTab_Disabled{
+    opacity: 0.5;
+    filter: alpha(opacity=50);
+}
+
+
+/* - - - - - - WebCardContainer - - - - - - */
+
+.WebCardContainer .WebCC_BodyBorder{
+    margin: 3px;
+    border: 1px solid #BEBEBE;
+    padding: 10px;
+    border-radius: 3px;
+}
+.df-ie .WebCardContainer .WebCC_BodyBorder{
+    border-radius: 4px;
+}
+
+.WebCardContainer .WebCC_BodyBorder.WebCC_HasCaption{
+    margin-top: -7px;
+    padding-top: 15px;
+}
+
+.WebCardContainer .WebCC_LabelSpacer{
+    height: 17px;
+}
+.WebCardContainer > div > div > .WebCC_LabelSpacer > label{
+    background-color: #FFFFFF;
+    padding: 2px 4px 0px;
+    margin-left: 12px;
+    color: #313436;
+    font-weight: bold;
+}
+.WebWindow .WebCardContainer > div > div > .WebCC_LabelSpacer > label{
+    background-color: #E0E4CC;
+}
+
+
+/* - - - - - - WebMenuBar - - - - - - */
+.WebMenuBar{
+    background: #44474B;
+    /*
+    background: linear-gradient(top, #44474B, #0F1010);
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9ImczMjgiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiM0NDQ3NEIiIG9mZnNldD0iMCIvPjxzdG9wIHN0b3AtY29sb3I9IiMwRjEwMTAiIG9mZnNldD0iMSIvPgo8L2xpbmVhckdyYWRpZW50Pgo8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJ1cmwoI2czMjgpIiAvPgo8L3N2Zz4=);
+    
+    height: 40px;
+    padding: 0px 0px 0px 0px;
+    margin: 0px 5px 0px 5px;
+    -webkit-border-bottom-right-radius: 4px;
+    -webkit-border-bottom-left-radius: 4px;
+    -moz-border-radius-bottomright: 4px;
+    -moz-border-radius-bottomleft: 4px;
+    border-bottom-right-radius: 4px;
+    border-bottom-left-radius: 4px;
+}
+.df-ie8 .WebMenuBar{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#44474B', EndColorStr='#0F1010', GradientType=0);
+}
+
+.WebMenuBar ul li{
+    
+}
+
+/*
+Level 0
+*/
+.WebMenuBar > ul > li > div{
+    padding: 10px 8px 0px 8px;
+    border: 1px solid transparent;
+    font-size: 13px;
+}
+
+.WebMenuBar > ul > li > div > a{
+   color: #FFFFFF;
+}
+
+/* 'Active' state also defined on WebItm_Expanded which is applied while the submenu is shown */
+.WebMenuBar > ul > li:hover > div, .WebMenuBar > ul > li.WebItm_Expanded > div{
+
+}
+.WebMenuBar > ul > li:hover, .WebMenuBar > ul > li.WebItm_Expanded{
+    background-color: none; 
+}
+
+.WebMenuBar > ul > li:hover > div > a,.WebMenuBar > ul > li.WebItm_Expanded > div > a{
+    color: #C4D274;
+}
+
+/* Level 1 */
+
+.WebMenuBar ul li ul{
+    width: 218px;
+    
+    background-color: #ffffff;
+    
+    background-image: linear-gradient(left , #FCFCFC 0%, #F0F0F0 12%, #FFFFFF 13%);
+    background-image: -o-linear-gradient(left , #FCFCFC 0%, #F0F0F0 12%, #FFFFFF 13%);
+    background-image: -moz-linear-gradient(left , #FCFCFC 0%, #F0F0F0 12%, #FFFFFF 13%);
+    background-image: -webkit-linear-gradient(left , #FCFCFC 0%, #F0F0F0 12%, #FFFFFF 13%);
+    background-image: -ms-linear-gradient(left , #FCFCFC 0%, #F0F0F0 12%, #FFFFFF 13%);
+    
+    /*
+    We set the z-index for sub menu's because of the transparency toolbar item issue and to make 
+    them display above dialogs.
+    */
+    border: 1px solid #ffffff;
+    margin: 12px 0px 0px 0px;
+    -moz-box-shadow: 0px 0px 2px #595855; /* Firefox/Mozilla */
+    -webkit-box-shadow: 0px 0px 2px #595855; /*Safari/Chrome */
+    box-shadow: 0px 0px 2px #595855; /* Opera & hoe het zou moeten */
+}
+.df-ie8 .WebMenuBar ul li ul,
+.df-ie9 .WebMenuBar ul li ul{  /* IE8 & 9 Falls back on image */
+    background: #ffffff url(menu-background.png) repeat-y 2px 0px;
+}
+.df-ie8 .WebMenuBar ul li ul{
+    border: 1px solid #F0F0F0;
+}
+
+.WebMenuBar ul li ul li{
+    width: 216px;
+    border-top: 1px solid transparent;
+    padding: 1px 1px 1px 1px;
+}
+
+.WebMenuBar ul li ul li.WebItm_BgnGroup {
+    border-top: 1px solid #BDBDBD;
+}
+
+.WebMenuBar  ul li ul li:hover > div, .WebMenuBar  ul li ul li.WebItm_HasSub:hover > div{
+    border: 1px solid #ADB967;
+    background-color: #C4D274;
+}
+
+.WebMenuBar  ul  li  ul li > div, .WebMenuBar  ul  li  ul li.Web_Disabled:hover >div{
+    background-color: transparent;
+    border: 1px solid transparent;
+    padding: 4px 4px 4px 4px;
+    border-radius: 2px 2px 2px 2px;
+}
+
+.WebMenuBar ul li ul li.WebItm_HasSub > div {
+    background: transparent url(dropdown.png) no-repeat right 0px;
+}
+
+.WebMenuBar ul li ul li a{
+    margin-left: 12px;
+    vertical-align: middle;
+}
+
+.WebMenuItem{
+    
+}
+
+.WebMenuItem > div > span.WebItm_Icon{
+
+}
+
+.WebMenuItem > div > a, .WebMenuItem > div > a:focus{
+    color: #000000;
+}
+
+li.Web_Disabled > div {
+    opacity: 0.4;
+    filter: alpha(opacity=40);
+}
+
+/* Level 2 */
+.WebMenuBar ul li ul li ul{
+    margin: -25px 0px 0px 220px;
+}
+
+
+/* - - - - - - WebToolBar - - - - - - */
+.WebCommandBar .WebCmd_ToolWrap{
+    text-align: left;
+    /* padding: 3px 0px 3px 10px; */
+    margin: 0px 15px 0px 15px;
+    background: #E6E6E6;
+    /*
+    Use SVG Gradient image here because IE9 has problems combining regular gradients with rounded borders.
+    
+    background: linear-gradient(top, #FCFCFC, #E6E6E6);
+    */
+    background-image:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxIDEiIHByZXNlcnZlQXNwZWN0UmF0aW89Im5vbmUiPgo8bGluZWFyR3JhZGllbnQgaWQ9Imc3NTciIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CjxzdG9wIHN0b3AtY29sb3I9IiNGQ0ZDRkMiIG9mZnNldD0iMCIvPjxzdG9wIHN0b3AtY29sb3I9IiNFNkU2RTYiIG9mZnNldD0iMSIvPgo8L2xpbmVhckdyYWRpZW50Pgo8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJ1cmwoI2c3NTcpIiAvPgo8L3N2Zz4=);
+    
+    
+    -webkit-border-bottom-right-radius: 4px;
+    -webkit-border-bottom-left-radius: 4px;
+    -moz-border-radius-bottomright: 4px;
+    -moz-border-radius-bottomleft: 4px;
+    border-bottom-right-radius: 4px;
+    border-bottom-left-radius: 4px;
+    -moz-box-shadow: 0px 0px 2px #999FA2; /* Firefox/Mozilla */
+    -webkit-box-shadow: 0px 0px 2px #999FA2; /*Safari/Chrome */
+    box-shadow: 0px 0px 2px #999FA2; /* Opera & W3C */
+}
+.df-ie8 .WebCommandBar .WebCmd_ToolWrap, .df-ie9 .WebCommandBar .WebCmd_ToolWrap{   /* IE8 will fall back on filter */
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#FCFCFC', EndColorStr='#E6E6E6', GradientType=0);
+}
+
+.WebToolBar li{
+    padding: 1px;
+}
+
+.WebToolBar:focus{
+    outline: none;
+}
+
+.WebToolBar{
+    margin: 3px 5px 3px 0px;
+    padding: 1px;
+    height: 23px;
+}
+.WebToolBar:first-child{
+    margin-left: 10px;
+}
+
+/*
+Google chrome formats toolbar labels to low on middle.
+*/
+.df-webkit .WebToolBar ul > li > div > a{
+    vertical-align: top;
+}
+.WebToolBar ul > li > div > a{
+    vertical-align: middle;
+    margin-left: 4px;
+    text-shadow:1px 1px 0px #ffffff;
+}
+
+.WebToolBar ul > li > div{
+    border: 1px solid transparent;
+    padding: 2px 3px 2px 3px;
+    border-radius: 2px 2px 2px 2px;
+}
+
+.WebToolBar ul > li.Web_Enabled:hover > div{
+    border: 1px solid #ADB967;
+    background-color: #C4D274;
+}
+
+/*
+The first item in a new 'group'.
+*/
+.WebToolBar ul > li.WebItm_BgnGroup:before{
+    content: '';
+    width: 1px;
+    margin-left: -2px;
+    margin-top: 4px;
+    height: 14px;
+    background-color: #BDBDBD;
+    float: left;
+}
+.WebToolBar ul > li.WebItm_BgnGroup{
+    padding-left: 2px;
+}
+
+/*
+Default menu items
+*/
+.WebClearMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px 0px;
+}
+.WebClearAllMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -25px;
+}
+.WebPromptMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -50px;
+}
+.WebFindMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -75px;
+}
+.WebNextMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -100px;
+}
+.WebPreviousMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -125px;
+}
+.WebLastMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -150px;
+}
+.WebFirstMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -175px;
+}
+.WebSaveMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -200px;
+}
+.WebDeleteMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -225px;
+}
+
+.WebLoginMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -273px;
+}
+
+.WebLogoutMenuItem > div > span.WebItm_Icon{
+    background-image: url('WC_ActionIcons.png');
+    background-position: 0px -299px;
+}
+
+
+/* - - - - - - WebWindow - - - - - - */
+.WebWindow{
+    background-color: transparent;
+}
+
+.WebWindow .WebWin_header{
+    background: #44474B;
+    background: linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background: -o-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background: -moz-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background: -webkit-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background: -ms-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    
+    -webkit-border-top-left-radius: 4px;
+    -webkit-border-top-right-radius: 4px;
+    -moz-border-radius-topleft: 4px;
+    -moz-border-radius-topright: 4px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+.df-ie8 .WebWindow .WebWin_header, .df-ie9 .WebWindow .WebWin_header{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#44474B', EndColorStr='#0F1010', GradientType=0);
+}
+
+.WebWindow .WebWin_header_l{
+    padding-left: 3px;
+}
+
+.WebWindow .WebWin_header_r{
+    padding-right: 1px;
+}
+
+.WebWindow .WebWin_header_c{
+    height: 25px;
+    padding: 10px 0px 0px 5px;
+    background-color: transparent;
+}
+
+.WebWindow .WebWin_title{
+    padding-left: 5px;
+    color: #FFFFFF;
+}
+
+.WebWindow .WebWin_controls{
+
+}
+
+.WebWindow .WebWin_controls .WebWin_close{
+    background: transparent url('btn_close.png') no-repeat 0px 0px;
+    width: 33px;
+    height: 33px;
+    margin: -25px 0 0 -18px;
+    position: absolute;
+    text-indent: -99999px;
+}
+
+.WebWindow .WebWin_main_l{
+    padding-left: 1px;
+}
+
+.WebWindow .WebWin_main_r{
+    padding-right: 1px;
+    -moz-box-shadow: 0px 0px 2px #595855; /* Firefox/Mozilla */
+    -webkit-box-shadow: 0px 0px 2px #595855; /*Safari/Chrome */
+    box-shadow: 0px 0px 2px #595855; /* Opera & hoe het zou moeten */
+}
+
+.WebWindow .WebWin_main_c{
+    background: #E0E4CC;
+    
+    background-image: linear-gradient(top, #E0E4CC 0%, #DCE0C6 100%);
+    background-image: -moz-linear-gradient(top, #E0E4CC 0%, #DCE0C6 100%);
+    background-image: -webkit-linear-gradient(top, #E0E4CC 0%, #DCE0C6 100%);
+    background-image: -ms-linear-gradient(top, #E0E4CC 0%, #DCE0C6 100%);
+    
+    padding: 5px 0px 0px 0px;
+}
+.df-ie8 .WebWindow .WebWin_main_c, .df-ie9 .WebWindow .WebWin_main_c{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#E0E4CC', EndColorStr='#DCE0C6', GradientType=0);
+}
+.WebWindow .WebWin_bottom_l{
+    height: 1px;
+    padding-left: 1px;
+}
+
+.WebWindow .WebWin_bottom_r{
+    height: 1px;
+    padding-right: 1px;
+}
+
+.WebWindow .WebWin_resizer{
+    width: 10px;
+    height: 10px;
+    background-image: url('WebWin-Resize.png');
+}
+
+.WebWindow .WebWin_bottom_c{
+    height: 1px;
+}
+
+.WebWindow .WebWin_top_l{
+    height: 1px;
+    padding-left: 1px;
+}
+
+.WebWindow .WebWin_top_r{
+    height: 1px;
+    padding-right: 1px;
+}
+.WebWindow .WebWin_top_c{
+    height: 1px;
+}
+
+.WebWin_ghost{
+    filter: alpha(opacity=70);
+    opacity: .7;
+}
+
+
+/* - - - - - - - Date Picker - - - - - - - - */
+
+.WebDP{
+
+}
+
+/*
+Header & Button
+*/
+.WebDP .WebDP_Head {
+    background: #44474B;
+    
+    /* background: linear-gradient(top, #44474B, #0F1010); */
+    
+    background-image: linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -moz-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -webkit-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -ms-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    
+    color: #FFFFFF;
+    padding: 6px;
+    -webkit-border-top-left-radius: 4px;
+    -webkit-border-top-right-radius: 4px;
+    -moz-border-radius-topleft: 4px;
+    -moz-border-radius-topright: 4px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+.df-ie8 .WebDP .WebDP_Head , .df-ie9 .WebDP .WebDP_Head {
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#44474B', EndColorStr='#0F1010', GradientType=0);
+}
+
+.WebDP .WebDP_BtnPrev{
+    width: 13px;
+    height: 13px;
+    background: url('DatePicker.png') no-repeat center -20px;
+}
+.WebDP .WebDP_BtnNext{
+    width: 13px;
+    height: 13px;
+    background: url('DatePicker.png') no-repeat center 0px;
+}
+
+.WebDP .WebDP_BtnMonth, .WebDP .WebDP_BtnYear{
+    background: url('DatePicker.png') no-repeat right -40px;
+    padding-right: 14px;
+    margin: 0 0 0 15px;
+}
+
+.WebDP .WebDP_MonthMnu, .WebDP .WebDP_YearMnu{
+    border: 1px solid #E6E6E6;
+    background: #44474B;
+    background-image: linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -moz-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -webkit-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -ms-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    
+    -moz-box-shadow: 0px 0px 2px #999FA2; /* Firefox/Mozilla */
+    -webkit-box-shadow: 0px 0px 2px #999FA2; /*Safari/Chrome */
+    box-shadow: 0px 0px 2px #999FA2; /* Opera & hoe het zou moeten */
+    color: #FFFFFF;
+    top: 19px;
+    left: 13px;
+    z-index: 9999;
+}
+.df-ie8 .WebDP .WebDP_MonthMnu, .df-ie8 .WebDP .WebDP_YearMnu,
+.df-ie9 .WebDP .WebDP_MonthMnu, .df-ie9 .WebDP .WebDP_YearMnu{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#44474B', EndColorStr='#0F1010', GradientType=0);
+}
+
+.WebDP .WebDP_MonthMnu li, .WebDP .WebDP_YearMnu li {
+   padding: 1px 5px 1px 5px;
+   border-top: 1px solid transparent;
+   border-bottom: 1px solid transparent;
+}
+
+.WebDP .WebDP_MonthMnu li:hover, .WebDP .WebDP_YearMnu li:hover {
+    background-color: #F2F3EC;
+    border-top: 1px solid #DDDFCD;
+    border-bottom: 1px solid #DDDFCD;
+    color: #0F1010;
+}
+
+.WebDP li.WebDP_Current,
+.WebDP li.WebDP_Current:hover{
+    background-color:  #C4D274;
+    color: #323232;
+}
+
+.WebDP .WebDP_MonthMnu li:last-child, .WebDP .WebDP_YearMnu li:last-child {
+    border-bottom: none;
+}
+
+.WebDP .WebDP_MonthMnu li:first-child, .WebDP .WebDP_YearMnu li:first-child {
+    border-top: none;
+}
+
+
+.WebDP .WebDP_Up{
+   background: url('DatePicker.png') no-repeat center -100px;
+   height: 10px;
+}
+
+.WebDP .WebDP_UpDown{
+   background: url('DatePicker.png') no-repeat center -120px;
+   height: 10px;
+}
+
+.WebDP .WebDP_Down{
+   background: url('DatePicker.png') no-repeat center -60px;
+   height: 10px;
+}
+
+.WebDP .WebDP_DownDown{
+   background: url('DatePicker.png') no-repeat center -80px;
+   height: 10px;
+}
+
+/*
+Body
+*/
+.WebDP .WebDP_Body{
+    background-color: #FFFFFF;
+    border: 1px solid #E6E6E6;
+    font-size: 11px;
+}
+
+.WebDP .WebDP_Body table{
+    background-color: #FFFFFF;
+}
+
+.WebDP .WebDP_Body td{
+   padding:7px 0px;
+   width: 29px;
+   text-align: center;
+}
+
+.WebDP .WebDP_Body th{
+   font-weight: bold;
+   letter-spacing: 0px;
+}
+
+.WebDP .WebDP_Body .WebDP_Day{
+   
+}
+
+
+.WebDP .WebDP_Body .WebDP_WeekNr{
+    border-right: 1px solid #D9D9DC;
+    font-weight: bold;
+}
+
+.WebDP .WebDP_Body .WebDP_Weekend{
+   background-color: #F2F3EC;
+}
+.WebDP .WebDP_Body .WebDP_Overflow{
+   color: #C2C7CA;
+}
+
+.WebDP .WebDP_Body .WebDP_Today {
+    text-decoration: underline;
+    font-weight: bold;
+}
+.WebDP .WebDP_Body .WebDP_Selected{
+    font-weight: bold; 
+}
+
+
+
+.WebDP .WebDP_Body .WebDP_Selected:before,
+.WebDP .WebDP_Body .WebDP_Day:hover:before{
+    content: '';
+    position: absolute;
+    display: block;
+    background: transparent;
+    border: 2px solid #167BE6;
+    border-radius: 30px 30px 30px 30px;
+    height: 23px;
+    margin-left: 0px;
+    margin-top: -7px;
+    width: 25px;
+}
+.WebDP .WebDP_Body .WebDP_Day:hover:before{
+    border-color: #ADB967;
+}
+.WebDP .WebDP_Body .WebDP_Day:hover{
+    text-decoration: none;
+}
+
+.WebDP.WebCon_Focus .WebDP_Body .WebDP_Selected{
+    color: #2C2F31;
+}
+.WebDP.WebCon_Focus .WebDP_Body .WebDP_Selected:before{
+    border-color: #ADB967;
+}
+
+/*
+Next & previous animations.
+
+When changing page the WebDP_Old class is set. Then it adds the WebDP_HidePrev or WebDP_HideNext 
+class so that transformations can be used to animate this process.
+*/
+.WebDP .WebDP_Body > div{
+    width: 100%;
+    margin-left: 0%;
+}
+.WebDP .WebDP_Old{
+    position: absolute;
+    overflow: hidden;
+
+    
+    -webkit-transition: width .4s ease-in, margin-left .4s ease-in;
+    -moz-transition: width .4s ease-in, margin-left .4s ease-in;
+    -o-transition: width .4s ease-in, margin-left .4s ease-in;
+    transition: width .4s ease-in, margin-left .4s ease-in;
+}
+.WebDP .WebDP_HideNext table{
+    float: right;
+}
+.WebDP .WebDP_Body .WebDP_HidePrev{
+    margin-left: 100%;
+    width: 0%;
+    display: block;
+}
+.WebDP .WebDP_Body .WebDP_HideNext{
+    width: 0%;
+    display: block;
+}
+
+/*
+Footer
+*/
+.WebDP .WebDP_Footer{
+    -moz-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    -webkit-box-shadow:inset 0px 1px 0px 0px #ffffff;
+    box-shadow:inset 0px 1px 0px 0px #ffffff;
+
+    background: #44474B;
+
+    background-image: linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -moz-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -webkit-linear-gradient(top, #44474B 0%, #0F1010 100%);
+    background-image: -ms-linear-gradient(top, #44474B 0%, #0F1010 100%);
+
+    color: #FFFFFF;
+    padding: 4px;
+    text-align: center;
+    font-size: 11px;
+}
+
+.df-ie8 .WebDP .WebDP_Footer, .df-ie9 .WebDP .WebDP_Footer{
+    filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#44474B', EndColorStr='#0F1010', GradientType=0);
+}
+
+.WebDP .WebDP_BtnToday{
+    
+}
+.WebDP .WebDP_BtnToday:hover{
+    text-decoration: underline;
+}
+
+/* - - - - - - WebDatePicker - - - - - - */
+
+/* - - - - - - WebDateForm - - - - - - */
+
+.WebDateForm .WebFrm_Prompt{
+    /* TODO: Add datepicker icon to WC_ActionIcons.png */
+    background-position: 0px -249px;
+}
+.WebDateForm_Picker{
+    opacity: 0;
+    box-shadow: 2px 3px 2px #666666;
+    -webkit-transition: opacity .6s ease, visibility .6s ease;
+    -moz-transition: opacity .6s ease, visibility .6s ease;
+    -o-transition: opacity .6s ease, visibility .6s ease;
+    transition: opacity .6s ease, visibility .6s ease;
+
+}
+.WebDateForm_Picker.WebDF_WrapVisible{
+    opacity: 1;
+}
+
+
+/* - - - - - - WebTreeView - - - - - - - */
+
+.WebTreeView.WebCon_Focus .WebTree_Body{
+    box-shadow: 0 0 2px #CBCEB9;
+    border: 1px solid #C4D274;
+}
+
+.WebTreeView.WebCon_Focus .WebFrm_Wrapper{
+    box-shadow: 0 0 2px #CBCEB9;/*rgba(0, 0, 180, 1);*/
+    border: 1px solid #C4D274;
+}
+
+.WebTreeView .WebTree_Body{   
+    background: #F2F3F5;
+    border: 1px solid #E9E9E9;
+}
+
+.WebTreeView .WebTree_Body > table{
+    margin: 7px 3px;
+}
+
+
+.WebTreeView .WebTree_Body table, .WebTreeView .WebTree_Body tr, .WebTreeView .WebTree_Body td {
+    
+}
+
+.WebTreeView .WebTree_Loading{
+    background: #FFFFFF url('WebTreeView-LoadingBig.gif') no-repeat 10px 10px;
+}
+
+.WebTreeView .WebTree_Text{
+    margin: 0;
+    padding: 0px 0px 0px 3px;
+    color: #44474B;
+}
+
+
+.WebTreeView .WebTree_Selected  .WebTree_Text{
+    background: none;
+    color: #8E9947;
+    text-decoration: underline;
+}
+
+.WebTreeView.WebCon_Focus .WebTree_Selected .WebTree_Text{
+    background: none;
+}
+
+/*
+    Expand / collapse animation
+*/
+.WebTreeView .WebTree_SubRow .WebTree_Item {
+    height: 18px;
+}
+
+.WebTreeView .WebTree_SubRow, .WebTreeView .WebTree_SubRow  .WebTree_Text{
+    
+}
+
+.WebTreeView .WebTree_SubRow.WebTree_Expanded {
+    
+}
+
+.WebTreeView .WebTree_SubRow.WebTree_HiddenSubRow .WebTree_Expanded > td, .WebTreeView .WebTree_SubRow.WebTree_HiddenSubRow .WebTree_Collapsed > td{
+    
+}
+
+.WebTreeView .WebTree_SubRow.WebTree_HiddenSubRow{
+    display: none;
+}
+
+/*
+    Tree lines & buttons
+*/
+.WebTreeView .WebTree_Item, .WebTreeView .WebTree_Con{
+    background-repeat: repeat-y;
+    width: 20px;
+    
+    background-image: url('WebTreeView-Images.gif');
+}
+
+
+.WebTreeView .WebTree_Item{
+    height: 18px;
+}
+
+.WebTreeView .WebTree_Item div{
+    width: 20px;
+}
+
+.WebTreeView .WebTree_Expanded .WebTree_EntrySub{
+    background-position: -0px 0px;
+}
+
+.WebTreeView .WebTree_Collapsed  .WebTree_EntrySub{
+    background-position: -20px 0px;
+}
+
+.WebTreeView .WebTree_Expanded .WebTree_EndSub{
+    background-position: -40px 0px;
+}
+
+.WebTreeView .WebTree_Collapsed  .WebTree_EndSub{
+    background-position: -60px 0px;
+}
+
+.WebTreeView  .WebTree_Expanded .WebTree_StartSub{
+    background-position: -80px 0px;
+}
+
+.WebTreeView  .WebTree_Collapsed .WebTree_StartSub{
+    background-position: -100px 0px;
+}
+
+.WebTreeView .WebTree_Start{
+    background-position: -120px 0px;
+}
+
+.WebTreeView .WebTree_Entry{
+    background-position: -140px 0px;
+}
+
+.WebTreeView .WebTree_End{
+    background-position: -160px 0px;
+}
+
+.WebTreeView .WebTree_Con{
+    background-position: -180px 0px;
+}
+
+.WebTreeView  .WebTree_Expanded .WebTree_StartEndSub{
+    background-position: -200px 0px;
+}
+
+.WebTreeView  .WebTree_Collapsed .WebTree_StartEndSub{
+    background-position: -220px 0px;
+}
+
+.WebTreeView .WebTree_StartEnd{
+    background-image: none;
+}
+
+.WebTreeView .WebTree_StartEnd{
+    background-image: none;
+}
+
+/*
+    Icons
+*/
+.WebTreeView .WebTree_Icon, .WebTreeView .WebTree_Folder{
+    background-image: url('WebTreeView-Icons.gif');
+    background-repeat: no-repeat;
+    padding-left: 16px;
+    
+}
+
+.WebTreeView .WebTree_IconLoading{
+    background-image: url('WebTreeView-LoadingSmall.gif');
+    background-repeat: no-repeat;
+    padding-left: 16px;
+}
+
+.WebTreeView  .WebTree_Collapsed .WebTree_Folder{
+    background-position: 0px 1px;
+}
+
+.WebTreeView .WebTree_Expanded  .WebTree_Folder{
+    background-position: 0px -31px;
+}
+
+.WebTreeView .WebTree_Collapsed  .WebTree_Icon{
+    background-position: 0px -63px;
+}
+
+.WebTreeView .WebTree_Expanded  .WebTree_Icon{
+    background-position: 0px -63px;
+}
+
+
+/* - - - - - - - - - WebImage - - - - - - - - - - */
+.WebImage .WebImg_Box{
+    background-color: #FDFDFD;
+    border: 1px solid #BEBEBE;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+}
+
+
+/* - - - - - - - - - WebHtmlBox - - - - - - - - - - */
+.WebHtmlBox .WebHtml_Box{
+    border: 1px solid #BEBEBE;
+    padding:10px;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+}
+
+
+/* - - - - - - - - - WebSpacer - - - - - - - - - - */
+.WebSpacer > div.WebCon_Inner{
+    margin: 0px 0px 0px 0px; 
+}
+
+.WebSpacer .WebSpacer_Spacer {
+    
+}
+
+/* - - - - - - - - - WebHorizontalLine - - - - - - - - - - */
+.WebHorizontalLine hr{
+    border: 1px dotted #9FAC50;
+    margin: 15px 0px 15px 0px;
+}
+
+
+/* - - - - - - - - - ShowMessageBox - - - - - - - - - */
+.WebMsgBoxConfirm .WebLabel_content, .WebMsgBoxError .WebLabel_content, .WebMsgBoxInfo .WebLabel_content, .WebMsgBoxWarning .WebLabel_content{
+    margin-left: 70px;
+    min-height: 70px;
+}
+
+.WebMsgBoxConfirm .WebLabel_content:before {
+    width: 65px;
+    height: 65px;
+    display: block;
+    background: transparent url('WebMessageBox_Icons.png') no-repeat center 6px;
+    position: absolute;
+    margin: 0px 15px 0px -70px;
+    content: '';
+}
+
+.WebMsgBoxError .WebLabel_content:before {
+    width: 65px;
+    height: 65px;
+    display: block;
+    background: transparent url('WebMessageBox_Icons.png') no-repeat center -175px;
+    position: absolute;
+    margin: 0px 15px 0px -70px;
+    content: '';
+}
+
+.WebMsgBoxInfo .WebLabel_content:before {
+    width: 65px;
+    height: 65px;
+    background: transparent url('WebMessageBox_Icons.png') no-repeat center -56px;
+    position: absolute;
+    margin: 0px 15px 0px -70px;
+    content: '';
+}
+
+.WebMsgBoxWarning .WebLabel_content:before {
+    width: 65px;
+    height: 65px;
+    display: block;
+    background: transparent url('WebMessageBox_Icons.png') no-repeat center -115px;
+    position: absolute;
+    margin: 0px 15px 0px -70px;
+    content: '';
+}
+
+.WebMsgBoxProgress .WebLabel_content{
+    margin-left: 60px;
+    min-height: 40px;
+    padding-top: 20px;
+}
+
+
+.WebMsgBoxProgress .WebLabel_content:before {
+    width: 60px;
+    height: 60px;
+    display: block;
+    background: transparent url('LoadingBig.gif') no-repeat center center;
+    position: absolute;
+    margin: -22px 0px 0 -65px;
+    content: '';
+}
+
+.WebErrorDetails .WebHtml_Wrp{ /* Details box used with HTTP errors received from the server */
+    border: 1px solid black;
+    background-color: #FFFFFF;
+}
+
+
+/* - - - - - - - - - WebInfoBalloon - - - - - - - - - - */
+.WebInfoBalloon{
+    background-color: #C4D274;
+    border: 1px solid #C7C7C7;
+    color: #000000;
+    text-shadow:1px 1px 0px #FFFFFF;
+   
+    text-decoration: none;
+    
+    padding: 5px 8px 5px 8px;
+    line-height: 1.3em;
+    font-weight: normal; 
+    border-radius: 3px;
+    opacity: 0;
+    -webkit-transition: opacity .4s ease;
+    -moz-transition: opacity .4s ease;
+    -o-transition: opacity .4s ease;
+    transition: opacity .4s ease;
+    opacity: 0;
+    -webkit-transition: opacity .4s ease;
+    -moz-transition: opacity .4s ease;
+    -o-transition: opacity .4s ease;
+    transition: opacity .4s ease;
+
+    margin-top: 17px;
+}
+
+.WebInfoBalloon.WebInfoBalloonVisible{
+    opacity: 1;
+}
+
+
+.WebInfoBalloon_Top{
+    margin-top: 0px;
+    margin-bottom: 17px;
+}
+
+.WebInfoBalloon:before{
+    border-color: #C7C7C7 transparent;
+    border-style: solid;
+    border-width: 0 23px 17px 0;
+    margin-left: -1px;
+    left: 0px;
+    top: -17px;
+}
+
+.WebInfoBalloon_Top:before{
+    border-width: 17px 23px 0 0;
+    top: auto;
+    bottom: -17px;
+}
+
+
+.WebInfoBalloon:after{
+    border-color: #C4D274 transparent;
+    border-style: solid;
+    border-width: 0 20px 15px 0;
+    margin: 0px 0px 0px 0px;
+    left: 0px;
+    top: -15px;
+}
+
+.WebInfoBalloon_Top:after{
+    border-width: 15px 20px 0 0;
+    top: auto;    
+    bottom: -15px;    
+}
+
+/* - - - - - - - - - WebErrorTooltip - - - - - - - - - */
+.WebErrorTooltip{
+    background-color: #FBE5E5;
+    border: 1px solid #FFBFBF;
+    color: #C10000;
+    text-shadow:1px 1px 0px #ffffff;
+}
+.WebErrorTooltip:before{
+    border-color: #FFBFBF transparent;
+}
+.WebErrorTooltip:after{
+    border-color: #FBE5E5 transparent;
+}
+
+
+/* - - - - - - - - - WebIFrame - - - - - - - - - */
+.WebIFrame .WebIFrm_Box{
+    border: 1px solid #BEBEBE;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+}
+
+
+/* - - - - - - - - - WebSlider - - - - - - - - - - */
+.WebSlider .WebSlider_Wrapper{
+    outline: none;
+}
+
+
+
+/* Bar */
+.WebSlider .WebSlider_Horizontal .WebSlider_BarWrapper{
+    height: 20px;
+}
+
+.WebSlider .WebSlider_Bar{
+    background-color: #BEBEBE;
+    
+    border: 1px solid #A1A1A1;
+    border-radius: 4px;
+}
+.WebSlider.Web_Disabled .WebSlider_Bar{
+    background-color: #CBCACA;
+    border: 1px solid #C9C8C8;
+}
+.WebSlider .WebSlider_Horizontal .WebSlider_Bar{
+    height: 8px;
+    margin-top: 6px;
+    padding: 0px 10px 0px 10px;
+}
+.WebSlider .WebSlider_Vertical .WebSlider_Bar{
+    padding: 10px 0px 10px;  
+    margin-left: 5px;
+    width: 8px;
+}
+.WebSlider .WebSlider_ShowRange, .WebSlider .WebSlider_ShowRange:before{
+    background: #D9DEC0;
+}
+
+.WebSlider .WebSlider_Horizontal.WebSlider_NoRange .WebSlider_ShowRange:before{
+    content: '';
+    position: absolute;
+    margin-left: -10px;
+    top: 0px;
+    height: 6px;
+    width: 10px;
+    border-radius: 3px 0px 0px 3px;
+    left: 0px;
+}
+.WebSlider .WebSlider_Vertical.WebSlider_NoRange .WebSlider_ShowRange:before{
+    content: '';
+    position: absolute;
+    margin-top: -10px;
+    left: 0px;
+    height: 10px;
+    width: 6px;
+    border-radius: 3px 3px 0px 0px;
+}
+
+
+/* Slider */
+.WebSlider .WebSlider_Horizontal .WebSlider_SliderWrapper{
+    margin-left: 5px;
+    height: 19px
+}
+.WebSlider .WebSlider_Vertical .WebSlider_SliderWrapper{
+    margin-top: 5px;
+    width: 19px;
+}
+
+.WebSlider  .WebSlider_Slider{
+    background-image: url('Creme_Slider.png');
+}
+.WebSlider .WebSlider_Horizontal .WebSlider_Slider{
+    height: 19px;
+    width: 11px;
+	background-position: -20px 0px;
+}
+.WebSlider .WebSlider_Vertical .WebSlider_Slider {
+    height: 11px;
+    width: 19px;
+}
+
+.WebSlider.Web_Enabled.WebCon_Focus .WebSlider_Horizontal .WebSlider_Slider, .WebSlider.Web_Enabled .WebSlider_Horizontal .WebSlider_Slider:hover{
+    background-position: -20px -20px;
+}
+.WebSlider.Web_Enabled.WebCon_Focus .WebSlider_Vertical .WebSlider_Slider, .WebSlider.Web_Enabled .WebSlider_Vertical .WebSlider_Slider:hover{
+    background-position: 0px -20px;
+}
+
+
+.WebSlider.Web_Disabled  .WebSlider_Horizontal .WebSlider_Slider{
+    background-position: -20px -40px;
+}
+.WebSlider.Web_Disabled .WebSlider_Vertical .WebSlider_Slider{
+    background-position: 0px -40px;
+}
+
+
+/* Labels */
+.WebSlider .WebSlider_Horizontal .WebSlider_Labels{
+    left: 4px;
+    top: -12px;
+}
+.WebSlider .WebSlider_Vertical .WebSlider_Labels{
+    left: 0px;
+    top: 5px;
+}
+
+.WebSlider .WebSlider_Horizontal .WebSlider_LabelMarkerWrapper{
+    height: 10px;
+}
+.WebSlider .WebSlider_Horizontal .WebSlider_LabelWrapper{
+    height: 20px;
+}
+
+.WebSlider .WebSlider_Horizontal .WebSlider_LabelMarker{
+    border-left: 1px solid #A1A1A1;
+    height: 5px;
+}
+
+.WebSlider .WebSlider_Vertical .WebSlider_LabelMarker{
+    border-top: 1px solid #A1A1A1;
+    width: 5px;
+}
+.WebSlider.Web_Disabled .WebSlider_Horizontal .WebSlider_LabelMarker{
+    border-left: 1px solid #C9C8C8;
+}
+.WebSlider.Web_Disabled .WebSlider_Vertical .WebSlider_LabelMarker{
+    border-top: 1px solid #C9C8C8;
+}
+
+
+.WebSlider .WebSlider_Horizontal .WebSlider_LabelText{
+
+}
+.WebSlider .WebSlider_Vertical .WebSlider_LabelText{
+    margin-left: 4px;
+}
+.WebSlider.Web_Disabled .WebSlider_LabelText{
+    color: #8D8C8C;
+}
+
+
+/* - - - - - - WebProgressBar - - - - - - */
+.WebSuggestions.WebSug_Hidden{
+    display: none;
+}
+
+.WebSuggestions{
+    position: fixed;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    
+    border: 1px solid #000000;
+    background-color: #FFFFFF;
+    border-radius: 5px;
+    
+    padding: 3px;
+    
+    -webkit-box-shadow: 3px 3px 3px 2px #000000;
+    box-shadow: 3px 3px 3px 2px #333333;
+    
+    overflow: auto;
+}
+
+.WebSuggestions table{
+    width: 100%;
+}
+
+.WebSuggestions .WebSug_Suggestion{
+    cursor: pointer;
+}
+.WebSuggestions .WebSug_Suggestion b{
+    font-weight: bold;
+}
+
+.WebSuggestions .WebSug_Selected{
+    background-color: #9EA85E;
+    color: #FFFFFF;
+}
+
+.WebSuggestions.WebSug_Loading{
+    min-height: 22px;
+    
+}
+.WebSuggestions.WebSug_Loading:after{
+    content: '';
+    height: 20px;
+    width: 20px;
+    top: 1px;
+    right: 1px;
+    
+    display: block;
+    position: absolute;
+    background: #FFFFFF url('LoadingSmall.gif') no-repeat right 2px;
+    border-radius: 10px;
+}
+
+
+/* - - - - - - WebFileUploadForm - - - - - - */
+.WebFileFrm .WebFrm_Wrapper{
+    /*height: 24px;*/
+}
+.WebFileFrm div.WebFile_Content{
+    margin-right: 20px;
+    height: 18px;
+}
+
+.WebFileFrm .WebFile_HasFile div.WebFile_Details{
+    text-decoration: underline;
+}
+.WebFileFrm .WebFile_Pending div.WebFile_Details{
+    font-style: italic;
+}
+.WebFileFrm div.WebFile_Details{
+    padding: 2px 1px 1px 1px;
+}
+
+.WebFileFrm div.WebFile_Btn{
+    width: 16px;
+    overflow: hidden;
+    position: relative;
+    float: right;
+    height: 16px;
+    border: 1px solid transparent;
+    background: transparent url('WC_ActionIcons.png') 0px -200px no-repeat;
+}
+
+.WebFileFrm.Web_Enabled div.WebFile_Btn:hover{
+    border: 1px solid #ADB967;
+    background-color: #C4D274;
+}
+
+.WebFileFrm input{
+    cursor: pointer;
+    width: 100%;
+    /*Fix for IE: Cursor isn't shown with align right and no 0px padding right*/
+    padding: 0px 2px 0px 0px;
+    box-sizing: border-box;
+    
+    opacity: 0;
+}
+.vdf-ie8 .WebFileFrm input{
+    filter: alpha(opacity=0);  
+}
+
+.WebFileFrm input:focus{
+    outline: none;
+}
+
+.WebFileFrm.WebControl div.WebFrm_Wrapper.WebUp_DragHover{
+    box-shadow: 0 0 5px rgba(0, 0, 255, 1);
+}
+
+.WebFileFrm .WebFile_Working{
+    width: 100%;
+    height: 100%;
+    background: transparent url('LoadingSmall.gif') no-repeat 2px center;
+}
+
+.WebFileFrm .WebFile_Progress{
+    text-align: center;
+    position: relative;
+    width: 100%;
+    
+    height: 18px;
+}
+.WebFileFrm .WebFile_ProgressLabel{
+    padding: 2px 1px 1px 1px;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    text-decoration: none;
+}
+.WebFileFrm .WebFile_ProgressBar{
+    height: 100%;
+    background-color: #ADB967;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+}
+
+
+/* - - - - - - WebGroup - - - - - - */
+.WebGroup.WebGrp_HasBorder > .WebCon_Inner{
+    margin: 10px 3px 3px 3px;
+    border: 1px solid #BEBEBE;
+    padding:10px;
+    border-radius: 3px;
+}
+
+.WebGroup.WebGrp_HasCaption  > .WebCon_Inner{
+    margin-top: 10px;
+    padding-top: 15px;
+}
+
+.WebGroup .WebGrp_Caption{
+    color: #313436;
+    font-weight: bold;
+    padding: 2px 4px 0;
+}
+
+.WebGroup > .WebCon_Inner{
+    background-color: #FFFFFF;
+}

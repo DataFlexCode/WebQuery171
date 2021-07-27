@@ -1,0 +1,1016 @@
+// Use JsonFunctions.pkg // Build and parse JSON objects (StureApsPublicLib)
+
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+//>
+
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use StringFunctions.pkg // Define oStringFunctions object
+Use FileFunctions.pkg // Define oFileFunctions object
+
+// Check out     http://www.json.org/
+//               http://www.json.org/example.html
+//               http://json.budgetwebdesign.org/    (Visualize a JSON object)
+
+// Note! There is no check for not adding identically named members to an object. It is up
+//       to the programmer to avoid such a situation.
+
+Enumeration_List // Node types in a JSON document.
+    Define JNT_OBJECT
+    Define JNT_ARRAY
+    Define JNT_STRING
+    Define JNT_NUMBER
+    Define JNT_TRUE
+    Define JNT_FALSE
+    Define JNT_NULL
+    // Used internally while parsing JSON strings:
+    Define JNT_END_ARR
+    Define JNT_END_OBJ
+    Define JNT_COMMA
+    Define JNT_COLON
+    Define JNT_UNDEFINED //
+    Define JNT_ERROR
+    // Only used with AppendChildValue function. Automatically becomes JNT_TRUE or JNT_FALSE
+    Define JNT_BOOLEAN
+End_Enumeration_List
+
+Struct tJsonNode
+    Integer iType           //> JNT_OBJECT JNT_ARRAY JNT_STRING JNT_NUMBER JNT_TRUE JNT_FALSE JNT_NULL
+    String  sName           //> Only if parent node type is JNT_OBJECT
+    String  sValue          //> Only filled in if iType is not JNT_OBJECT or JNT_ARRAY
+    tJsonNode[] aChildNodes //> Only used if iType is JNT_OBJECT or JNT_ARRAY
+End_Struct
+
+Struct tJsonCursor
+    Integer[] aIndices
+End_Struct
+
+Global_Variable Integer oJsonFunctions
+
+Object _oJsonFunctions is a cObject
+    Move Self to oJsonFunctions
+
+    // See demo/JsonObjTestView.vw for examples of usage.
+
+    //> Function AppendChildValue adds a child node of type iNodeType to the JsonNode passed in parameter stNode and
+    //> returns true if successful.
+    Function AppendChildValue Integer iNodeType tJsonNode ByRef stNode String sName String sValue Returns Boolean
+        Integer iIndex
+        If ((stNode.iType=JNT_ARRAY and sName="") or (stNode.iType=JNT_OBJECT and sName<>"")) Begin
+
+            If (iNodeType=JNT_BOOLEAN) Begin
+                If (Trim(sValue)="0" or Trim(sValue)="") Begin
+                    Move JNT_FALSE to iNodeType
+                End
+                Else Begin
+                    Move JNT_TRUE to iNodeType
+                End
+            End
+
+            Move (SizeOfArray(stNode.aChildNodes)) to iIndex
+            If (iNodeType=JNT_TRUE or iNodeType=JNT_FALSE or iNodeType=JNT_NULL) Move "" to sValue // If type is JNT_TRUE, JNT_FALSE, or JNT_NULL the value is implicitly given
+            Move iNodeType to stNode.aChildNodes[iIndex].iType
+            Move sName to stNode.aChildNodes[iIndex].sName
+            Move sValue to stNode.aChildNodes[iIndex].sValue
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+
+    //> Procedure AppendChildValue does the same as the function of the same name but errors on failure and of course, does not return a value.
+    Procedure AppendChildValue Integer iNodeType tJsonNode ByRef stNode String sName String sValue
+        If (not(AppendChildValue(Self,iNodeType,&stNode,sName,sValue))) Begin
+            If (stNode.iType=JNT_OBJECT) begin
+                Error 201 "Cannot add array type element to object type node."
+            End
+            Else If (stNode.iType=JNT_ARRAY) begin
+                Error 201 "Cannot add object type member to array type node."
+            End
+            Else begin
+                Error 201 "Cannot add value to node. (Wrong node type on stNode param)"
+            End
+        End
+    End_Procedure
+
+    //> Function AppendChildNode adds a child node to the JsonNode passed in parameter stNode and
+    //> returns true if successful.
+    Function AppendChildNode tJsonNode ByRef stNode String sName tJsonNode stChildNode Returns Boolean
+        Integer iIndex
+        If ((stNode.iType=JNT_ARRAY and sName="") or (stNode.iType=JNT_OBJECT and sName<>"")) Begin
+            Move (SizeOfArray(stNode.aChildNodes)) to iIndex
+            Move sName to stChildNode.sName
+            Move stChildNode to stNode.aChildNodes[iIndex]
+            Function_Return True
+        End
+        Else Function_Return False
+        Function_Return False
+    End_Function
+
+    //> Procedure AppendChildValue does the same as the function of the same name but errors on failure and of course, does not return a value.
+    Procedure AppendChildNode tJsonNode ByRef stNode String sName tJsonNode stChildNode
+        If (not(AppendChildNode(Self,&stNode,sName,stChildNode))) Begin
+            If (stNode.iType=JNT_OBJECT) Begin
+                Error 201 "Cannot add array type element to object type node."
+            End
+            Else If (stNode.iType=JNT_ARRAY) Begin
+                 Error 201 "Cannot add object type member to array type node."
+            End
+            Else Begin
+                 Error 201 "Cannot add value to node. (Wrong node type on stNode param)"
+            End
+        End
+    End_Procedure
+
+    //> Call procedure hMsg of object hObj with the most recently added childnode of stNode as parameter (byref'ed).
+    Procedure CallBackAppendedNode tJsonNode ByRef stNode Integer hMsg Integer hObj
+        Send hMsg of hObj (&stNode.aChildNodes[SizeOfArray(stNode.aChildNodes)-1])
+    End_Procedure
+
+    // *** Cursor functions
+
+        Function _AppendToCursor tJsonCursor stCursor Integer iIndex Returns tJsonCursor
+            Integer iSize
+            Move (SizeOfArray(stCursor.aIndices)) to iSize
+            Move iIndex to stCursor.aIndices[iSize]
+            Function_Return stCursor
+        End_Function
+
+        Procedure _BuildNodeCollectionRecursive tJsonNode stDoc tWildCardEvalSequence[] aWildCardPath Integer iPathIndex Integer iMaxRecursion tJsonCursor stCurrentCursor tJsonCursor[] ByRef aResultCursors
+            Integer iMax iIndex iSize
+            Boolean bIsObject bLastPathSegment
+            String sNameToTest
+            tWildCardEvalSequence stWildCardSequence
+
+            Move (iPathIndex=(SizeOfArray(aWildCardPath)-1)) to bLastPathSegment
+
+            Move (SizeOfArray(stDoc.aChildNodes)-1) to iMax
+            If (iMax>=0) Begin
+                Move (stDoc.iType=JNT_OBJECT) to bIsObject
+                Move aWildCardPath[iPathIndex] to stWildCardSequence
+                For iIndex from 0 to iMax
+                    If (bIsObject) Begin // If it's an object we use the name of the member
+                        Move stDoc.aChildNodes[iIndex].sName to sNameToTest
+                    End
+                    Else Begin // If it's an array we use the value of the index
+                        Move iIndex to sNameToTest
+                    End
+                    If (WildCardMatch(oStringFunctions,sNameToTest,stWildCardSequence)) Begin
+                        If (bLastPathSegment) Begin // Match on last segment means that we add it to the result
+                            Move (SizeOfArray(aResultCursors)) to iSize
+                            Move (_AppendToCursor(Self,stCurrentCursor,iIndex)) to aResultCursors[iSize]
+                        End
+                        Else Begin
+                            Send _BuildNodeCollectionRecursive stDoc.aChildNodes[iIndex] aWildCardPath (iPathIndex+1) (iMaxRecursion-1) (_AppendToCursor(Self,stCurrentCursor,iIndex)) (&aResultCursors)
+                        End
+                    End
+                    If (iMaxRecursion>0) Begin
+                        Send _BuildNodeCollectionRecursive stDoc.aChildNodes[iIndex] aWildCardPath 0 (iMaxRecursion-1) (_AppendToCursor(Self,stCurrentCursor,iIndex)) (&aResultCursors)
+                    End
+                Loop
+            End
+        End_Procedure
+
+        Function _NodeCollection tJsonNode stDoc String[] aPath Integer iMaxRecursion Returns tJsonCursor[]
+            Integer iIndex iMax
+            tJsonCursor stNullCursor
+            tJsonCursor[] aCursors
+            tWildCardEvalSequence[] aWildCardPath
+            Move (SizeOfArray(aPath)-1) to iMax
+            If (iMax>=0) Begin
+                For iIndex from 0 to iMax
+                    Get WildCardEvalSequence of oStringFunctions aPath[iIndex] to aWildCardPath[iIndex]
+                Loop
+                If (iMaxRecursion<0) Move 1000000 to iMaxRecursion // Should be enough
+                Send _BuildNodeCollectionRecursive stDoc aWildCardPath 0 iMaxRecursion stNullCursor (&aCursors)
+            End
+            Function_Return aCursors
+        End_Function
+
+    //> Function NodeCollection returns a set of cursors pointing to the nodes selected by parameters sPath and
+    //> iMaxRecursion. The sPath parameter contains the path of names (or for arrays: indices) for nodes that we
+    //> are looking for. Segments of the path to be searched should be separated by slashes (not dots).
+    //>
+    //> The iMaxRecursion parameter determines how deep the algorithm is allowed to look for such paths. Setting it
+    //> to 0 means that only the first level of the object is searched. Setting it to n means that the first n+1
+    //> levels are searched and setting iMaxRecursion to a negative value means that there are no constraints.
+    //>
+    //> Consider this JSON object to be held in a tJsonNode variable called stDoc:
+    //> <code>
+    //> {"menu": {
+    //>  "id": "file",
+    //>  "value": "File",
+    //>  "popup": {
+    //>    "menuitem": [
+    //>      {"value": "New", "onclick": "CreateNewDoc()"},
+    //>      {"value": "Open", "onclick": "OpenDoc()"},
+    //>      {"value": "Close", "onclick": "CloseDoc()"}
+    //>    ]
+    //>  }
+    //>}}
+    //> </code>
+    //> Suppose I wanted all first-level sub-nodes named "value". The corresponding call would look like this:
+    //>
+    //>     get NodeCollection of oJsonFunctions stDoc "value" 0 to aCursors
+    //>
+    //> As a result aCursors would contain one cursor pointing to "menu/value" (pointing to the value "File").
+    //>
+    //> But if I wanted all nodes in the entire object with the name value I'd write:
+    //>
+    //>     get NodeCollection of oJsonFunctions stDoc "value" -1 to aCursors
+    //>
+    //> The -1 value defeats the max-recursion limit. The result would now be these 4 cursors:
+    //>
+    //>   menu/value                       ("File")
+    //>   menu/popup/menuitem/0/value      ("New")
+    //>   menu/popup/menuitem/1/value      ("Open")
+    //>   menu/popup/menuitem/2/value      ("Close")
+    //>
+    //> Finally, if I wanted to hit only the ones under the "menuitem" node, I'd write:
+    //>
+    //>     get NodeCollection of oJsonFunctions stDoc "menuitem/*/value" -1 to aCursors
+    //>
+    //> signifying that it should only consider "value" nodes if their grandparent is called "menuitem"
+    //> without constraints on the parent (which is an array and therefore indexed by an integer value).
+    //>
+    //> That last call would return this array of cursors:
+    //>
+    //>   menu/popup/menuitem/0/value
+    //>   menu/popup/menuitem/1/value
+    //>   menu/popup/menuitem/2/value
+    //>
+
+    Function NodeCollection tJsonNode stDoc String sPath Integer iMaxRecursion Returns tJsonCursor[]
+        String[] aPath
+        Send SplitString of oStringFunctions sPath "/" False False (&aPath)
+        Function_Return (_NodeCollection(Self,stDoc,aPath,iMaxRecursion))
+    End_Function
+
+    //> Returns the node of stDoc pointed to by the cursor stCursor.
+    Function NodeAtCursor tJsonNode stDoc tJsonCursor stCursor Returns tJsonNode
+        Integer iCursorSize iIndex
+        Move (SizeOfArray(stCursor.aIndices)) to iCursorSize
+        If (iCursorSize=0) Function_Return stDoc
+        If (iCursorSize=1) Function_Return (stDoc.aChildNodes[stCursor.aIndices[0]])
+        Move stCursor.aIndices[0] to iIndex
+        Move (CopyArray(stCursor.aIndices,1,iCursorSize-1)) to stCursor.aIndices
+        Function_Return (NodeAtCursor(Self,stDoc.aChildNodes[iIndex],stCursor))
+    End_Function
+
+        Function _NodeValue tJsonNode stDoc String[] aPath Integer iPathIndex Returns String
+            Boolean bIsObject bLastPathSegment
+            Integer iMax iIndex
+            String sNameToTest sPathSegment
+
+            Move (iPathIndex=(SizeOfArray(aPath)-1)) to bLastPathSegment
+            Move (SizeOfArray(stDoc.aChildNodes)-1) to iMax
+            Move (stDoc.iType=JNT_OBJECT) to bIsObject
+            Move aPath[iPathIndex] to sPathSegment
+            If (bIsObject) Begin // If it's an object we use the name of the member
+                For iIndex from 0 to iMax
+                    If (stDoc.aChildNodes[iIndex].sName=sPathSegment) Begin
+                        If (bLastPathSegment) Function_Return stDoc.aChildNodes[iIndex].sValue
+                        Else Function_Return (_NodeValue(Self,stDoc.aChildNodes[iIndex],aPath,iPathIndex+1))
+                    End
+                Loop
+            End
+            Else Begin
+                Move sPathSegment to iIndex
+                If (iIndex<=iMax) Begin
+                    If (bLastPathSegment) Function_Return stDoc.aChildNodes[iIndex].sValue
+                    Else Function_Return (_NodeValue(Self,stDoc.aChildNodes[iIndex],aPath,iPathIndex+1))
+                End
+            End
+            Function_Return ""
+        End_Function
+
+    Function NodeValue tJsonNode stDoc String sPath Returns String
+        String[] aPath
+        Send SplitString of oStringFunctions sPath "/" False False (&aPath)
+        Function_Return (_NodeValue(Self,stDoc,aPath,0))
+    End_Function
+
+            Procedure _CursorToString tJsonCursor stCursor tJsonNode stDoc String ByRef sValue
+                Integer iCursorSize iIndex
+                Move (SizeOfArray(stCursor.aIndices)) to iCursorSize
+                If (iCursorSize>0) Begin
+                    Move stCursor.aIndices[0] to iIndex
+                    If (sValue<>"") Move (sValue+"/") to sValue
+                    If (stDoc.iType=JNT_OBJECT) Move (sValue+stDoc.aChildNodes[iIndex].sName) to sValue
+                    Else Move (sValue+String(iIndex)) to sValue
+                    If (iCursorSize>1) Begin
+                        Move (CopyArray(stCursor.aIndices,1,iCursorSize-1)) to stCursor.aIndices
+                        Send _CursorToString stCursor stDoc.aChildNodes[iIndex] (&sValue)
+                    End
+                End
+            End_Procedure
+
+    Function CursorToString tJsonCursor stCursor tJsonNode stDoc Returns String
+        String sRval
+        Send _CursorToString stCursor stDoc (&sRval)
+        Function_Return sRval
+    End_Function
+
+    // Move cursor one level back
+    Procedure PopCursor tJsonCursor ByRef stCursor
+        Move (ResizeArray(stCursor.aIndices,SizeOfArray(stCursor.aIndices)-1)) to stCursor.aIndices
+    End_Procedure
+
+        Function _AppendChildValueAtCursor Integer iLevel tJsonCursor ByRef stCursor Integer iNodeType tJsonNode ByRef stNode String sName String sValue Returns Boolean
+            Boolean bRval
+            Integer iCursorSize
+
+            Move (SizeOfArray(stCursor.aIndices)) to iCursorSize
+            If (iLevel=iCursorSize) Begin
+                Get AppendChildValue iNodeType (&stNode) sName sValue to bRval
+                If (iNodeType=JNT_OBJECT or iNodeType=JNT_ARRAY) Begin
+                    // If object or array we automatically adjust the cursor:
+                    Move (SizeOfArray(stNode.aChildNodes)-1) to stCursor.aIndices[SizeOfArray(stCursor.aIndices)]
+                End
+            End
+            If (iLevel<iCursorSize) Begin
+                Get _AppendChildValueAtCursor (iLevel+1) (&stCursor) iNodeType (&stNode.aChildNodes[stCursor.aIndices[iLevel]]) sName sValue to bRval
+            End
+            Function_Return bRval
+        End_Function
+
+    // NOTE: It is uncertain if parameter stCursor needs to be ByRef'ed for this function.
+    Function AppendChildValueAtCursor tJsonCursor ByRef stCursor Integer iNodeType tJsonNode ByRef stNode String sName String sValue Returns Boolean
+        Boolean bRval
+        Get _AppendChildValueAtCursor 0 (&stCursor) iNodeType (&stNode) sName sValue to bRval
+        Function_Return bRval
+    End_Function
+
+    Procedure AppendChildValueAtCursor tJsonCursor ByRef stCursor Integer iNodeType tJsonNode ByRef stNode String sName String sValue
+        Boolean bValue
+        Get AppendChildValueAtCursor (&stCursor) iNodeType (&stNode) sName sValue to bValue
+        If (not(bValue)) Error 201 "Could not insert node at cursor"
+    End_Procedure
+
+        Function _AppendChildNodeAtCursor Integer iLevel tJsonCursor ByRef stCursor tJsonNode ByRef stNode String sName tJsonNode stChildNode Returns Boolean
+            Boolean bRval
+            Integer iCursorSize
+
+            Move (SizeOfArray(stCursor.aIndices)) to iCursorSize
+            If (iLevel=iCursorSize) Begin
+                Get AppendChildNode (&stNode) sName stChildNode to bRval
+                //If (stChildNode.iType=JNT_OBJECT or stChildNode.iType=JNT_ARRAY) Begin
+                     //If Object or array we automatically adjust the cursor:
+                    //Move (SizeOfArray(stNode.aChildNodes)-1) to stCursor.aIndices[SizeOfArray(stCursor.aIndices)]
+                //End
+            End
+            If (iLevel<iCursorSize) Begin
+                Get _AppendChildNodeAtCursor (iLevel+1) (&stCursor) (&stNode.aChildNodes[stCursor.aIndices[iLevel]]) sName stChildNode to bRval
+            End
+            Function_Return bRval
+        End_Function
+
+    Function AppendChildNodeAtCursor tJsonCursor ByRef stCursor tJsonNode ByRef stNode String sName tJsonNode stChildNode Returns Boolean
+        Boolean bRval
+        Get _AppendChildNodeAtCursor 0 (&stCursor) (&stNode) sName stChildNode to bRval
+        Function_Return bRval
+    End_Function
+
+    Procedure AppendChildNodeAtCursor tJsonCursor ByRef stCursor tJsonNode ByRef stNode String sName tJsonNode stChildNode
+        Boolean bValue
+        Get AppendChildNodeAtCursor (&stCursor) (&stNode) sName stChildNode to bValue
+        If (not(bValue)) Error 204 "Could not insert node at cursor"
+    End_Procedure
+
+        Procedure _CallBackAppendedNodeAtCursor Integer iLevel tJsonCursor stCursor tJsonNode ByRef stNode Integer hMsg Integer hObj
+            Integer iCursorSize
+
+            Move (SizeOfArray(stCursor.aIndices)) to iCursorSize
+            If (iLevel=iCursorSize) Begin
+                Send hMsg of hObj (&stNode)
+            End
+            If (iLevel<iCursorSize) Begin
+                Send _CallBackAppendedNodeAtCursor (iLevel+1) (&stCursor) (&stNode.aChildNodes[stCursor.aIndices[iLevel]]) hMsg hObj
+            End
+        End_Procedure
+
+    // NOT TESTED!!!
+    Procedure CallBackAppendedNodeAtCursor tJsonCursor stCursor tJsonNode ByRef stNode Integer hMsg Integer hObj
+        Send _CallBackAppendedNodeAtCursor 0 stCursor (&stNode) hMsg hObj
+    End_Procedure
+
+    // **************************************
+
+    // Don't use this
+    Function AppendValue Integer iNodeType tJsonNode[] ByRef stNodes String sName String sValue Returns Boolean
+        Integer iIndex
+        Move (SizeOfArray(stNodes)) to iIndex
+        If (iIndex=0 or (sName<>"")=(stNodes[iIndex-1].sName<>"")) Begin
+            If (iNodeType=JNT_TRUE or iNodeType=JNT_FALSE or iNodeType=JNT_NULL) Move "" to sValue // If type is JNT_TRUE, JNT_FALSE, or JNT_NULL the value is implicitly given
+            Move iNodeType to stNodes[iIndex].iType
+            Move sName to stNodes[iIndex].sName
+            Move sValue to stNodes[iIndex].sValue
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+
+    // Don't use this
+    Procedure AppendValue Integer iNodeType tJsonNode[] ByRef stNodes String sName String sValue
+        If (not(AppendValue(Self,iNodeType,&stNodes,sName,sValue))) Error 201 "Object members and array elements can not be mixed"
+    End_Procedure
+
+    // Don't use this
+    Procedure AppendObjectData tJsonNode[] ByRef stNodes tJsonNode[] stChildNodes
+        Integer iIndex
+        Move (SizeOfArray(stNodes)-1) to iIndex
+        Move stChildNodes to stNodes[iIndex].aChildNodes
+    End_Procedure
+
+                  Function _ParseJsonReadString Address pJson Integer ByRef iPos Integer iLen Returns String
+                      Boolean bFin
+                      String sRval sChar
+                      Move "" to sRval
+                      Increment iPos // Skip leading " character
+
+                      Repeat
+                          Move (iPos>=iLen) to bFin
+                          If (not(bFin)) Begin
+                              Move (Character(DeRefC(pJSON,iPos))) to sChar
+                              If (sChar='\') Begin
+                                  Increment iPos
+                                  Move (Character(DeRefC(pJSON,iPos))) to sChar
+                                  If (sChar='\') Move (sRval+'\') to sRval
+                                  If (sChar='"') Move (sRval+'"') to sRval
+                                  If (sChar='n') Move (sRval+Character(10)) to sRval
+                              End
+                              Else If (sChar='"') begin
+                                  Move 1 to bFin
+                              End
+                              Else begin
+                                  Move (sRval+sChar) to sRval
+                              End
+                          End
+                          Increment iPos // After this function is completed iPos will point to the first position after the string
+                      Until bFin
+
+                      Function_Return sRval
+                  End_Function
+
+                  Function _ParseJsonReadNumber Address pJson Integer ByRef iPos Integer iLen Returns String
+                      Integer iAscii
+                      Boolean bFin
+                      String sRval sChar
+
+                      Move "" to sRval
+
+                      Repeat
+                          Move (iPos>=iLen) to bFin
+                          If (not(bFin)) Begin
+                              Move (Character(DeRefC(pJSON,iPos))) to sChar
+                              If ("0123456789eE.+-" contains sChar) Begin
+                                  If (sChar=".") Begin
+                                      Get_Attribute DF_DECIMAL_SEPARATOR to iAscii
+                                      Move (Character(iAscii)) to sChar
+                                  End
+                                  Move (sRval+sChar) to sRval
+                                  Increment iPos // After this function is completed iPos will point to the first position after the number
+                              End
+                              Else Move 1 to bFin
+                          End
+                      Until bFin
+
+                      Function_Return sRval
+                  End_Function
+
+                  Function _DeRefSubString Address pJson Integer iPos Integer iLen Integer iGetCharacters Returns String
+                    Integer iCount
+                    String sRval sChar
+                    If ((iPos+iGetCharacters)<iLen) Begin
+                        For iCount from 1 to iGetCharacters
+                            Move (Character(DeRefC(pJson,iPos))) to sChar
+                            Move (sRval+sChar) to sRval
+                            Increment iPos
+                        Loop
+                    End
+                    Function_Return sRval
+                  End_Function
+
+                  Function _ParseJsonReadConstant Address pJson Integer ByRef iPos Integer iLen String sConstant Returns Boolean
+                      Boolean bRval
+                      String sValue
+                      Get _DeRefSubString pJson iPos iLen (Length(sConstant)) to sValue
+                      Move (sConstant=sValue) to bRval
+                      If (bRval) Begin
+                          Move (iPos+Length(sConstant)) to iPos
+                      End
+                      Function_Return bRval
+                  End_Function
+
+                 Struct tJsonParseSymbol // Private
+                     Integer iType     //
+                     String sValue
+                     Integer iErrorPos // Position where an error occurred.
+                 End_Struct
+
+                 Function _ParseJsonNextSymbol Address pJson Integer ByRef iPos Integer iLen Returns tJsonParseSymbol
+                     String sSymbol sChar
+                     Integer iType
+                     Boolean bOk bFin
+                     tJsonParseSymbol stResult
+
+                     Move -1 to stResult.iType
+                     Move "" to stResult.sValue
+                     Move 0  to stResult.iErrorPos
+
+                     // Skip leading blanks:
+                     Move False to bFin
+                     Repeat
+                         If (iPos<=iLen) Begin
+                             Move (Character(DeRefC(pJson,iPos))) to sChar
+                             If (Ascii(sChar)<=32) Increment iPos // Skip blanks, tabs, cr/lf's and the lot
+                             Else Move True to bFin
+                         End
+                         Else Move True to bFin
+                     Until bFin
+
+                     // Reads one of the following:
+                     //  1. object start or array start         {  [
+                     //  2. object end or array end             }  ]
+                     //  3. simple value                        string number "true" "false" "null"
+
+                     Move (Character(DeRefC(pJson,iPos))) to sChar
+
+                     If (sChar=",") Begin
+                         Move JNT_COMMA to stResult.iType
+                         Increment iPos
+                     End
+                     Else If (sChar=":") Begin
+                         Move JNT_COLON to stResult.iType
+                         Increment iPos
+                     End
+                     Else If (sChar="{") Begin
+                         Move JNT_OBJECT to stResult.iType
+                         Increment iPos
+                     End
+                     Else If (sChar="}") Begin
+                         Move JNT_END_OBJ to stResult.iType
+                         Increment iPos
+                     End
+                     Else If (sChar="[") Begin
+                         Move JNT_ARRAY to stResult.iType
+                         Increment iPos
+                     End
+                     Else If (sChar="]") Begin
+                         Move JNT_END_ARR to stResult.iType
+                         Increment iPos
+                     End
+                     Else If (sChar="t") Begin
+                         Get _ParseJsonReadConstant pJson (&iPos) iLen "true" to bOk
+                         If (bOk) begin
+                            Move JNT_TRUE to stResult.iType
+                         End
+                         Else begin
+                            Move (iPos+1) to stResult.iErrorPos
+                         End
+                     End
+                     Else If (sChar="f") Begin
+                         Get _ParseJsonReadConstant pJson (&iPos) iLen "false" to bOk
+                         If (bOk) Begin
+                            Move JNT_FALSE to stResult.iType
+                         End
+                         Else Begin
+                            Move (iPos+1) to stResult.iErrorPos
+                         End
+                     End
+                     Else If (sChar="n") Begin
+                         Get _ParseJsonReadConstant pJson (&iPos) iLen "null" to bOk
+                         If (bOk) begin
+                            Move JNT_NULL to stResult.iType
+                         End
+                         Else Begin
+                            Move (iPos+1) to stResult.iErrorPos
+                         End
+                     End
+                     Else If (sChar='"') Begin
+                         Move JNT_STRING to stResult.iType
+                         Get _ParseJsonReadString pJson (&iPos) iLen to stResult.sValue
+                     End
+                     Else If ("-0123456789" contains sChar) Begin
+                         Move JNT_NUMBER to stResult.iType
+                         Get _ParseJsonReadNumber pJson (&iPos) iLen to stResult.sValue
+                     End
+                     Else Begin
+                         Move (iPos+1) to stResult.iErrorPos
+                     End
+                     Function_Return stResult
+                 End_Function
+
+        Procedure _ParseObject Integer iObjectType Address pJson tJsonNode[] ByRef stNodes Integer ByRef iPos Integer iLen Boolean ByRef bError
+            // Parameters:
+            // * iObjectType: _ParseObject needs to know if it's an object or an array it's supposed to parse. Only
+            //                then will it know when it is done.
+            // * pJson:       Address of the string to be parsed.
+            // * byref iPos:  The position from which to start
+            // * iLen:        Length of JSON input.
+            // * ByRef stNodes: An array and the parsed object will be inserted in last node(?)
+            //
+            // If the parsing fails iObjectType of the stParentNode will be set to JNT_ERROR
+
+            Boolean bAssoc // Associative array? (or just array)
+            Boolean bSuccess //
+            Integer iType iPrevType
+            String sValue sValueName sPrevValue
+            tJsonParseSymbol stResult
+
+            Move False to bAssoc
+            Move -1 to iPrevType
+
+            While (iPos<=iLen)
+                Get _ParseJsonNextSymbol pJson (&iPos) iLen to stResult
+                If (stResult.iErrorPos<>0) Begin
+                    Move True to bError
+                    Move stResult.iErrorPos to iPos // Signal the position in which the error occured.
+                    Move 0 to iLen // Force loop break
+                End
+                Else Begin
+
+                    Move stResult.iType to iType
+                    Move stResult.sValue to sValue
+
+                    Move True to bSuccess
+
+                    If (iPrevType=JNT_STRING and iType<>JNT_COLON) Begin // ok
+                        If (not(bAssoc)) Get AppendValue JNT_STRING (&stNodes) "" sPrevValue to bSuccess
+                        Move -1 to iPrevType
+                        Move "" to sPrevValue
+                    End
+
+                    If (iType=JNT_OBJECT) Begin // ok
+                        If bAssoc Begin
+                            Get AppendValue JNT_OBJECT (&stNodes) sValueName "" to bSuccess
+                            Move "" to sValueName
+                            Move False to bAssoc
+                        End
+                        Else Begin
+                            Get AppendValue JNT_OBJECT (&stNodes) "" "" to bSuccess
+                        End
+                        If bSuccess Send _ParseObject JNT_OBJECT pJson (&stNodes[SizeOfArray(stNodes)-1].aChildNodes) (&iPos) iLen (&bError)
+                    End
+                    Else If (iType=JNT_ARRAY) Begin // ok
+                        If bAssoc Begin
+                            Get AppendValue JNT_ARRAY (&stNodes) sValueName "" to bSuccess
+                            Move "" to sValueName
+                            Move False to bAssoc
+                        End
+                        Else Begin
+                            Get AppendValue JNT_ARRAY (&stNodes) "" "" to bSuccess
+                        End
+                        If bSuccess Send _ParseObject JNT_ARRAY pJson (&stNodes[SizeOfArray(stNodes)-1].aChildNodes) (&iPos) iLen (&bError)
+                    End
+                    Else If (iType=JNT_STRING) Begin // ok
+                        If bAssoc Begin
+                            Get AppendValue JNT_STRING (&stNodes) sValueName sValue to bSuccess
+                            Move "" to sValueName
+                            Move False to bAssoc
+                        End
+                        Else Begin // If we are not already in bAssoc mode, we need to wait and see if it's a name or a value
+                            Move sValue to sPrevValue
+                            Move iType to iPrevType
+                            //send AddArrayValue (&stDoc) JNT_STRING sValue
+                        End
+                    End
+                    Else If (iType=JNT_NUMBER) Begin // ok
+                        If bAssoc Begin
+                            Get AppendValue JNT_NUMBER (&stNodes) sValueName sValue to bSuccess
+                            Move "" to sValueName
+                            Move False to bAssoc
+                        End
+                        Else Begin
+                            Get AppendValue JNT_NUMBER (&stNodes) "" sValue to bSuccess
+                        End
+                    End
+                    Else If (iType=JNT_TRUE or iType=JNT_FALSE or iType=JNT_NULL) Begin // ok
+                        If bAssoc Begin
+                            Get AppendValue iType (&stNodes) sValueName "" to bSuccess
+                            Move "" to sValueName
+                            Move False to bAssoc
+                        End
+                        Else Begin
+                            Get AppendValue iType (&stNodes) "" "" to bSuccess
+                        End
+                    End
+                    Else If (iType=JNT_END_ARR) Begin
+                        If (iObjectType<>JNT_ARRAY) Move True to bError
+                        Procedure_Return
+                    End
+                    Else If (iType=JNT_END_OBJ) Begin
+                        If (iObjectType<>JNT_OBJECT) Move True to bError
+                        Procedure_Return
+                    End
+                    Else If (iType=JNT_COMMA) Begin // ignore, ok
+                    End
+                    Else If (iType=JNT_COLON) Begin // ok
+                        If bAssoc Move True to bError
+                        Else Begin
+                            Move sPrevValue to sValueName
+                            Move True to bAssoc
+                        End
+                    End
+
+                    If (not(bSuccess)) Move True to bError
+
+                End
+            Loop
+        End_Procedure
+
+    // Convert string to JSON object.
+    // First character *MUST* be "{" signifying the beginning of the JSON object. The function returns True if
+    // parsing was successful.
+    // NOTE THAT PARAMETER sJson used to be defined "byref". CHANGE INVOCATION CODE ACCORDINGLY!!
+    Function StringToDoc String sJson tJsonNode ByRef stDoc Returns Boolean
+        Integer iPos iLen
+        Address pJson
+        Boolean bError
+        String sChar
+        //        Move (ResizeArray(stDoc,0)) to stDoc
+
+        Move (AddressOf(sJSon)) to pJson
+        Move (Length(sJson)) to iLen
+
+        If (iLen>1) Begin // Logically at least two characters are needed: {}
+            Move (Character(DeRefC(pJson,0))) to sChar
+        End
+        Else Begin
+            Move "" to sChar
+        End
+
+        If (sChar="{") Begin
+
+            Move 1 to iPos
+            Move False to bError
+
+            Move JNT_OBJECT to stDoc.iType
+            Send _ParseObject JNT_OBJECT pJson (&stDoc.aChildNodes) (&iPos) iLen (&bError)
+            // Move WindowIndex to WindowIndex // <- Put a break on this line if you want to know what position in the string that errors
+        End
+        Else Begin
+            Move True to bError
+        End
+        Function_Return (not(bError))
+    End_Function
+
+                Function _EscapeValue String sValue Returns String
+                    Integer iMax iPos
+                    String sChar sRval
+                    Move (length(sValue)) to iMax
+                    Move "" to sRval
+                    For iPos from 1 to iMax
+                        Move (Mid(sValue,1,iPos)) to sChar
+                        If (sChar='"') Move '\"' to sChar
+                        Else If (sChar='\') Move '\\' to sChar
+                        Else If (sChar=character(10)) Move '\n' to sChar
+                        Move (sRval+sChar) to sRval
+                    Loop
+                    Function_Return sRval
+                End_Function
+
+                Procedure _DocToString Integer iObjectType tJsonNode[] stNodes String ByRef sJson Boolean bReadEasy Integer iLevel
+                    Integer iIndex iMax iType
+                    String sValue
+                    Move (SizeOfArray(stNodes)-1) to iMax
+                    For iIndex from 0 to iMax
+                        Move stNodes[iIndex].iType to iType
+
+                        If bReadEasy Move (sJson+Character(13)+Repeat("   ",iLevel)) to sJson
+
+                        If (iObjectType=JNT_OBJECT) Begin
+                            Get _EscapeValue stNodes[iIndex].sName to sValue
+                            Move (sJson+'"'+sValue+'":') to sJson
+                        End
+
+                        If (iType=JNT_OBJECT) Begin
+                            Move (sJson+"{") to sJson
+                            Send _DocToString JNT_OBJECT stNodes[iIndex].aChildNodes (&sJson) bReadEasy (iLevel+1)
+                            If bReadEasy Move (sJson+Character(13)+Repeat("   ",iLevel)) to sJson
+                            Move (sJson+"}") to sJson
+                        End
+                        If (iType=JNT_ARRAY) Begin
+                            Move (sJson+"[") to sJson
+                            Send _DocToString JNT_ARRAY stNodes[iIndex].aChildNodes (&sJson) bReadEasy (iLevel+1)
+                            If bReadEasy Move (sJson+Character(13)+Repeat("   ",iLevel)) to sJson
+                            Move (sJson+"]") to sJson
+                        End
+                        If (iType=JNT_STRING) Begin
+                            Get _EscapeValue stNodes[iIndex].sValue to sValue
+                            Move (sJson+'"'+sValue+'"') to sJson
+                        End
+                        If (iType=JNT_NUMBER) Begin
+                            Move (sJson+Replace(",",stNodes[iIndex].sValue,".")) to sJson
+                        End
+                        If (iType=JNT_TRUE) Begin
+                            Move (sJson+"true") to sJson
+                        End
+                        If (iType=JNT_FALSE) Begin
+                            Move (sJson+"false") to sJson
+                        End
+                        If (iType=JNT_NULL) Begin
+                            Move (sJson+"null") to sJson
+                        End
+                        If (iIndex<>iMax) Move (sJson+",") to sJson
+                    Loop
+                End_Procedure
+
+    // DocToString can't go wrong. Therefore it does not have a return value.
+    Procedure DocToString tJsonNode stDoc String ByRef sJson Boolean bReadEasy
+        Move "{" to sJson
+        Send _DocToString JNT_OBJECT stDoc.aChildNodes (&sJson) bReadEasy 0
+        Move (sJson+"}") to sJson
+    End_Procedure
+
+                Procedure _DocToChannel Integer iObjectType tJsonNode[] stNodes Integer iChannel
+                    Integer iIndex iMax iType
+                    String sValue
+                    Move (SizeOfArray(stNodes)-1) to iMax
+                    For iIndex from 0 to iMax
+                        Move stNodes[iIndex].iType to iType
+
+                        If (iObjectType=JNT_OBJECT) Begin
+                            Get _EscapeValue stNodes[iIndex].sName to sValue
+                            Write channel iChannel ('"'+sValue+'":')
+                        End
+
+                        If (iType=JNT_OBJECT) Begin
+                            Write channel iChannel "{"
+                            Send _DocToChannel JNT_OBJECT stNodes[iIndex].aChildNodes iChannel
+                            Write channel iChannel "}"
+                        End
+                        If (iType=JNT_ARRAY) Begin
+                            Write channel iChannel "["
+                            Send _DocToChannel JNT_ARRAY stNodes[iIndex].aChildNodes iChannel
+                            Write channel iChannel "]"
+                        End
+                        If (iType=JNT_STRING) Begin
+                            Get _EscapeValue stNodes[iIndex].sValue to sValue
+                            Write channel iChannel ('"'+sValue+'"')
+                        End
+                        If (iType=JNT_NUMBER) Begin
+                            Write channel iChannel (Replace(",",stNodes[iIndex].sValue,"."))
+                        End
+                        If (iType=JNT_TRUE) Begin
+                            Write channel iChannel "true"
+                        End
+                        If (iType=JNT_FALSE) Begin
+                            Write channel iChannel "false"
+                        End
+                        If (iType=JNT_NULL) Begin
+                            Write channel iChannel "null"
+                        End
+                        If (iIndex<>iMax) Write channel iChannel "," 
+                    Loop
+                End_Procedure
+                
+    // DocToChannel can't go wrong. Therefore it does not have a return value.
+    Procedure DocToChannel tJsonNode stDoc Integer iChannel
+        Write channel iChannel "{"
+        Send _DocToChannel JNT_OBJECT stDoc.aChildNodes iChannel
+        Write channel iChannel "}"
+    End_Procedure
+    
+    Procedure DocToFile tJsonNode stDoc String sFile
+        Integer iChannel
+        Get DirectOutput of oFileFunctions sFile to iChannel
+        If (iChannel>=0) Begin
+            Send DocToChannel stDoc iChannel
+            Send CloseOutput of oFileFunctions iChannel
+        End
+    End_Procedure
+
+    // Read standard format ini file into tJsonNode type variable
+    Function IniFileToDoc String sFileName tJsonNode ByRef stNode Returns Boolean
+        Integer iChannel iPos
+        Boolean bEof bInGroup
+        String sLine sGroup sName sValue
+        tJsonCursor stCursor
+        
+        Get DirectInput of oFileFunctions sFileName to iChannel
+        If (iChannel>=0) Begin
+            Move "" to sGroup
+            Move False to bInGroup
+            Repeat
+                Readln channel iChannel sLine
+                Move (SeqEof) to bEof
+                If (not(bEof)) Begin
+                    Move (Trim(sLine)) to sLine
+                    If (Left(sLine,1)="[") Begin
+                        Move (Pos("]",sLine)) to iPos
+                        If (iPos>0) Begin
+                            Move (Mid(sLine,iPos-2,2)) to sGroup
+                            If (sGroup<>"") Begin
+                                If (bInGroup) Send PopCursor of oJsonFunctions (&stCursor) // Pop cursor one level
+                                Send AppendChildValueAtCursor of oJsonFunctions (&stCursor) JNT_OBJECT (&stNode) sGroup ""
+                                Move True to bInGroup
+                            End
+                        End
+                    End
+                    Else Begin
+                        Move (Pos("=",sLine)) to iPos
+                        If (iPos>0) Begin
+                            Move (Left(sLine,iPos-1)) to sName
+                            Move (Remove(sLine,1,iPos)) to sValue
+                            Send AppendChildValueAtCursor of oJsonFunctions (&stCursor) JNT_STRING (&stNode) sName sValue
+                        End
+                        // Else line is ignored
+                    End
+                End
+            Until (bEof)
+            Send CloseInput of oFileFunctions iChannel
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    // New interface for retrieving values
+    
+            Function _ObjectMemberIndex tJsonNode stNode String sName Returns Integer
+                Integer iMax iIndex
+                If ((stNode.iType=JNT_OBJECT and sName<>"")) Begin
+                    
+                    Move (Lowercase(sName)) to sName
+                    Move (SizeOfArray(stNode.aChildNodes)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (Lowercase(stNode.aChildNodes[iIndex].sName)=sName) Begin
+                            Function_Return iIndex
+                        End
+                    Loop
+                    Function_Return -1 // Not found
+                End
+                Function_Return -2 // ERROR
+            End_Function
+    
+    Function ObjectMember tJsonNode stNode String sName Returns tJsonNode
+        Integer iMemberIndex
+        tJsonNode stRval
+        Get _ObjectMemberIndex stNode sName to iMemberIndex
+        If (iMemberIndex>=0) Begin
+            Function_Return stNode.aChildNodes[iMemberIndex]
+        End
+        If (iMemberIndex=-1) Begin
+            Move JNT_UNDEFINED to stRval.iType
+        End
+        If (iMemberIndex=-2) Begin
+            Move JNT_ERROR to stRval.iType
+        End
+        Function_Return stRval
+    End_Function
+    
+    Function ObjectMemberString tJsonNode stNode String sName Returns String
+        Get ObjectMember stNode sName to stNode
+        If (stNode.iType=JNT_STRING) Begin
+            Function_Return stNode.sValue
+        End
+    End_Function
+    
+    Function ObjectMemberSimple tJsonNode stNode String sName Returns String
+        Get ObjectMember stNode sName to stNode
+        If (stNode.iType=JNT_FALSE) Begin
+            Function_Return 0
+        End
+        Else If (stNode.iType=JNT_TRUE) Begin
+            Function_Return 1
+        End
+        Function_Return stNode.sValue
+    End_Function
+    
+    Function ArrayMemberSimple tJsonNode stNode Integer iIndex Returns String
+        Move stNode.aChildNodes[iIndex] to stNode
+        If (stNode.iType=JNT_FALSE) Begin
+            Function_Return 0
+        End
+        Else If (stNode.iType=JNT_TRUE) Begin
+            Function_Return 1
+        End
+        Function_Return stNode.sValue
+    End_Function
+    
+End_Object

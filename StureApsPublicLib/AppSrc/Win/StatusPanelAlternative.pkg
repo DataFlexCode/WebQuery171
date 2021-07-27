@@ -1,0 +1,299 @@
+// This package defines an alternative sentinel panel and assigns it to the ghoStatusPanel 
+// variable. In addition to the action_text/message_text/caption_text/button_text/title_text
+// properties of the standard StatPnl.pkg package, the present on also defines properties for 
+// handling a maximum of two progress bars:
+//
+//    property string Meter_Text  // For the first status bar
+//    property integer Meter_Pct
+//    property string Meter2_Text // For the second status bar
+//    property integer Meter2_Pct
+//
+// The meters only show when the Meter_Pct (Meter2_Pct respectively) messages are used.
+//
+// The package is 100% compatible with the standard StatPnl.pkg package of the VDF Studio.
+//                                                                                                                                      
+// Init sequence:
+//   Send Initialize_StatusPanel of ghoStatusPanel "Status panel test" "StatusPanelAlternative.pkg" "Message in a bottle"
+//   Send Start_StatusPanel of ghoStatusPanel
+//   Send EnableCancelButton of ghoStatusPanel bEnableCancel // MUST be done *after* Start_StatusPanel
+
+// Update sequences:
+//   Set Message_Text of ghoStatusPanel to (String(iCount)+"/"+String(iMax))
+//   Set Meter_Pct of ghoStatusPanel to (100*iCount/iMax)
+//   Set Meter_Text of ghoStatusPanel to (String(Integer(100*iCount/iMax))+"%")
+//
+//   Set Action_Text of ghoStatusPanel to (String(iCount2)+"/1000")
+//   Set Meter2_Pct of ghoStatusPanel to (100*iCount2/1000)
+//   Set Meter2_Text of ghoStatusPanel to (String(Integer(100*iCount2/1000))+"%")
+//
+//   Set Caption_text of ghoStatusPanel to "Reading library source"
+//   Set Title_Text of ghoStatusPanel to ("Library: "+sFolder)
+//   Set Message_Text of ghoStatusPanel to "Reading packages..."
+//   Set Action_Text of ghoStatusPanel to ""
+//
+// Key check:
+//     Get Check_StatusPanel of ghoStatusPanel to bCancel
+//     If bCancel Begin
+//
+//         Get YesNo_Box "Cancel report?" "User interuption" MB_DEFBUTTON1 to iCancelResponse
+//         If (iCancelResponse=MBR_Yes) Begin
+//             Move False to bFound
+//         End
+//         Else Begin
+//             Send Start_StatusPanel of ghoStatusPanel
+//         End
+//     End
+//
+//
+// End:
+//   Send Stop_StatusPanel of ghoStatusPanel
+
+// Should be made to compile even if as a webapp.
+
+Use Statpnl.pkg
+Use cProgressBar.pkg
+
+Global_Variable Boolean _gbStatusPanelTemp
+Move False to _gbStatusPanelTemp
+
+Object oStatusPanelMeter is a cProcessStatusPanel
+    Set Size to 144 187
+    Set Location to 16 23
+    Set Label to "Caption text"
+    Move Self to ghoStatusPanel // This can be used throughout your application to access this object
+    Set Extended_Window_Style to WS_EX_DLGMODALFRAME True // kills sysmenu as long as there is no icon
+    
+    Property Integer _piMeterCount // Private
+    Property String psCancelConfirmationQuestion
+    
+    Object oTitleTxt is a TextBox
+        Set Location to 5 16
+        Set Auto_Size_State to False
+        Set Size to 21 150
+        Set Justification_Mode to JMode_Center
+        Set Label to "Title text"
+    End_Object
+
+    Object oMessageTxt is a TextBox
+        Set Location to 30 16
+        Set Auto_Size_State to False
+        Set Size to 16 150
+        Set Label to "Message text"
+    End_Object
+
+    Object oActionTxt is a TextBox
+        Set Location to 50 16
+        Set Label to "Action text"
+    End_Object
+    
+    Object oMeterTxt is a TextBox
+        Set Location to 59 16
+        Set Label to "Meter text"
+        Set Auto_Size_State to False
+        Set Size to 10 150
+        Set Justification_Mode to JMode_Center
+    End_Object
+    
+    Object oMeter is a cProgressBar
+        Set Size to 12 142
+        Set Location to 69 20
+        Set piMinimum to 0
+        Set piMaximum to 100
+//        Set pbSmooth to False
+    End_Object
+
+    Object oMeterTxt2 is a TextBox
+        Set Location to 84 16
+        Set Label to "Meter text 2"
+        Set Auto_Size_State to False
+        Set Size to 10 150
+        Set Justification_Mode to JMode_Center
+    End_Object
+    
+    Object oMeter2 is a cProgressBar
+        Set Size to 12 142
+        Set Location to 94 20
+        Set piMinimum to 0
+        Set piMaximum to 100
+//        Set pbSmooth to False
+    End_Object
+
+    Object oStopButton is a Button
+        Set Location to 113 66
+        Set Label to C_$Cancel
+
+        Procedure OnClick
+            Send close_panel
+        End_Procedure
+
+    End_Object
+
+    // These messages bind the standard cProcessStatusPanel interface to the actual
+    // objects defined within this instance of the status panel.
+
+    // note: all of the messages that change text should be forwarded
+    // as the forwarded messages allows the panel to paint when in a tight loop
+
+    Procedure Set Message_Text String sText
+        Set Label of oMessageTxt to sText
+        Forward Set Message_Text to sText
+    End_Procedure
+
+    Function Message_Text Returns String
+        Function_Return (Label(oMessageTxt))
+    End_Function
+
+    Procedure Set Action_Text String sText
+        Set Label of oActionTxt to sText
+        Forward Set Action_Text to sText
+    End_Procedure
+
+    Function Action_Text Returns String
+        Function_Return (Label(oActionTxt))
+    End_Function
+
+    Procedure Set Button_Text String sText
+        Set Label of oStopButton to sText
+        Forward Set Button_Text to sText
+    End_Procedure
+
+    Function Button_Text Returns String
+        Function_Return (Label(oStopButton))
+    End_Function
+
+    Procedure Set Title_Text String sText
+        Set Label of oTitleTxt to sText
+        Forward Set Title_Text to sText
+    End_Procedure
+
+    Function Title_Text Returns String
+        Function_Return (Label(oTitleTxt))
+    End_Function
+    
+    Procedure Set Meter_Text String sText
+        Set Label of oMeterTxt to sText
+        Send ProcessEvents // Force object to paint, even if in a "tight loop"
+    End_Procedure
+    
+    Function Meter_Text Returns String
+        Function_Return (Label(oMeterTxt))
+    End_Function
+    
+    Procedure Set Meter2_Text String sText
+        Set Label of oMeterTxt2 to sText
+        Send ProcessEvents // Force object to paint, even if in a "tight loop"
+    End_Procedure
+    
+    Function Meter2_Text Returns String
+        Function_Return (Label(oMeterTxt2))
+    End_Function
+    
+    Procedure _EnableMeter Integer iMeterCount // 0, 1, 2
+        // Set the size of the container and the location of the Cancel button:
+        If (iMeterCount=0) Begin
+            Set Size to 104 187
+            Set Location of oStopButton to 63 66
+        End
+        Else If (iMeterCount=1) Begin
+            Set Size to 124 187
+            Set Location of oStopButton to 83 66
+        End
+        Else If (iMeterCount=2) Begin
+            Set Size to 144 187
+            Set Location of oStopButton to 108 66            
+        End
+        Set pbVisible of oMeter to (iMeterCount>=1)
+        Set Visible_State of oMeterTxt to (iMeterCount>=1)
+        Set pbVisible of oMeter2 to (iMeterCount>=2)
+        Set Visible_State of oMeterTxt2 to (iMeterCount>=2)
+    End_Procedure
+
+    Procedure Set Meter_Pct Integer iPct
+        If (_piMeterCount(Self)<1) Begin
+            Send _EnableMeter 1
+            Set _piMeterCount to 1
+        End
+        Set piPosition of oMeter to iPct
+        Send ProcessEvents // Force object to paint, even if in a "tight loop"
+    End_Procedure
+    
+    Function Meter_Pct Returns Integer
+        Function_Return (piPosition(oMeter))
+    End_Function
+    
+    Procedure Set Meter2_Pct Integer iPct
+        If (_piMeterCount(Self)<2) Begin
+            Send _EnableMeter 2
+            Set _piMeterCount to 2
+        End
+        Set piPosition of oMeter2 to iPct
+        Send ProcessEvents // Force object to paint, even if in a "tight loop"
+    End_Procedure
+    
+    Function Meter2_Pct Returns Integer
+        Function_Return (piPosition(oMeter2))
+    End_Function
+    
+    // gets called when status panel is activated passing whether a button
+    // should appear
+    Procedure EnableCancelButton Boolean bEnable
+        Set Enabled_State of oStopButton to bEnable
+    End_Procedure
+    
+    Procedure HideCancelButton Boolean bHide
+        Set Visible_State of oStopButton to (not(bHide))
+    End_Procedure
+    
+    Function _CancelPossible Returns Boolean
+        Boolean bPossible
+        Move False to bPossible
+        Get Enabled_State of oStopButton to bPossible
+        If (bPossible) Begin
+            Get Visible_State of oStopButton to bPossible
+        End
+        Function_Return bPossible
+    End_Function
+    
+    Procedure Start_StatusPanel
+        Set Meter_Text to ""
+        Set Meter2_Text to ""
+        Set piPosition of oMeter to 0
+        Set piPosition of oMeter2 to 0
+        Send _EnableMeter 0
+        Set _piMeterCount to 0
+        Forward Send Start_StatusPanel
+    End_Procedure
+    
+    Procedure Stop_StatusPanel
+        Forward Send Stop_StatusPanel
+        If (not(_gbStatusPanelTemp)) Begin
+            Set psCancelConfirmationQuestion to ""
+        End
+        Set Visible_State of oStopButton to True 
+    End_Procedure
+    
+    Function Check_StatusPanel Returns Integer
+        Integer iCancel
+        String sQuestion
+        If (_CancelPossible(Self)) Begin
+            Move True to _gbStatusPanelTemp
+            Forward Get Check_StatusPanel to iCancel
+            Move False to _gbStatusPanelTemp
+            If (iCancel<>0) Begin
+                Get psCancelConfirmationQuestion to sQuestion
+                If (sQuestion<>"") Begin
+                    Get YesNo_Box sQuestion "Process cancellation" MB_DEFBUTTON2 to iCancel
+                    Move (iCancel=MBR_Yes) to iCancel
+                    If (iCancel=0) Begin
+                        Send Activate
+                    End
+                End
+            End
+        End
+        Else Begin
+            Move 0 to iCancel
+        End
+        Function_Return iCancel
+    End_Function
+    
+End_Object

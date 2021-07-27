@@ -1,0 +1,88 @@
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+Struct _trbfRecordBuffer
+    Integer iTable
+    RowID rRowId
+End_Struct
+
+Global_Variable Integer oRecordBufferFunctions
+_trbfRecordBuffer[] _gartbfBufferStates
+
+Object _oRecordBufferFunctions is a cObject
+    Move Self to oRecordBufferFunctions
+
+    Property _trbfRecordBuffer[] paRecordStack
+
+    Procedure PushRecord Integer iTable
+        _trbfRecordBuffer strRB
+        _trbfRecordBuffer[] aRecordStack
+
+        Move iTable to strRB.iTable
+        Move (GetRowID(iTable)) to strRB.rRowId
+
+        Get paRecordStack to aRecordStack
+        Move strRB to aRecordStack[SizeOfArray(aRecordStack)]
+        Set paRecordStack to aRecordStack
+    End_Procedure
+
+        Procedure _PopRecord Integer iTable Boolean bRestoreBuffer
+            _trbfRecordBuffer strRB
+            _trbfRecordBuffer[] aRecordStack
+
+            Get paRecordStack to aRecordStack
+            Move (aRecordStack[SizeOfArray(aRecordStack)-1]) to strRB
+
+            If (strRB.iTable=iTable) Begin
+
+                Move (ResizeArray(aRecordStack,SizeOfArray(aRecordStack)-1)) to aRecordStack
+                Set paRecordStack to aRecordStack
+
+                If (bRestoreBuffer) Begin
+                    Clear iTable
+                    If (not(IsNullRowID(strRB.rRowId))) Begin
+                        If (FindByRowID(strRB.iTable,strRB.rRowId)) Begin
+                        End
+                    End
+                End
+            End
+            Else Begin
+                Error DFERR_PROGRAM "Un-balanced record buffer push/pop"
+            End
+        End_Procedure
+
+    Procedure PopRecord Integer iTable // iTable parameter is used to check for balanced use of record stack
+        Send _PopRecord iTable True
+    End_Procedure
+
+    Procedure DropRecord Integer iTable // iTable parameter is used to check for balanced use of record stack
+        Send _PopRecord iTable False
+    End_Procedure
+
+        Function _IsRecordBufferActive Integer iTable Returns Boolean
+            Integer iStatus
+            Get_Attribute DF_FILE_STATUS of iTable to iStatus
+            Function_Return (iStatus=DF_FILE_ACTIVE or iStatus=DF_FILE_ACTIVE_CHANGED)
+        End_Function
+
+    Function IsNullRecordBuffer Integer iTable Returns Boolean
+        Function_Return (not(_IsRecordBufferActive(Self,iTable)))
+    End_Function
+
+    Function RecordBufferColumnValues Integer iTable Returns String[]
+        Integer iColumn iColumns iColumnType
+        String[] aColumnValues
+        Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iColumns
+        For iColumn from 0 to iColumns
+            Get_Attribute DF_FIELD_TYPE of iTable iColumn to iColumnType
+            If (iColumnType<>DF_OVERLAP) Begin
+                Get_Field_Value iTable iColumn to aColumnValues[iColumn]
+            End
+            Else Begin
+                Move "" to aColumnValues[iColumn
+            End
+        Loop
+        Function_Return aColumnValues
+    End_Function
+
+End_Object
+

@@ -1,0 +1,144 @@
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use FileFunctions.pkg // Define oFileFunctions object
+Use StackFunctions.pkg
+
+
+Use TableAccessFunctions.pkg
+
+Global_Variable Integer oFilelistFunctions
+
+Object _oFilelistFunctions is a cObject
+    Move Self to oFilelistFunctions
+    
+    Property String[] _paFilelistStack
+    
+    Procedure PushAndSetFilelist String sFileListName
+        String sFilelistPush
+        String[] aFilelistStack
+        
+        Get_Attribute DF_FILELIST_NAME to sFilelistPush
+        Set_Attribute DF_FILELIST_NAME to (ToAnsi(sFileListName))
+        
+        Get _paFilelistStack to aFilelistStack
+        Send StringPush of oStackFunctions sFilelistPush (&aFilelistStack)
+        Set _paFilelistStack to aFilelistStack
+    End_Procedure
+    
+    Procedure PopFilelist
+        String sFilelistPush
+        String[] aFilelistStack
+
+        Get _paFilelistStack to aFilelistStack
+        Get StringPop of oStackFunctions (&aFilelistStack) to sFilelistPush 
+        Set _paFilelistStack to aFilelistStack
+
+        Set_Attribute DF_FILELIST_NAME to (ToAnsi(sFilelistPush))
+    End_Procedure
+
+    Function CreateEmptyFilelist String sFilename Returns Boolean
+        Integer liCount liOrg liChannel
+        String lsFiller sFilelistPush
+
+        Get_Attribute DF_FILELIST_NAME to sFilelistPush // Remember who we were
+
+        Get DirectOutput of oFileFunctions ("binary:"+sFilename) to liChannel
+
+        If (liChannel>=0) Begin
+            Get_Argument_Size to liOrg      // Create the filelist. It has to be of size
+            Set_Argument_Size 524277        // 32128, if it is any smaller errors occur
+            pad "" to lsFiller 524277       // when setting the filelist attributes.
+            Move (Repeat(character(0),524277)) to lsFiller
+            Write channel liChannel "filelist.cfg"            // This has to be the first 12 characters
+            Write lsFiller                  //
+            Send CloseOutput of oFileFunctions liChannel
+            Set_Argument_Size liOrg         // Restore max argument size.
+            //      set_attribute DF_FILELIST_NAME To lsFileListPathAndName // Setup the file list for DataFlex.
+            Set_Attribute DF_FILELIST_NAME to (ToAnsi(sFilename))
+
+            Set_Attribute DF_FILE_ROOT_NAME    of 4095 to "temp"
+            Set_Attribute DF_FILE_LOGICAL_NAME of 4095 to "temp"
+            Set_Attribute DF_FILE_DISPLAY_NAME of 4095 to "temp"
+            Set_Attribute DF_FILE_ROOT_NAME    of 4095 to ""
+            Set_Attribute DF_FILE_LOGICAL_NAME of 4095 to ""
+            Set_Attribute DF_FILE_DISPLAY_NAME of 4095 to ""
+
+            Set_Attribute DF_FILE_ROOT_NAME    of 50 to "flexerrs"
+            Set_Attribute DF_FILE_LOGICAL_NAME of 50 to "FLEXERRS"
+            Set_Attribute DF_FILE_DISPLAY_NAME of 50 to "@DataFlex Error File"
+
+            //for liCount from 1 to 250                               // Fill the filelist.
+            //  set_attribute DF_FILE_ROOT_NAME    of liCount to ""   // Every slot must be
+            //  set_attribute DF_FILE_LOGICAL_NAME of liCount to ""   // emptied out. Otherwise
+            //  set_attribute DF_FILE_DISPLAY_NAME of liCount to ""   // the API thinks some of
+            //loop                                                    // the slots are used.
+//            Set_Attribute DF_FILELIST_NAME to sFilelistPush
+            Function_Return (FileExists(oFileFunctions,sFilename)=1)
+        End
+        Function_Return False
+    End_Function
+
+    Function FindEntryByRootname Integer iStartEntry String sTableRootName Returns Integer
+        Integer iTable
+        String sValue
+        Move iStartEntry to iTable
+        Repeat
+            Get_Attribute DF_FILE_NEXT_USED of iTable to iTable
+            If (iTable<>0) Begin
+                Get_Attribute DF_FILE_ROOT_NAME of iTable to sValue
+                If (Uppercase(sValue)=Uppercase(sTableRootName)) Begin
+                    Function_Return iTable
+                End
+            End
+        Until (iTable=0)
+        Function_Return 0
+    End_Function
+
+    Function FindEntryByLogicalName Integer iStartEntry String sLogicalName Returns Integer
+        Integer iTable
+        String sValue
+        Move iStartEntry to iTable
+        Repeat
+            Get_Attribute DF_FILE_NEXT_USED of iTable to iTable
+            If (iTable<>0) Begin
+                Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sValue
+                If (Uppercase(sValue)=Uppercase(sLogicalName)) Begin
+                    Function_Return iTable
+                End
+            End
+        Until (iTable=0)
+        Function_Return 0
+    End_Function
+
+    Procedure UpdateEntry Integer iTable String sRoot String sLogical String sDisplay
+        Set_Attribute DF_FILE_ROOT_NAME    of iTable to sRoot
+        Set_Attribute DF_FILE_LOGICAL_NAME of iTable to sLogical
+        Set_Attribute DF_FILE_DISPLAY_NAME of iTable to sDisplay
+    End_Procedure
+
+    Function EntryInUse Integer iTable Returns Boolean
+        String sRoot
+        Set_Attribute DF_FILE_ROOT_NAME of iTable to sRoot
+        Function_Return (sRoot<>"")
+    End_Function
+
+    Function TableEntryArray Integer iFileListNavAttr Returns Integer[]
+        Integer iTable iIndex
+        Integer[] aTables
+        If (iFileListNavAttr=DF_FILE_NEXT_OPENED or iFileListNavAttr=DF_FILE_NEXT_USED or iFileListNavAttr=DF_FILE_NEXT_EMPTY) Begin
+            Move 0 to iTable
+            Move 0 to iIndex
+            Repeat
+                Get_Attribute iFileListNavAttr of iTable to iTable
+                If (iTable<>0) Begin
+                    Move iTable to aTables[iIndex]
+                    Increment iIndex
+                End
+            Until (iTable=0)
+        End
+        Else begin
+            Error 810 "Illegal attribute passed to TableIntegerArray function"
+        End
+        Function_Return aTables
+    End_Function
+    
+End_Object

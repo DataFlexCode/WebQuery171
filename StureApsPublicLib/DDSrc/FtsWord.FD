@@ -1,0 +1,6 @@
+#REPLACE FILE1002 FtsWord
+#REPLACE FtsWord.Recnum |FN1002,0
+#REPLACE FtsWord.Word_Id |FN1002,1
+#REPLACE FtsWord.Word |FS1002,2
+#REPLACE FtsWord.Frequency |FN1002,3
+#REPLACE FtsWord.Verify_Status |FS1002,4

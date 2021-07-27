@@ -1,0 +1,271 @@
+//  Use RegistryFunctions.pkg //
+
+Use NamedValueFunctions.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+Use cRegistry.pkg
+
+Struct tRegKeyData
+    Integer hRoot
+    String sKey
+    String[] aSubKeys
+    tNamedValue[] aValues
+End_Struct
+
+Global_Variable Integer oRegistryFunctions
+
+Object _oRegistryFunctions is a cObject
+    
+    Move Self to oRegistryFunctions
+        
+    Object _oRegistry is a cRegistry // Private
+        Set pbLazyWrite to False
+        Set pfAccessRights to KEY_READ
+//        Set pfAccessRights to KEY_ALL_ACCESS
+        Function _ReadKeyData Handle hRoot String sKey tRegKeyData ByRef stKeyData Boolean bReadBinaries Returns Boolean
+            Boolean bOpen
+            Integer iKey iMaxKey iValueType
+            Handle hoArray
+            String sName
+            String[] aValues
+            tRegKeyData stEmptyKeyData
+            
+            Move stEmptyKeyData to stKeyData
+            Move hRoot to stKeyData.hRoot
+            Move sKey to stKeyData.sKey
+
+            Set pfAccessRights to KEY_READ
+            
+            Set phRootKey to hRoot
+            Get OpenKey sKey to bOpen
+            If (bOpen) Begin
+            
+                Get Create U_Array to hoArray // Create an array object
+                Get GetSubkeys hoArray to iMaxKey
+                Decrement iMaxKey
+              
+                For iKey from 0 to iMaxKey
+                    Get Value of hoArray iKey to stKeyData.aSubKeys[iKey]
+                Loop
+                
+                Send Delete_Data of hoArray
+                Get GetValues hoArray to iMaxKey
+                Decrement iMaxKey
+                
+                For iKey from 0 to iMaxKey
+                    Get Value of hoArray iKey to sName
+                    Move sName to stKeyData.aValues[iKey].sName 
+                    
+                    Get ValueType sName to iValueType
+                    
+                    If (iValueType=rdString) Begin
+                        Get ReadString sName to stKeyData.aValues[iKey].sValue
+                    End
+                    Else If (iValueType=rdDword) Begin
+                        Get ReadDword sName to stKeyData.aValues[iKey].sValue
+                    End
+    //                        If (iValueType=rdBinary) Begin // Not that simple
+    //                            //Get ReadBinary sName to stKeyData.aValues[iKey].sValue
+    //                        End
+    //                        If (iValueType=rdUnknown) Begin
+    //                        End
+                Loop
+                
+                Send CloseKey // must close all open Keys
+                
+                Send Destroy of hoArray // Remove the array object from memory.
+                Function_Return True
+            End
+            Function_Return False
+        End_Function
+
+        // Types: rdString rdDword rdBinary 
+        Procedure _WriteRegValue Handle hRoot String sKey String sName String sValue Integer iValueType
+            Boolean bExists bOpened 
+            Integer iType
+            Set phRootKey to hRoot
+            
+            Set pfAccessRights to KEY_ALL_ACCESS
+            Get KeyExistsCreateIfNot hRoot sKey to bExists
+            If (bExists) Begin
+                Get OpenKey sKey to bOpened
+                If (bOpened) Begin
+                    If (ValueExists(Self,sName)) Begin
+                        Get ValueType sName to iType
+                    End
+                    Else Begin
+                        Move iValueType to iType
+                    End
+                    
+                    If (iType=rdString) Begin
+                        Send WriteString sName sValue
+                    End
+                    Else If (iType=rdDword) Begin
+                        Send WriteDword sName sValue
+                    End
+                    Else If (iType=rdBinary) Begin
+                        Send WriteBinary sName (AddressOf(sValue)) (Length(sValue))
+                    End
+                    Else Begin
+                        Error 803 "Illegal value type"
+                    End
+                    
+                    Send CloseKey
+                End
+                Else Begin
+                    Error 802 "Insufficient rights to change value of registry key"
+                End
+                Set pfAccessRights to KEY_READ
+            End
+            Else Begin
+                Error 802 "Registry key does not exist"
+            End
+        End_Procedure
+        
+        Function _DeleteRegValue Handle hRoot String sKey String sName Returns Boolean
+            Boolean bExists bOpened bSucces 
+            Integer iType
+            Set phRootKey to hRoot
+            
+            Set pfAccessRights to KEY_ALL_ACCESS
+            Get KeyExistsCreateIfNot hRoot sKey to bExists
+            If (bExists) Begin
+                Get OpenKey sKey to bOpened
+                If (bOpened) Begin
+                    If (ValueExists(Self,sName)) Begin                          
+                        Get DeleteValue sName to bSucces
+                    End
+                    
+                    Send CloseKey
+                End
+                Else Begin
+                    Error 802 "Insufficient rights to change value of registry key"
+                End
+                Set pfAccessRights to KEY_READ
+            End
+//            Else Begin
+//                Error 802 "Registry key does not exist"
+//            End
+            Function_Return bSucces
+        End_Function
+        
+        Function _DeleteRegKey Handle hRoot String sKey String sSubKey Returns Boolean
+            Boolean bExists bOpened bSucces 
+            Integer iType
+            Set phRootKey to hRoot
+            
+            Set pfAccessRights to KEY_ALL_ACCESS
+            Get KeyExists sKey to bExists
+            If (bExists) Begin
+                Get OpenKey sKey to bOpened
+                If (bOpened) Begin
+                    If (KeyExists(Self,sSubKey)) Begin
+                        Get DeleteKey (sKey+"\"+sSubKey) to bSucces
+                    End
+                    
+                    Send CloseKey
+                End
+                Else Begin
+                    Error 802 "Insufficient rights to delete sub-registry-key"
+                End
+                Set pfAccessRights to KEY_READ
+            End
+//            Else Begin
+//                Error 802 "Registry key does not exist"
+//            End
+            Function_Return bSucces
+        End_Function
+            
+    End_Object // _oRegistry
+
+    Enum_List // Standard Registry Keys
+        Define SRK_VDF_ROOT
+        Define SRK_VDF_ROOT_CURRENT_VERSION
+    End_Enum_List
+
+    Function _CurrentVdfVer Returns String
+        String sMajor sMinor
+        Move (String(FMAC_VERSION)) to sMajor
+        Move (String(FMAC_REVISION)) to sMinor
+        Function_Return (sMajor+"."+sMinor)
+    End_Function
+    
+    Procedure GetStandardKey Integer iKey Handle ByRef hRoot String ByRef sKey
+        String sVdfVer
+        If (iKey=SRK_VDF_ROOT) Begin
+            Move HKEY_LOCAL_MACHINE to hRoot
+            Move "SOFTWARE\Data Access Worldwide\Visual DataFlex" to sKey
+        End
+        If (iKey=SRK_VDF_ROOT_CURRENT_VERSION) Begin
+            Move HKEY_LOCAL_MACHINE to hRoot
+            Get _CurrentVdfVer to sVdfVer
+            Move ("SOFTWARE\Data Access Worldwide\Visual DataFlex\"+sVdfVer) to sKey
+        End
+    End_Procedure
+    
+    Function ReadKeyData Handle hRoot String sKey tRegKeyData ByRef stKeyData Boolean bReadBinaries Returns Boolean
+        Function_Return (_ReadKeyData(_oRegistry,hRoot,sKey,&stKeyData,bReadBinaries))
+    End_Function
+    
+    Function NamedRegValue tRegKeyData stKeyData String sName Returns String
+        tNamedValueList strList
+        String sValue
+        Get NewNamedValueList of oNamedValueFunctions True to strList
+        Move stKeyData.aValues to strList.aNamedValues
+        Get NamedValue of oNamedValueFunctions strList sName to sValue
+        Function_Return sValue
+    End_Function
+    
+    Function KeyExists Handle hRoot String sKey Returns Boolean
+        Set phRootKey of _oRegistry to hRoot
+        Function_Return (KeyExists(_oRegistry,sKey))
+    End_Function
+    
+    Function CreateKey Handle hRoot String sKey Returns Boolean
+        Integer iError
+        Set phRootKey of _oRegistry to hRoot
+        Get CreateKey of _oRegistry sKey to iError
+        If (iError<>0) Begin
+            Send Info_Box ("CreateKey returned the following error from Windows: "+String(iError))
+        End
+        Function_Return (iError=0)
+//        Function_Return (CreateKey(_oRegistry,sKey))
+    End_Function
+    
+    Function KeyExistsCreateIfNot Handle hRoot String sKey Returns Boolean
+        Boolean bCreated
+        String sParentKey 
+        If (sKey="") Begin
+            Function_Return False
+        End
+        If (not(KeyExists(Self,hRoot,sKey))) Begin
+            Get PathToFolder of oFileFunctions sKey to sParentKey
+            Get KeyExistsCreateIfNot hRoot sParentKey to bCreated
+            If (bCreated) Begin
+                Get CreateKey hRoot sKey to bCreated
+                If (bCreated) Begin
+                    Send CloseKey of _oRegistry 
+                End
+                Function_Return bCreated
+            End
+        End
+        Function_Return (KeyExists(Self,hRoot,sKey))
+    End_Function
+
+    // iValueType is rdString rdDword or rdBinary
+    Procedure WriteRegValue Handle hRoot String sKey String sName String sValue Integer iValueType
+        Send _WriteRegValue of _oRegistry hRoot sKey sName sValue iValueType
+    End_Procedure
+    
+    Function DeleteRegValue Handle hRoot String sKey String sName Returns Boolean
+        Boolean bSucces
+        Get _DeleteRegValue of _oRegistry hRoot sKey sName to bSucces
+        Function_Return bSucces
+    End_Function
+    
+    Function DeleteRegKey Handle hRoot String sKey String sSubKey Returns Boolean
+        Boolean bSucces
+        Get _DeleteRegKey of _oRegistry hRoot sKey sSubKey to bSucces
+        Function_Return bSucces
+    End_Function
+    
+End_Object

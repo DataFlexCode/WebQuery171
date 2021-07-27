@@ -1,0 +1,57 @@
+Use VdfBase.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+Use StringFunctions.pkg // Define oStringFunctions object
+
+Struct cIntFile
+    String  sDriverName
+    String  sDatabaseName
+    String  sSchemaName
+    Integer iNumberOfDfFields
+    Integer iPrimaryIndex
+    String  sOptimize
+    Integer iMaxRowsToQuery
+    String  sLocalCache    
+End_Struct
+
+Object oIntFileFunctions is a cObject
+        Function _ReadItem String sLine String sLead Returns String
+        End_Function
+        
+        Procedure _ReadItemString String sLine String sLead String ByRef sValue
+            If (BeginsWith(oStringFunctions,sLine,sLead)) Begin
+                Move (Trim(Replace(sLead,sLine,""))) to sValue
+            End
+        End_Procedure
+
+        Procedure _ReadItemInteger String sLine String sLead Integer ByRef iValue
+            If (BeginsWith(oStringFunctions,sLine,sLead)) Begin
+                Move (Trim(Replace(sLead,sLine,""))) to iValue
+            End
+        End_Procedure
+    
+    Function ReadIntFile String sFileName Returns cIntFile
+        Boolean bSeqEof
+        Integer iChannel
+        String sLine sValue
+        cIntFile stIntFile
+        Get DirectInput of oFileFunctions sFileName to iChannel
+        If (iChannel>=0) Begin
+            Repeat
+                Readln channel iChannel sLine
+                Move (SeqEof) to bSeqeof
+                If (not(bSeqEof)) Begin
+                    Send _ReadItemString  sLine "DRIVER_NAME "       (&stIntFile.sDriverName)
+                    Send _ReadItemString  sLine "DATABASE_NAME "     (&stIntFile.sDatabaseName)
+                    Send _ReadItemString  sLine "SCHEMA_NAME "       (&stIntFile.sSchemaName)
+                    Send _ReadItemInteger sLine "NUMBER_DF_FIELDS "  (&stIntFile.iNumberOfDfFields)
+                    Send _ReadItemInteger sLine "PRIMARY_INDEX "     (&stIntFile.iPrimaryIndex)
+                    Send _ReadItemString  sLine "OPTIMIZE "          (&stIntFile.sOptimize)
+                    Send _ReadItemInteger sLine "MAX_ROWS_TO_QUERY " (&stIntFile.iMaxRowsToQuery)
+                    Send _ReadItemString  sLine "LOCAL_CACHE "       (&stIntFile.sLocalCache)
+                End
+            Until (SeqEof)
+            Send CloseInput of oFileFunctions iChannel
+        End
+        Function_Return stIntFile    
+    End_Function
+End_Object

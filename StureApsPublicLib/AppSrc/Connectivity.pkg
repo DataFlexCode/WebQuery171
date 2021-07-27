@@ -1,0 +1,24 @@
+Use ErrorEventHandlerClass.pkg
+
+Struct tConnectivityLogin
+    String sServer
+    String sDriver
+    Boolean bUseNtAuthentication
+    String sUser
+    String sPassword
+End_Struct
+
+Object oConnectivity is a cObject
+    Function Login tConnectivityLogin stLogin Returns Boolean
+//        String sDriverDll String sServer String sUser String sPassword Returns Boolean
+        tErrorEvent[] aErrors
+        Send Activate of oErrorSilence
+        Login stLogin.sServer stLogin.sUser stLogin.sPassword stLogin.sDriver
+        Send Deactivate of oErrorSilence
+        Get paErrors of oErrorSilence to aErrors
+        If (SizeOfArray(aErrors)<>0) Begin
+            Error 421 "Login unsuccesful"    
+        End
+        Function_Return (SizeOfArray(aErrors)=0)
+    End_Function
+End_Object

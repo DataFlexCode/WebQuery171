@@ -1,0 +1,11 @@
+10/08/2013 13:30:03.199 - Verifying filelist E:\Program Files\Visual DataFlex 17.1\Usr\New\Data\Filelist.cfg
+10/08/2013 13:30:03.199 - Opening filelist E:\Program Files\Visual DataFlex 17.1\Usr\New\Data\Filelist.cfg
+10/08/2013 13:30:03.199 - Start reindexing
+10/08/2013 13:30:03.215 - No path specified for CodeType
+10/08/2013 13:30:03.215 - Added path E:\Program Files\Visual DataFlex 17.1\Usr\New\Data\ to original file name
+10/08/2013 13:30:03.215 - Opening E:\Program Files\Visual DataFlex 17.1\Usr\New\Data\CodeType as 253
+10/08/2013 13:30:03.215 - Reindexing CodeType
+10/08/2013 13:30:03.231 - No path specified for CodeMast
+10/08/2013 13:30:03.231 - Added path E:\Program Files\Visual DataFlex 17.1\Usr\New\Data\ to original file name
+10/08/2013 13:30:03.231 - Opening E:\Program Files\Visual DataFlex 17.1\Usr\New\Data\CodeMast as 254
+10/08/2013 13:30:03.231 - Reindexing CodeMast

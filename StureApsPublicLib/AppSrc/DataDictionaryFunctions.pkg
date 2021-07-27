@@ -1,0 +1,1123 @@
+// DAW packages
+Use VdfBase.pkg
+Use GlobalFunctionsProcedures.pkg
+Use Datadict.pkg
+
+// StureAps packages
+Use StackFunctions.pkg // Define oStackFunctions object
+Use RelationMapStruct.pkg // tRelationsDrawingMapItem struct
+Use yUML.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+
+#IFNDEF Is$WebApp // If Windows application
+Use Win\ObjectInfo.pkg
+#ENDIF
+
+Global_Variable Integer oDataDictionaryFunctions
+
+Procedure _RegisterAllMainDDObjects for cObject
+    Integer iDM iMainDD
+    Get Delegation_Mode to iDM
+    Set Delegation_Mode to No_Delegate_Or_Error
+    Get Main_DD to iMainDD
+    Set Delegation_Mode to iDM
+    If (iMainDD<>0) Begin
+        Send _AllDataDictionaryContainersRegister of oDataDictionaryFunctions Self    
+    End
+End_Procedure
+
+Struct tDDORelation
+    Integer hFromDDO
+    Integer hToDDO
+    Boolean bConstrained // Constrain_File is set
+End_Struct
+
+Object _oDataDictionaryFunctions is a cObject
+    Move Self to oDataDictionaryFunctions
+
+    Global_Variable Integer[] _gaDdoClasses
+    Global_Variable Integer[] _gaDdoObjects
+
+    // This method lets you decide the class of object to be queried when reading DatabaseBuilder settings.
+    Procedure Set DDO_Class Integer iTable Integer iClass
+        Move iClass to _gaDdoClasses[iTable]
+    End_Procedure
+
+    Function DDO_Class Integer iTable Returns Integer
+        If (SizeOfArray(_gaDdoClasses)>iTable) Begin
+            Function_Return _gaDdoClasses[iTable]
+        End
+        Function_Return 0
+    End_Function
+    
+    // DDO's created by this function are only meant for
+    // querying properties, not for updating tables.
+    // Table must be Open prior to calling this Function!
+    Function DDO_Object Integer iTable Returns Integer
+        Integer hDDO iClass
+
+        Move 0 to hDDO
+        If (SizeOfArray(_gaDdoObjects)>iTable) Begin
+            Move _gaDdoObjects[iTable] to hDDO
+        End
+        
+        If (hDDO=0) Begin // If the object isn't there we'll try to create it
+            Get DDO_Class iTable to iClass // Get registered class for the table
+            If (iClass<>0) Begin // If there was one:
+                Get Create iClass to hDDO // create new DDO
+                Move hDDO to _gaDdoObjects[iTable]
+            End
+        End
+        Function_Return hDDO
+    End_Function
+    
+    //> Returns an array of connected child DDOs of hDDO
+    Function ChildDdoArray Integer hDDO Returns Integer[]
+        Integer iMax iIndex
+        Integer[] aDDOs
+        Get Data_Set_Client_Count of hDDO to iMax
+        Decrement iMax
+        For iIndex from 0 to iMax
+            Get Data_Set_Client of hDDO iIndex to aDDOs[iIndex]
+        Loop
+        Function_Return aDDOs
+    End_Function
+
+    //> Returns an array of connected parent DDOs of hDDO
+    Function ParentDdoArray Integer hDDO Returns Integer[]
+        Integer iMax iIndex
+        Integer[] aDDOs
+        Get Data_Set_Server_Count of hDDO to iMax
+        Decrement iMax
+        For iIndex from 0 to iMax
+            Get Data_Set_Server of hDDO iIndex to aDDOs[iIndex]
+        Loop
+        Function_Return aDDOs
+    End_Function
+    
+    //> Returns an array of required child tables of hDDO. These are the tables
+    //> that should be represented by connecting DDOs (if a delete operation is to
+    //> succeed)
+    Function RequiredChildTableArray Integer hDDO Returns Integer[]
+        Integer iMax iIndex
+        Integer[] aTables
+        Get Client_File_Count of hDDO to iMax
+        Decrement iMax
+        For iIndex from 0 to iMax
+            Get Client_File of hDDO iIndex to aTables[iIndex]
+        Loop
+        Function_Return aTables
+    End_Function
+
+    //> Returns an array of required parent tables of hDDO. These are the tables
+    //> that should be represented by connected DDOs (if a save operation is to
+    //> succeed)
+    Function RequiredParentTableArray Integer hDDO Returns Integer[]
+        Integer iMax iIndex
+        Integer[] aTables
+        Get Server_File_Count of hDDO to iMax
+        Decrement iMax
+        For iIndex from 0 to iMax
+            Get Server_File of hDDO iIndex to aTables[iIndex]
+        Loop
+        Function_Return aTables
+    End_Function
+
+        Function _SearchDdoArrayForTable Integer[] aDDO Integer iTable Returns Integer
+            Integer iMax iIndex
+            Move (SizeOfArray(aDDO)-1) to iMax
+            For iIndex from 0 to iMax
+                If (iTable=main_file(aDDO[iIndex])) Begin
+                    Function_Return iIndex
+                End
+            Loop
+            Function_Return -1
+        End_Function
+    
+    Function MissingChildTableArray Integer hDDO Returns Integer[]
+        Integer iMax iIndex iMissingIndex
+        Integer[] aRequiredChildTables aChildDDOs aMissingTables
+        Get ChildDdoArray hDDO to aChildDDOs
+        Get RequiredChildTableArray hDDO to aRequiredChildTables
+        Move 0 to iMissingIndex
+        Move (SizeOfArray(aRequiredChildTables)-1) to iMax
+        For iIndex from 0 to iMax
+            If (_SearchDdoArrayForTable(Self,aChildDDOs,aRequiredChildTables[iIndex])=-1) Begin
+                Move aRequiredChildTables[iIndex] to aMissingTables[iMissingIndex]
+                Increment iMissingIndex
+            End
+        Loop
+        Function_Return aMissingTables
+    End_Function
+    
+    Function MissingParentTableArray Integer hDDO Returns Integer[]
+        Integer iMax iIndex iMissingIndex
+        Integer[] aRequiredParentTables aParentDDOs aMissingTables
+        Get ParentDdoArray hDDO to aParentDDOs
+        Get RequiredParentTableArray hDDO to aRequiredParentTables
+        Move 0 to iMissingIndex
+        Move (SizeOfArray(aRequiredParentTables)-1) to iMax
+        For iIndex from 0 to iMax
+            If (_SearchDdoArrayForTable(Self,aParentDDOs,aRequiredParentTables[iIndex])=-1) Begin
+                Move aRequiredParentTables[iIndex] to aMissingTables[iMissingIndex]
+                Increment iMissingIndex
+            End
+        Loop
+        Function_Return aMissingTables
+    End_Function
+    
+        Function _IsMember Integer iValue Integer[] aValues Returns Boolean
+            Integer iIndex
+            Move (SearchArray(iValue,aValues)) to iIndex
+            Function_Return (iIndex<>-1)
+        End_Function
+        
+        Procedure _BuildParentStructure Integer hDDO Boolean bParentFirst Integer[] ByRef aDDOs Integer[] ByRef aBeingHandled 
+            Integer iMax iItem hParentDD
+            
+            Get Data_Set_Server_Count of hDDO to iMax
+            Decrement iMax
+            For iItem from 0 to iMax
+                Get Data_Set_Server of hDDO iItem to hParentDD
+                
+                If (not(_IsMember(Self,hParentDD,aBeingHandled))) Begin
+                    Move hParentDD to aBeingHandled[SizeOfArray(aBeingHandled)]
+                     
+                    If (bParentFirst) Begin
+                        Send _BuildParentStructure hParentDD bParentFirst (&aDDOs) (&aBeingHandled)
+                        Send _BuildChildStructure hParentDD bParentFirst (&aDDOs) (&aBeingHandled)
+                    End
+    
+                    Move hParentDD to aDDOs[SizeOfArray(aDDOs)]
+    
+                    If (not(bParentFirst)) Begin
+                        Send _BuildChildStructure hParentDD bParentFirst (&aDDOs) (&aBeingHandled)
+                        Send _BuildParentStructure hParentDD bParentFirst (&aDDOs) (&aBeingHandled)
+                    End
+                End
+            Loop
+        End_Procedure
+    
+        Procedure _BuildChildStructure Integer hDDO Boolean bParentFirst Integer[] ByRef aDDOs Integer[] ByRef aBeingHandled 
+            Integer iMax iItem hChildDD
+            
+            Get Data_Set_Client_Count of hDDO to iMax
+            Decrement iMax
+            For iItem from 0 to iMax
+                Get Data_Set_Client of hDDO iItem to hChildDD
+                
+                If (not(_IsMember(Self,hChildDD,aBeingHandled))) Begin
+                    Move hChildDD to aBeingHandled[SizeOfArray(aBeingHandled)]
+
+                    If (bParentFirst) Begin
+                        Send _BuildParentStructure hChildDD bParentFirst (&aDDOs) (&aBeingHandled)
+                        Send _BuildChildStructure hChildDD bParentFirst (&aDDOs) (&aBeingHandled)
+                    End
+
+                    Move hChildDD to aDDOs[SizeOfArray(aDDOs)]
+    
+                    If (not(bParentFirst)) Begin
+                        Send _BuildChildStructure hChildDD bParentFirst (&aDDOs) (&aBeingHandled)
+                        Send _BuildParentStructure hChildDD bParentFirst (&aDDOs) (&aBeingHandled)
+                    End
+                End
+            Loop
+        End_Procedure
+
+    // Returns an array of DDO handles.
+    Function ParentStructure Integer hRootDD Boolean bParentFirst Returns Integer[]
+        Integer[] aRval aBeingHandled
+        Move hRootDD to aBeingHandled[0]
+        Send _BuildParentStructure hRootDD bParentFirst (&aRval) (&aBeingHandled)
+        Function_Return aRval
+    End_Function
+    
+    // Returns an array of DDO handles.
+    Function ChildStructure Integer hRootDD Boolean bParentFirst Returns Integer[]
+        Integer[] aRval aBeingHandled
+        Move hRootDD to aBeingHandled[0]
+        Send _BuildChildStructure hRootDD bParentFirst (&aRval) (&aBeingHandled)
+        Function_Return aRval
+    End_Function
+    
+    //> Returns an array of DDO objects
+    Function CompleteStructure Integer hRootDD Boolean bParentFirst Returns Integer[]
+        Integer[] aRval aBeingHandled
+        If (bParentFirst) Begin
+            Send _BuildParentStructure hRootDD bParentFirst (&aRval) (&aBeingHandled)
+            If (SizeOfArray(aRval)=0) Begin
+                Send _BuildChildStructure hRootDD bParentFirst (&aRval) (&aBeingHandled)
+            End
+        End 
+        Else Begin
+            Send _BuildChildStructure hRootDD bParentFirst (&aRval) (&aBeingHandled)
+            If (SizeOfArray(aRval)=0) Begin
+                Send _BuildParentStructure hRootDD bParentFirst (&aRval) (&aBeingHandled)
+            End
+        End
+        If (not(_IsMember(Self,hRootDD,aRval))) Begin
+            Move hRootDD to aRval[SizeOfArray(aRval)]
+        End
+        Function_Return aRval
+    End_Function
+
+        Procedure _RequiredTablesSave Integer hDD Integer[] ByRef aTables
+            Integer iMax iIndex iTable
+            Integer hParentDD
+            Get Server_File_Count of hDD to iMax
+            Decrement iMax
+            For iIndex from 0 to iMax
+                Get Server_File of hDD iIndex to iTable
+                If (not(_IsMember(Self,iTable,aTables))) Begin
+                    Move iTable to aTables[SizeOfArray(aTables)]
+                    Get Data_Set of hDD iTable to hParentDD
+                    If (hParentDD>0) Begin
+                        Send _RequiredTablesSave hParentDD (&aTables)
+                    End
+                End
+            Loop
+        End_Procedure
+    
+    //> Returns a list of required tables
+    Function RequiredTablesSave Integer hRootDD Returns Integer[]
+        Integer[] aTables
+        Send _RequiredTablesSave hRootDD (&aTables)
+        Function_Return aTables
+    End_Function
+    
+    Function CheckRequiredTables Integer hRootDD Integer[] aTables Returns Integer[]
+        Integer iMax iIndex iTable
+        Integer hDD
+        Integer[] aMissingTables
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aTables[iIndex] to iTable
+            Get Data_Set of hRootDD iTable to hDD
+            If (hDD<=0) Begin
+                Move iTable to aMissingTables[SizeOfArray(aMissingTables)]  
+            End
+        Loop
+        Function_Return aMissingTables
+    End_Function
+    
+    Function TableArrayIntegerToName Integer[] aTables Integer iAttr Returns String[]
+        Integer iMax iIndex
+        String[] aValues
+        If (iAttr=DF_FILE_LOGICAL_NAME or iAttr=DF_FILE_ROOT_NAME or iAttr=DF_FILE_DISPLAY_NAME) Begin
+            Move (SizeOfArray(aTables)-1) to iMax
+            For iIndex from 0 to iMax
+                Get_Attribute iAttr of aTables[iIndex] to aValues[iIndex]
+            Loop
+        End
+        Function_Return aValues
+    End_Function
+
+    // This is not sofisticated enough. The tOIDeoInfo variable cannot hold
+    // the definition of a dbGrid type object and can therefore not extract
+    // the correct label name.
+    Function ControlLabel Integer hDDO Integer iTable Integer iField Returns String
+#IFNDEF Is$WebApp // If Windows application
+        Integer iMax iIndex
+        Integer hControl
+        tOIDeoInfo stObj
+        Get Data_Set_User_Interface_Count of hDDO to iMax
+        Decrement iMax
+        For iIndex from 0 to iMax
+            Get Data_Set_User_Interface of hDDO iIndex to hControl
+            Get DeoInfo of oObjectInfo hControl to stObj
+            If (stObj.iTable=iTable and stObj.iColumn=iField) Begin
+                Function_Return stObj.sLabel
+            End
+        Loop
+        Function_Return ""
+#ENDIF
+    End_Function
+
+    Procedure ShowDebugPanel
+#IFNDEF Is$WebApp // If Windows application
+//        Send Popup of _oDataDictionaryFunctionsDebugPanel
+        Send Info_Box "Implementation hole! \nShould have sent Popup of _oDataDictionaryFunctionsDebugPanel"
+#ENDIF
+    End_Procedure
+
+    // Call function hFunc in object hObject without creating an error
+    // if the object does not understand the call
+    Function _PaddedValue Integer hObject Integer hFunc Returns Integer
+        Integer iDm
+        String sValue
+        Get Delegation_Mode of hObject to iDm        
+        Set Delegation_Mode of hObject to NO_DELEGATE_OR_ERROR
+        Get hFunc of hObject to sValue
+        Set Delegation_Mode of hObject to iDm
+        Function_Return sValue
+    End_Function
+    
+    // Call function hFunc in object hObject with aurgunent iItem without
+    // creating an Error if the object does not understand the call
+    Function _PaddedItemValue Integer hObject Integer hFunc Integer iItem Returns Integer
+        Integer iDm
+        String sValue
+        Get Delegation_Mode of hObject to iDm        
+        Set Delegation_Mode of hObject to NO_DELEGATE_OR_ERROR
+        Get hFunc of hObject iItem to sValue
+        Set Delegation_Mode of hObject to iDm
+        Function_Return sValue
+    End_Function
+    
+    Function _PaddedDataFile Integer hObject Returns Integer
+        Integer iItem iTable
+        Get _PaddedValue hObject GET_Current_Item to iItem
+        Get _PaddedItemValue hObject GET_Data_File iItem to iTable
+        Function_Return iTable
+    End_Function
+    
+    Function DdoArrayToTableArray Integer[] aDDOs Returns Integer[]
+        Integer iMax iIndex iTable
+        Integer[] aTables
+        Move (SizeOfArray(aDDOs)-1) to iMax
+        For iIndex from 0 to iMax
+            Get main_file of aDDOs[iIndex] to iTable
+            Move iTable to aTables[iIndex]
+        Loop
+        Function_Return aTables
+    End_Function
+
+        Procedure _TrimParentDdoStructure Integer hDDO
+            Integer iMax iIndex
+            Integer[] aRequiredTables aParentDDOs aParentTables
+            Get RequiredParentTableArray hDDO to aRequiredTables
+            Get ParentDdoArray hDDO to aParentDDOs
+            Get DdoArrayToTableArray aParentDDOs to aParentTables
+            Move (SizeOfArray(aRequiredTables)-1) to iMax
+            For iIndex from 0 to iMax
+                If (not(IntegerIsMember(oStackFunctions,aParentTables,aRequiredTables[iIndex]))) Begin
+                    // Remove required parent file
+                    Send Remove_Server_File of hDDO aRequiredTables[iIndex]
+                End
+            Loop
+        End_Procedure
+
+    Procedure TrimGrandParentDdoStructure Integer hDDO
+        Integer iMax iIndex
+        Integer[] aParentDDOs
+        Get ParentDdoArray hDDO to aParentDDOs
+        Move (SizeOfArray(aParentDDOs)-1) to iMax
+        For iIndex from 0 to iMax
+            Send _TrimParentDdoStructure aParentDDOs[iIndex]
+        Loop
+    End_Procedure
+
+    Procedure TrimParentDdoStructure integer hDDO
+        // NOTE! Not safeguarded against cyclic DDO_Server's
+        Integer iMax iIndex
+        Integer[] aParentDDOs
+        Send _TrimParentDdoStructure hDDO
+        Get ParentDdoArray hDDO to aParentDDOs
+        Move (SizeOfArray(aParentDDOs)-1) to iMax
+        For iIndex from 0 to iMax
+            Send TrimParentDdoStructure aParentDDOs[iIndex]
+        Loop
+    End_Procedure
+
+        Procedure _CreateMissingParentDDOs Integer hDDO Boolean bRecursive
+            Integer iMax iIndex iDDClass hNewDDO
+            Integer[] aRequiredTables aParentDDOs aParentTables
+            Get RequiredParentTableArray hDDO to aRequiredTables
+            Get ParentDdoArray hDDO to aParentDDOs
+            Get DdoArrayToTableArray aParentDDOs to aParentTables
+            Move (SizeOfArray(aRequiredTables)-1) to iMax
+            For iIndex from 0 to iMax
+                If (not(IntegerIsMember(oStackFunctions,aParentTables,aRequiredTables[iIndex]))) Begin
+                    // Attempt to create the missing DDO:
+                    Get DDO_Class aRequiredTables[iIndex] to iDDClass
+                    If (iDDClass<>0) Begin
+                        Get Create of (Parent(hDDO)) iDDClass to hNewDDO
+                        Set DDO_Server of hDDO to hNewDDO
+                        If (bRecursive) Begin
+                            Send _CreateMissingParentDDOs hNewDDO bRecursive
+                        End
+                    End
+                    Else Begin
+                        Error 232 ("Can't create DDO for table "+String(aRequiredTables[iIndex])+" (missing class)")
+                    End
+                End
+            Loop
+        End_Procedure
+
+    Procedure CreateMissingParentDDOs Integer hDDO Boolean bRecursive
+        Send _CreateMissingParentDDOs hDDO bRecursive
+    End_Procedure
+    
+    //> This function adds missing child DDOs to hDDO passed as parameter.
+    Procedure CreateMissingImmediateChildDDOs Integer hDDO 
+        Integer iMax iIndex hChildDDO
+        Integer[] aChildTables
+        
+        If (Cascade_Delete_State(hDDO)) Begin
+            Error 231 "Cascade_Delete_State state must be set to false in order to use the CreateMissingParentDDOs method"
+        End
+        Else Begin
+            Get MissingChildTableArray hDDO to aChildTables
+            Move (SizeOfArray(aChildTables)-1) to iMax
+            For iIndex from 0 to iMax
+                Get Create of (Parent(hDDO)) U_DataDictionary to hChildDDO // Create as siblings of hDDO
+                Set main_file of hChildDDO to aChildTables[iIndex]
+                Set DDO_Server of hChildDDO to hDDO
+            Loop
+        End
+    End_Procedure
+    
+    Procedure CreateMissingImmediateChildDDOsNoWarning Integer hDDO
+        Integer iMax iIndex hChildDDO
+        Integer[] aChildTables
+
+        Get MissingChildTableArray hDDO to aChildTables
+        Move (SizeOfArray(aChildTables)-1) to iMax
+        For iIndex from 0 to iMax
+            Get Create of (Parent(hDDO)) U_DataDictionary to hChildDDO // Create as siblings of hDDO
+            Set Main_File of hChildDDO to aChildTables[iIndex]
+            Set DDO_Server of hChildDDO to hDDO
+        Loop
+    End_Procedure
+
+    //Function ParentPath Returns Integer[]
+    //End_Function
+
+// -------------- Build "graphical" representation of DDO relationships -----------------
+
+                Function _AlreadyMappedAtRow Integer hDDO tRelationsDrawingMapItem[] aMap Returns Integer
+                    Integer iMax iIndex
+                    Move (SizeOfArray(aMap)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (hDDO=aMap[iIndex].iItemId) Begin
+                            Function_Return iIndex // hDDO already mapped at row iIndex
+                        End
+                    Loop
+                    Function_Return -1 // not mapped
+                End_Function
+                
+                Function _RemoveValueFromArray Integer hValue Integer[] aValues Returns Integer[]
+                    Integer iMax iIndex
+                    Integer[] aRval
+                    Move (SizeOfArray(aValues)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (hValue<>aValues[iIndex]) Begin
+                            Move aValues[iIndex] to aRval[SizeOfArray(aRval)]
+                        End
+                    Loop
+                    Function_Return aRval
+                End_Function
+                
+                Global_Variable Integer[] _gaDDFVisited
+               
+                Procedure _DmrAddToVisited Integer hDD
+                    Move hDD to _gaDDFVisited[SizeOfArray(_gaDDFVisited)]
+                End_Procedure
+               
+                Function _DmrAlreadyVisited Integer hDD Returns Boolean
+                    Integer iMax iIndex
+                    Move (SizeOfArray(_gaDDFVisited)-1) to iMax
+                    For iIndex from 0 to iMax
+                        If (hDD=_gaDDFVisited[iIndex]) Begin
+                            Function_Return True
+                        End
+                    Loop
+                    Function_Return False
+                End_Function
+                
+        Global_Variable Boolean[] __gaDDFVerticalLines
+        
+        Procedure __doRelationsMapAddDdoRelation tDDORelation[] ByRef aDdoRelations Integer hChildTableDDO Integer hParentTableDDO
+            Integer iIndex iMax
+            Move (SizeOfArray(aDdoRelations)-1) to iMax
+            For iIndex from 0 to iMax
+                If (aDdoRelations[iIndex].hFromDDO=hChildTableDDO and aDdoRelations[iIndex].hToDDO=hParentTableDDO) Begin
+                    Procedure_Return
+                End
+            Loop
+            
+            Move (SizeOfArray(aDdoRelations)) to iIndex
+            Move hChildTableDDO to aDdoRelations[iIndex].hFromDDO
+            Move hParentTableDDO to aDdoRelations[iIndex].hToDDO
+            Move (Constrain_File(hChildTableDDO)<>0 and Constrain_File(hChildTableDDO)=Main_File(hParentTableDDO)) to aDdoRelations[iIndex].bConstrained
+        End_Procedure
+                                                                                                                    
+        Procedure _doRelationsMap Integer hDDO Integer hIgnoreDD Integer iLevel tRelationsDrawingMapItem[] ByRef aMap Boolean bFirst Boolean bLast Boolean bParent Boolean bChild tDDORelation[] ByRef aDdoRelations
+            Integer iMax iIndex
+            Integer iAlreadyMappedAtRow
+            Boolean bUp bDown bLeft bRight     
+            Integer[] aParentDDOs aChildDDOs
+            String sValue
+            Boolean bAlreadyVisited
+            Integer hChildTableDDO hParentTableDDO
+
+            //Has the DDO already been mapped?
+            
+            Get _AlreadyMappedAtRow hDDO aMap to iAlreadyMappedAtRow
+            
+            Get _DmrAlreadyVisited hDDO to bAlreadyVisited
+            If (not(bAlreadyVisited)) Begin
+                Send _DmrAddToVisited hDDO
+            End
+ 
+            If (not(bAlreadyVisited)) Begin
+                Get ParentDdoArray hDDO to aParentDDOs
+                Get ChildDdoArray hDDO to aChildDDOs
+                Get _RemoveValueFromArray hIgnoreDD aParentDDOs to aParentDDOs
+                Get _RemoveValueFromArray hIgnoreDD aChildDDOs to aChildDDOs
+            End
+
+            Move (SizeOfArray(aMap)-1) to iIndex
+            
+            Move False to __gaDDFVerticalLines[iLevel]
+            
+            If (not(bAlreadyVisited)) Begin
+                Move (SizeOfArray(aParentDDOs)-1) to iMax
+                For iIndex from 0 to iMax
+                    Send __doRelationsMapAddDdoRelation (&aDdoRelations) hDDO aParentDDOs[iIndex]
+                    Send _doRelationsMap aParentDDOs[iIndex] hDDO (iLevel+1) (&aMap) (iIndex=0) (iIndex=iMax) True False (&aDdoRelations)
+                Loop
+            End
+            If (bParent and bFirst and iLevel>0) Begin
+                Move True to __gaDDFVerticalLines[iLevel-1] // Turn on parent vertical line
+            End
+
+            Send BooleanDrop of oStackFunctions (&__gaDDFVerticalLines) 
+
+            Move (SizeOfArray(aMap)) to iIndex
+            Move hDDO to aMap[iIndex].iItemId
+            Move iLevel to aMap[iIndex].iLevel
+            Move __gaDDFVerticalLines to aMap[iIndex].aVerticalLines
+
+            If (iAlreadyMappedAtRow=-1 and bAlreadyVisited) Begin
+                Move -2 to iAlreadyMappedAtRow // Means that we don't yet know in what row the it "was" mapped in (may be fixed in a second pass)
+            End
+            
+            Move iAlreadyMappedAtRow to aMap[iIndex].iAlreadyMappedAtRow
+            Move bFirst  to aMap[iIndex].bFirst
+            Move bLast   to aMap[iIndex].bLast  
+            Move bParent to aMap[iIndex].bParent
+            Move bChild  to aMap[iIndex].bChild
+
+            If (bChild and bLast and iLevel>0) Begin
+                Move False to __gaDDFVerticalLines[iLevel-1]
+            End
+            
+            If (not(bAlreadyVisited)) Begin
+                Move True to __gaDDFVerticalLines[iLevel]
+                Move (SizeOfArray(aChildDDOs)-1) to iMax
+                For iIndex from 0 to iMax
+                    Send __doRelationsMapAddDdoRelation (&aDdoRelations) aChildDDOs[iIndex] hDDO 
+                    Send _doRelationsMap aChildDDOs[iIndex] hDDO (iLevel+1) (&aMap) (iIndex=0) (iIndex=iMax) False True (&aDdoRelations)
+                Loop
+                Send BooleanDrop of oStackFunctions (&__gaDDFVerticalLines)
+            End
+
+       End_Procedure
+    
+    Function DDO_RelationsDrawingMap Integer hRootDD Returns tRelationsDrawingMapItem[]
+        tRelationsDrawingMapItem[] aMap
+        tDDORelation[] aDdoRelations
+        Boolean[] aVerticalLines
+        Move (ResizeArray(_gaDDFVisited,0)) to _gaDDFVisited
+        Move (ResizeArray(__gaDDFVerticalLines,0)) to __gaDDFVerticalLines
+        If (hRootDD<>0) Begin
+            Send _doRelationsMap hRootDD 0 0 (&aMap) False False False False (&aDdoRelations)
+        End
+        Function_Return aMap
+    End_Function
+    
+    Function DDO_Relations Integer hRootDD Returns tDDORelation[]
+        tRelationsDrawingMapItem[] aMap
+        tDDORelation[] aDdoRelations
+        Boolean[] aVerticalLines
+        Move (ResizeArray(_gaDDFVisited,0)) to _gaDDFVisited
+        Move (ResizeArray(__gaDDFVerticalLines,0)) to __gaDDFVerticalLines
+        If (hRootDD<>0) Begin
+            Send _doRelationsMap hRootDD 0 0 (&aMap) False False False False (&aDdoRelations)
+        End
+        Function_Return aDdoRelations
+    End_Function
+    
+                
+//          +--Zip
+//      +--Customer
+//      |--SalesP
+//     Order
+//      |       +--Country
+//      |   +--Vendor
+//      |   |--Product
+//      |   |   +--Stock
+//      +--Line
+//          |           +--Locations
+//          |       +--Pallets
+//          |   +--Packids
+//          +--Reservations
+//              +--Labels
+//
+//        +--Zip
+//     +--Customer
+//     |--SalesP
+//     Order
+//     |     +--Country
+//     |  +--Vendor
+//     |  |--Product
+//     |  |  +--Stock
+//     +--Line
+//        |        +--Locations
+//        |     +--Pallets
+//        |  +--Packids
+//        +--Reservations
+//           +--Labels
+//
+//       +-Zip
+//     +-Customer
+//     |-SalesP
+//     Order
+//     |   +-Country
+//     | +-Vendor
+//     | |-Product
+//     | | +-Stock
+//     +-Line
+//       |     +-Locations
+//       |   +-Pallets
+//       | +-Packids
+//       +-Reservations
+//         +-Labels
+
+// --------------------------------------------------------------------------------------
+    Function IsExtendedFieldDefinitionMissing Integer hDD Integer iField Returns Boolean
+        Integer iType
+        Integer hFieldObjects hFieldObject
+
+        Get_Attribute DF_FIELD_TYPE of (Main_File(hDD)) iField to iType
+
+        If (iType=DF_TEXT or iType=DF_BINARY) Begin
+            Get Field_Objects of hDD to hFieldObjects
+            If (hFieldObject<>0) Begin
+                Get Field_Object of hDD iField to hFieldObject
+                Function_Return (hFieldObject<>0)
+            End
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+
+// --------------------------------------------------------------------------------------
+    Function CreateCompleteDDO Integer iTable Returns Handle
+        Integer hDDO hDDC
+
+        // First create the root ddo:
+        Get DDO_Class iTable to hDDC
+        If (hDDC=0) Begin
+            Error 233 ("DD class not spedified for table "+String(iTable))
+        End
+        Else Begin
+            Get Create hDDC to hDDO
+            Send CreateMissingImmediateChildDDOsNoWarning hDDO
+            Send CreateMissingParentDDOs hDDO True
+        End
+
+        Function_Return hDDO
+    End_Function
+
+    Struct tAutoIncrementColumn
+        Integer iTable
+        Integer iColumn
+        Integer iSourceTable
+        Integer iSourceColumn
+        Number  nMaxValue
+        Number  nCounterValue
+    End_Struct
+    
+        Procedure _AutoIncrementStatus tAutoIncrementColumn stAutoIncrementColumn Number ByRef nColumnHighestValue Number ByRef nCounter Boolean bUpdateSource
+            Integer iIndex iSourceRecords
+
+            Get_Attribute DF_FIELD_INDEX of stAutoIncrementColumn.iTable stAutoIncrementColumn.iColumn to iIndex
+            Clear stAutoIncrementColumn.iTable
+            Vfind stAutoIncrementColumn.iTable iIndex LT // Finds the last record according to index
+            Get_Field_Value stAutoIncrementColumn.iTable stAutoIncrementColumn.iColumn to nColumnHighestValue
+            
+            Get_Attribute DF_FILE_MAX_RECORDS of stAutoIncrementColumn.iSourceTable to iSourceRecords
+            
+            If (iSourceRecords=1) Begin
+                Reread stAutoIncrementColumn.iSourceTable    
+            End
+            Else Begin
+                Lock
+                Relate stAutoIncrementColumn.iTable
+            End
+            Get_Field_Value stAutoIncrementColumn.iSourceTable stAutoIncrementColumn.iSourceColumn to nCounter
+            
+            If (bUpdateSource) Begin
+                If (nColumnHighestValue<>nCounter) Begin
+                    Set_Field_Value stAutoIncrementColumn.iSourceTable stAutoIncrementColumn.iSourceColumn to nColumnHighestValue
+                    SaveRecord stAutoIncrementColumn.iSourceTable
+                End
+            End
+            
+            Unlock
+        End_Procedure
+        
+    Function AutoIncrementColumns Integer iTable Returns tAutoIncrementColumn[]
+        Integer hDDO iIndex iMax
+        Integer[] aAutoIncFields
+        tDDFileField[] aSysFileFields
+        tAutoIncrementColumn[] aColumns
+        Get DDO_Object iTable to hDDO
+        If (hDDO<>0) Begin
+            Get pAutoIncrementFields of hDDO to aAutoIncFields
+            Get pAutoIncrementSysFileFields of hDDO to aSysFileFields
+            Move (SizeOfArray(aAutoIncFields)-1) to iMax
+            For iIndex from 0 to iMax
+                Move iTable to aColumns[iIndex].iTable
+                Move aAutoIncFields[iIndex] to aColumns[iIndex].iColumn
+                Move aSysFileFields[iIndex].iFile to aColumns[iIndex].iSourceTable
+                Move aSysFileFields[iIndex].iField to aColumns[iIndex].iSourceColumn
+                Send _AutoIncrementStatus aColumns[iIndex] (&aColumns[iIndex].nMaxValue) (&aColumns[iIndex].nCounterValue) False
+            Loop
+        End
+        Function_Return aColumns
+    End_Function
+    
+    Procedure AutoIncrementColumnsRepair Integer iTable
+        Integer iIndex iMax
+        Number nHigh nCount
+        tAutoIncrementColumn[] aColumns
+        Get AutoIncrementColumns iTable to aColumns
+        Move (SizeOfArray(aColumns)-1) to iMax
+        For iIndex from 0 to iMax
+            Send _AutoIncrementStatus aColumns[iIndex] (&nHigh) (&nCount) True
+        Loop
+    End_Procedure
+
+    Procedure AutoIncrementColumnsRepairAll
+        Integer iTable iMax 
+        Move (SizeOfArray(_gaDdoClasses)-1) to iMax
+        
+        For iTable from 1 to iMax
+            If (_gaDdoClasses[iTable]<>0) Begin
+                Send AutoIncrementColumnsRepair iTable //_gaDdoClasses[iTable]
+            End
+        Loop
+    End_Procedure
+    
+    Function AutoIncrementStatusTable Integer iTable Returns tAutoIncrementColumn[]
+        tAutoIncrementColumn[] aAutoIncrementColumn
+        Get AutoIncrementColumns iTable to aAutoIncrementColumn
+        Function_Return aAutoIncrementColumn
+    End_Function
+    
+        Function _AppendtAutoIncrementColumnArrays tAutoIncrementColumn[] aColumns1 tAutoIncrementColumn[] aColumns2 Returns tAutoIncrementColumn[]
+            Integer iIndex iMax iCount
+            Move (SizeOfArray(aColumns2)-1) to iMax
+            Move (SizeOfArray(aColumns1)) to iCount
+            For iIndex from 0 to iMax
+                Move aColumns2[iIndex] to aColumns1[iCount]
+                Increment iCount
+            Loop
+            Function_Return aColumns1
+        End_Function
+    
+    Function AutoIncrementStatusAll Returns tAutoIncrementColumn[]
+        Integer iTable iMax 
+        Move (SizeOfArray(_gaDdoClasses)-1) to iMax
+        tAutoIncrementColumn[] aAutoIncrementColumn aRval
+
+        For iTable from 1 to iMax
+            If (_gaDdoClasses[iTable]<>0) Begin
+                Get AutoIncrementStatusTable iTable to aAutoIncrementColumn
+                Get _AppendtAutoIncrementColumnArrays aRval aAutoIncrementColumn to aRval
+//                Get AutoIncrementColumns iTable to aAutoIncrementColumn
+            End
+        Loop
+
+        Function_Return aRval
+    End_Function 
+        
+        Property Integer[] _paDdContainers
+        
+        Procedure _AllDataDictionaryContainersRegister Integer hDDContainer
+            Integer[] aContainers
+            Get _paDdContainers to aContainers
+            Move hDDContainer to aContainers[SizeOfArray(aContainers)]
+            Set _paDdContainers to aContainers
+        End_Procedure
+    
+    Function AllDataDictionaryContainers Integer hRoot Returns Integer[]
+        Integer[] aContainers
+        Set _paDdContainers to aContainers
+        If (hRoot=0) Begin
+            Move Desktop to hRoot
+        End
+        Broadcast Recursive Send _RegisterAllMainDDObjects of hRoot
+        Get _paDdContainers to aContainers
+        Function_Return aContainers
+    End_Function
+    
+        Function _DDStateIndicator Integer hDD Returns String
+            Boolean bState
+            String sValue
+            Get HasRecord of hDD to bState
+            If (bState) Move (sValue+"R") to sValue
+            Get Changed_State of hDD to bState
+            If (bState) Move (sValue+"C") to sValue
+            Get Should_Save of hDD to bState
+            If (bState) Move (sValue+"S") to sValue
+            If (sValue<>"") Begin
+                Move ("("+sValue+")") to sValue
+            End
+            Else Begin
+                Move "(at ease)" to sValue
+            End
+            Function_Return sValue
+        End_Function
+    
+    Function yUML_DDODiagram Integer hCont Boolean bIncludeCurrentState Returns tYumlClassDiagram
+        Integer iMax iIndex hMainDD 
+        String sFromLabel sToLabel sContainerName
+        String sProject sStateIndicator
+        tYumlClassDiagram strDiagram
+        tDDORelation[] aDdoRelations
+    
+        Get Module_Name to sProject
+        Move (Lowercase(Name(hCont))) to sContainerName
+    
+        Get NewDiagram of oYumlFunctions to strDiagram
+        Move ("DDO relations project '"+sProject+"' object path '"+sContainerName+"'") to strDiagram.sNote
+        If (bIncludeCurrentState) Begin
+            Move (strDiagram.sNote+" (R=HasRecord C=Changed_State S=Should_Save)") to strDiagram.sNote
+        End
+        Get Main_DD of hCont to hMainDD
+        Get DDO_Relations of oDataDictionaryFunctions hMainDD to aDdoRelations
+    
+        Move (SizeOfArray(aDdoRelations)-1) to iMax
+        For iIndex from 0 to iMax
+            Get_Attribute DF_FILE_LOGICAL_NAME of (Main_File(aDdoRelations[iIndex].hFromDDO)) to sFromLabel
+            Get_Attribute DF_FILE_LOGICAL_NAME of (Main_File(aDdoRelations[iIndex].hToDDO)) to sToLabel
+            If (bIncludeCurrentState) Begin
+                Get _DDStateIndicator aDdoRelations[iIndex].hFromDDO to sStateIndicator 
+                Move (sFromLabel+" "+sStateIndicator) to sFromLabel
+                Get _DDStateIndicator aDdoRelations[iIndex].hToDDO to sStateIndicator 
+                Move (sToLabel+" "+sStateIndicator) to sToLabel
+            End
+            Send AddRelation of oYumlFunctions (&strDiagram) sFromLabel sToLabel aDdoRelations[iIndex].bConstrained
+        Loop
+    
+        Function_Return strDiagram
+    End_Function
+
+    Procedure _yUML_GenerateOneDiagram Integer hCont Integer iChannel
+        Integer iMax iIndex hMainDD
+        String sUrl sFromLabel sToLabel sContainerName
+        tYumlClassDiagram strDiagram
+        tDDORelation[] aDdoRelations
+    
+        Move (Lowercase(Name(hCont))) to sContainerName
+        Writeln channel iChannel sContainerName
+        
+        Get yUML_DDODiagram hCont False to strDiagram
+        
+        Get DiagramUrl of oYumlFunctions strDiagram to sUrl
+        Writeln channel iChannel sUrl
+    End_Procedure
+    
+    Procedure yUML_GenerateAllDdoDiagrams
+        Integer iChannel iIndex iMax
+        String sFolder sFileName
+        Integer[] aDdoContainers
+    
+        // Get all objects that has a main_dd property set to a non-zero value.
+        Get AllDataDictionaryContainers of oDataDictionaryFunctions Desktop to aDdoContainers
+    
+        Get VdfFolderPath of oFileFunctions VDF_PROGRAM to sFolder
+        Get Module_Name to sFileName
+        Get AppendPath of oFileFunctions sFolder sFileName to sFileName
+        Move (sFileName+".yuml") to sFileName
+        Get DirectOutput of oFileFunctions sFileName to iChannel
+        If (iChannel>=0) Begin
+            Move (SizeOfArray(aDdoContainers)-1) to iMax
+            For iIndex from 0 to iMax
+                Send _yUML_GenerateOneDiagram aDdoContainers[iIndex] iChannel 
+            Loop
+            Send CloseOutput of oFileFunctions iChannel
+        End
+    End_Procedure
+    
+    Procedure VDFXRay_ExtractAllProjectInfoAndSave
+    End_Procedure
+    
+    Function ReadFirstRow Integer hDD Integer iTable Integer iIndex Returns Boolean
+        Send Request_Read of hDD FIRST_RECORD iTable iIndex
+        Function_Return (Found)
+    End_Function
+
+    Function ReadNextRow Integer hDD Integer iTable Integer iIndex Returns Boolean
+        Send Request_Read of hDD GT iTable iIndex
+        Function_Return (Found)
+    End_Function
+        
+End_Object // oDataDictionaryFunctions
+
+Global_Variable Integer _goDdoDebugView // _giDDCallLevel 
+//Move 0 to _giDDCallLevel
+Move 0 to _goDdoDebugView
+
+
+// No need at all for this from 17.1 and on
+
+Class cfreeDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean pbConditionalParent False
+        Property Boolean _pbPartofOperation True
+    End_Procedure
+    
+    Procedure Set DDO_Server Handle ObjId
+        If (ObjId<>0) Begin
+            Forward Set DDO_Server to ObjId
+        End
+        Else Begin
+            Error 201 ("Unknown object in "+Name(Self)+" DDO_Server setting")
+        End
+    End_Procedure
+    
+//    Procedure LogTransaction String sMethod // sMethod = Save, Edit or Delete
+//    End_Procedure
+//    
+//    Procedure LogTableAccess String sMethod // sMethod = Save, Edit or Delete
+//    End_Procedure
+//    
+//    Procedure Request_Clear
+//        Forward Send Request_Clear
+//    End_Procedure
+//    
+//    Procedure Request_Delete
+//        Send LogTransaction "Delete"
+//        Forward Send Request_Delete
+//    End_Procedure
+//
+//    Procedure Request_Save
+//        Boolean bEdit
+//        Get HasRecord to bEdit
+//        Send LogTransaction (If(bEdit,"Edit","Create"))
+//        Forward Send Request_Save
+//    End_Procedure
+    
+    Function Is_cfreeDataDictionary Returns Boolean
+        Function_Return True
+    End_Function
+    
+    
+    
+    //> If pbConditionalParent is true we may have to redirect message clear
+    //> to another DDO. The reason is that if we allow for cleared parent records
+    //> pressing F5 while in a parent table should clear the parent table rather
+    //> than clearing the whole view.
+    
+    //> Unfortunately message clear is sent during object initialization in which
+    //> case there is no meaningful Focus to check for.
+    
+        Procedure _SetChangedStateChildren Integer hParent
+            Integer iMax iIndex
+            Integer[] aChildDDOs
+            Get ChildDdoArray of oDataDictionaryFunctions hParent to aChildDDOs
+            Move (SizeOfArray(aChildDDOs)-1) to iMax
+            For iIndex from 0 to iMax
+                Set Changed_State of aChildDDOs[iIndex] to True
+            Loop
+        End_Procedure
+
+    Procedure Clear // Augmentation
+        Integer hFoc iTable hDD
+        Boolean bConditionalParent
+        Move 0 to hDD
+        
+        Get Focus of desktop to hFoc
+        
+        If (hFoc>Desktop) Begin // If any object at hall has the focus
+            Get _PaddedDataFile of oDataDictionaryFunctions hFoc to iTable // Very carefully: Do you have a datafile?
+            
+            If (iTable<>0 and iTable<>Main_File(Self)) Begin // It is not the same as our own main_file
+                Get Data_Set iTable to hDD
+                
+                If (hDD<>0) Begin // DDO object for that table does exist!
+                                                                    
+                    Get _PaddedValue of oDataDictionaryFunctions hDD GET_pbConditionalParent to bConditionalParent
+                    
+                    If (bConditionalParent) Begin
+                    
+                        // A test is needed here to determine whether we are at the tail of a save operation
+                    
+                        If (HasRecord(hDD)) Begin
+                            // At this point we need to se the changed_state of the parent of hDD
+                            // the same way it is set if a new parent record is found.
+//                            Set Changed_State of hDD to True
+                        End
+                        Else Begin
+                            // If it does not currently have a record we cancel
+                            // the clever clear behavior
+                            Move 0 to hDD
+                        End
+                    End
+                    Else Begin
+                        Move 0 to hDD
+                    End
+                End
+            End
+        End
+
+        If (hDD>0) Begin
+            Send Clear of hDD
+            // When a parent is changed (even if it's cleared) we must set changed_state of all children:
+            Send _SetChangedStateChildren hDD
+        End
+        Else Begin
+            Forward Send Clear
+        End
+    End_Procedure
+    
+    Function _IsForeign Returns Boolean
+        Boolean bForeign
+        Move (Self<>OPERATION_ORIGIN) to bForeign
+        Function_Return bForeign
+    End_Function
+    
+    Function _IgnoreSaveMainFile Returns Boolean
+        Function_Return (pbConditionalParent(Self) and _IsForeign(Self) and not(HasRecord(Self)))
+    End_Function
+    
+    // Procedure Save_Main_File should be cancelled if we are representing a conditional parent
+    // that does not have a record.
+    Procedure Save_Main_File
+//        Integer iTable
+//        Boolean bActiveRecord
+        If (_IgnoreSaveMainFile(Self)) Begin
+        End
+        Else Begin
+//            Get main_file to iTable
+//            Move (not(IsNullRowID(GetRowID(iTable)))) to bActiveRecord
+//            Send LogTableAccess (If(bActiveRecord,"Edit","Save"))
+            Forward Send Save_Main_File
+        End
+    End_Procedure
+    
+    Procedure Delete_Main_File
+//        Send LogTableAccess "Delete"
+        Forward Send Delete_Main_File
+    End_Procedure
+
+    // Function Validate_Field should not validate if we are representing a conditional parent
+    // that does not have a record.
+    Function Validate_Field Integer iField Returns Integer
+        Integer iResult
+        If (pbConditionalParent(Self) and _IsForeign(Self) and not(HasRecord(Self))) Begin
+            Move 0 to iResult // no validation
+        End
+        Else Begin
+            Forward Get Validate_Field iField to iResult
+        End
+        Function_Return iResult
+    End_Function
+End_Class // cfreeDataDictionary
+

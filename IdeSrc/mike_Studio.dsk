@@ -1,0 +1,152 @@
+[Workspace]
+CurrentProject=WebApp.src
+Location=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\IdeSrc\mike_Studio.dsk
+[TabWindows]
+GroupCount=1
+HorizontalGroups=1
+[TabGroup0]
+GroupSize=40
+SelectedTab=5
+[Window0]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppSrc\WebApp.src
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=4
+CursorColumn=45
+TabIndex=0
+TabGroup=0
+[Window1]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppSrc\cWebQueryFunctions.pkg
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=10
+CursorColumn=16
+TabIndex=2
+TabGroup=0
+[Window2]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppSrc\wqExpressionPopup.wo
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=67
+CursorColumn=59
+TabIndex=3
+TabGroup=0
+[Window3]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppSrc\cWqExprParser.pkg
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=2
+CursorColumn=42
+TabIndex=4
+TabGroup=0
+[Window4]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppSrc\cWqWebApp.pkg
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=4
+CursorColumn=34
+TabIndex=7
+TabGroup=0
+[Window5]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\Programs\Config.ws
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=0
+CursorColumn=0
+TabIndex=10
+TabGroup=0
+[Window6]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppSrc\WebQuery.wo
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=978
+CursorColumn=8
+TabIndex=1
+TabGroup=0
+[Window7]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppHtml\Custom\wqWebEdit.js
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=0
+CursorColumn=0
+TabIndex=8
+TabGroup=0
+[Window8]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\WebQuery171.sws
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=8
+CursorColumn=11
+TabIndex=9
+TabGroup=0
+[Window9]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppHtml\Custom\wqWebApp.js
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=0
+CursorColumn=0
+TabIndex=6
+TabGroup=0
+[Window10]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\StureApsPublicLib\StureApsPublicLib171.sws
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=0
+CursorColumn=0
+TabIndex=11
+TabGroup=0
+[Window11]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\StureApsPublicLib\Programs\Config.ws
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=10
+CursorColumn=28
+TabIndex=12
+TabGroup=0
+[Window12]
+Filename=\\vmware-host\Shared Folders\VmShare\Projects\WebQuery\AppHtml\Index.html
+ViewType=1
+Top=48
+Left=2
+Bottom=786
+Right=1308
+CursorLine=11
+CursorColumn=39
+TabIndex=5
+TabGroup=0

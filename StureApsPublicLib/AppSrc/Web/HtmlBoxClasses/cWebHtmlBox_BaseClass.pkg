@@ -1,0 +1,21 @@
+Use TestProjects\Web\cWebHtmlBoxSture.pkg
+Use UniversallyUniqueIDentifierFunctions.pkg
+
+Class cWebHtmlBox_BaseClass is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String psUniqueID "" //(NewUUID(oUuidFunctions))
+    End_Procedure
+    
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+        Send Register_HtmlBoxItem Self
+    End_Procedure
+    
+    Procedure OnClick String sAction String sParam
+    End_Procedure
+    
+    Function OnClickWillHandle String sAction Returns Boolean
+        Function_Return (sAction=psUniqueID(Self))
+    End_Function
+End_Class

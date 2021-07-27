@@ -1,0 +1,69 @@
+Use Windows.pkg
+Use cTextEdit.pkg
+Use TableStructureErrorStruct.pkg
+Use TableExplicitFunctions.pkg
+
+Object oTableStructureErrorPanel is a ModalPanel
+    Set Size to 290 495
+    Set Label to "Error occured during table restructure"
+    Set piMinSize to 89 211
+    Set Location to 2 2
+    Set Border_Style to Border_Thick
+    Set Locate_Mode to CENTER_ON_PANEL
+
+    Object oError is a Form
+        Set Size to 13 467
+        Set Location to 14 13
+        Set peAnchors to anTopLeftRight
+        Set Label to "This error occurred:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Set Enabled_State to False
+    End_Object
+
+    Object oInstruction is a Form
+        Set Size to 13 467
+        Set Location to 38 13
+        Set peAnchors to anTopLeftRight
+        Set Label to "while executing this instruction:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Set Enabled_State to False
+    End_Object
+
+    Object oTabledefinition is a cTextEdit
+        Set Size to 195 466
+        Set Location to 67 13
+        Set peAnchors to anAll
+        Set Label to "and while the table definition looked like this:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Set Read_Only_State to True
+        Set psTypeFace to "Courier"
+        Set pbWrap to False
+    End_Object
+
+    Object oCloseBtn is a Button
+        Set Label    to "OK"
+        Set Location to 269 427
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+//            Procedure_Return MSG_OK
+            Send Close_Panel
+        End_Procedure
+    End_Object
+    
+//    Procedure Close_Panel
+//        Procedure_Return MSG_OK
+//    End_Procedure
+    
+    Procedure Popup
+        Integer iGrp
+        Set Value of oError to ("Error: "+String(_gstTempRestructureError.stError.iError)+" "+_gstTempRestructureError.stError.sErrorText+" on line "+String(_gstTempRestructureError.stError.iErrorLine))
+        Set Value of oInstruction to _gstTempRestructureError.sOperation
+        Set Value of oTabledefinition to (ExplicitTabelToString(oTableExplicitFunctions,_gstTempRestructureError.stTableDefInitial))
+//        ui_accept Self to iGrp
+        Forward Send Popup
+    End_Procedure
+
+End_Object

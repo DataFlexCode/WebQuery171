@@ -1,0 +1,78 @@
+Use VdfBase.pkg
+Use Msgbox.pkg
+Use cClientWebService.pkg // DAW package
+Use FileFunctions.pkg
+Use StringFunctions.pkg
+
+Struct tWStWStError
+    Integer    iErrorCode
+    String     sErrorText
+End_Struct // tWStWStError
+
+Struct tWStWStMeta
+    tWStWStError[]    aErrors
+    String[]          aLog
+    String            sMandAc
+    String            sStatus
+End_Struct // tWStWStMeta
+
+
+#IF ((FMAC_VERSION*10+FMAC_REVISION)<161)
+    Procedure Set pbRequestOnly for cClientWebService Boolean bState
+    End_Procedure
+#ENDIF
+
+Global_Variable Integer oWebServiceClientFunctions
+Object _oWebServiceClientFunctions is a cObject
+    Move Self to oWebServiceClientFunctions
+
+        Function _MetaErrorText tWStWStMeta strMeta Returns String
+            Integer iMax iIndex
+            String sText sError
+            Move (SizeOfArray(strMeta.aErrors)-1) to iMax
+            For iIndex from 0 to iMax
+                Move ("Error: "+String(strMeta.aErrors[iIndex].iErrorCode)+": "+strMeta.aErrors[iIndex].sErrorText) to sError
+                Move (sText+"\n"+sError) to sText
+            Loop
+            Function_Return sText
+        End_Function
+        
+    Procedure MetaErrorNotification tWStWStMeta strMeta
+        Integer iMax iIndex
+        If (strMeta.sStatus<>"ok") Begin
+            Send Info_Box ("Status: "+strMeta.sStatus+If(strMeta.sMandAc<>"",", "+strMeta.sMandAc,"")+_MetaErrorText(Self,strMeta))
+        End
+        If (SizeOfArray(strMeta.aLog)>0) Begin
+            Showln "Execution log:"
+            Move (SizeOfArray(strMeta.aLog)-1) to iMax
+            For iIndex from 0 to iMax
+                Showln strMeta.aLog[iIndex]
+            Loop
+        End
+    End_Procedure
+    
+    Procedure Set ServiceApplicationURL Integer hoClientWebService String sServer
+        Integer iPos
+        String sFunction
+        
+        Move (Trim(sServer)) to sServer
+        If (Right(sServer,1)<>"/") Begin
+            Move (sServer+"/") to sServer
+        End
+        
+        Get psServiceLocation of hoClientWebService to sFunction
+        Get rPos of oStringFunctions "/" sFunction to iPos
+        If (iPos>0) Begin
+            Move (Remove(sFunction,1,iPos)) to sFunction
+            Set psServiceLocation of hoClientWebService to (sServer+sFunction)
+        End
+
+        Get psWSDLLocation of hoClientWebService to sFunction
+        Get rPos of oStringFunctions "/" sFunction to iPos
+        If (iPos>0) Begin
+            Move (Remove(sFunction,1,iPos)) to sFunction
+            Set psWSDLLocation of hoClientWebService to (sServer+sFunction)
+        End
+    End_Procedure
+    
+End_Object

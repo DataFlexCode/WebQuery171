@@ -1,0 +1,197 @@
+Use Winbase.pkg
+Use FileFunctions.pkg  
+Use StringFunctions.pkg
+Use UrlFunctions.pkg
+
+Struct tFTPDirectoryItem
+    String sFileName      //> File or folder name
+    Number iFileSize      //> File size
+    // Along with the above two values that makes sense, we also get all this yawn-yawn material:
+    Boolean bArchive      //> The file or directory is an archive file or directory. Applications use this attribute to mark files for backup or removal.
+    Boolean bCompressed   //> The file or directory is compressed. For a file, this means that all of the data in the file is compressed. For a directory, this means that compression is the default for newly created files and subdirectories.
+    Boolean bDirectory    //> The handle identifies a directory.
+    Boolean bEncrypted    //> The file or directory is encrypted. For a file, this means that all data in the file is encrypted. For a directory, this means that encryption is the default for newly created files and subdirectories.
+    Boolean bHidden       //> The file or directory is hidden. It is not included in an ordinary directory listing.
+    Boolean bNormal       //> The file or directory has no other attributes set. This attribute is valid only if used alone.
+    Boolean bOffline      //> The file data is not immediately available. This attribute indicates that the file data has been physically moved to offline storage. This attribute is used by Remote Storage, the hierarchical storage management software in Windows 2000. Applications should not arbitrarily change this attribute.
+    Boolean bReadOnly     //> The file or directory is read-only. Applications can read the file but cannot write to it or delete it. In the case of a directory, applications cannot delete it.
+    Boolean bReparsePoint //> The file has an associated reparse point.
+    Boolean bSparseFile   //> The file is a sparse file.
+    Boolean bSystem       //> The file or directory is part of the operating system, or is used exclusively by the operating system.
+    Boolean bTemporary    //> The file is being used for temporary storage. File systems attempt to keep all of the data in memory for quicker access, rather than flushing it back to mass storage. A temporary file should be deleted by the application as soon as it is no longer needed.
+End_Struct
+
+Struct tFTPDirectoryList
+    tFTPDirectoryItem[] aFolders
+    tFTPDirectoryItem[] aFiles
+End_Struct
+
+Global_Variable tFTPDirectoryList _gstrFTPDirectoryList
+
+Class cFTPTransferSture is a cFTPTransfer
+    
+    Procedure OnDirectoryList String sFileName Integer iFileSize Integer iAttributes
+        Integer iIndex
+        tFTPDirectoryItem strItem
+        Move sFileName to strItem.sFileName
+        Move iFileSize to strItem.iFileSize
+        Move (iAttributes iand faArchive)      to strItem.bArchive     
+        Move (iAttributes iand faCompressed)   to strItem.bCompressed  
+        Move (iAttributes iand faDirectory)    to strItem.bDirectory
+        Move (iAttributes iand faEncrypted)    to strItem.bEncrypted   
+        Move (iAttributes iand faHidden)       to strItem.bHidden      
+        Move (iAttributes iand faNormal)       to strItem.bNormal      
+        Move (iAttributes iand faOffline)      to strItem.bOffline     
+        Move (iAttributes iand faReadOnly)     to strItem.bReadOnly    
+        Move (iAttributes iand faReparsePoint) to strItem.bReparsePoint
+        Move (iAttributes iand faSparseFile)   to strItem.bSparseFile  
+        Move (iAttributes iand faSystem)       to strItem.bSystem      
+        Move (iAttributes iand faTemporary)    to strItem.bTemporary   
+        If (strItem.bDirectory) Begin
+            Move strItem to _gstrFTPDirectoryList.aFolders[SizeOfArray(_gstrFTPDirectoryList.aFolders)]
+        End
+        Else Begin
+            Move strItem to _gstrFTPDirectoryList.aFiles[SizeOfArray(_gstrFTPDirectoryList.aFiles)]
+        End
+        If (strItem.bArchive     ) Move (iAttributes-faArchive)      to iAttributes
+        If (strItem.bCompressed  ) Move (iAttributes-faCompressed)   to iAttributes
+        If (strItem.bDirectory   ) Move (iAttributes-faDirectory)    to iAttributes
+        If (strItem.bEncrypted   ) Move (iAttributes-faEncrypted)    to iAttributes
+        If (strItem.bHidden      ) Move (iAttributes-faHidden)       to iAttributes
+        If (strItem.bNormal      ) Move (iAttributes-faNormal)       to iAttributes
+        If (strItem.bOffline     ) Move (iAttributes-faOffline)      to iAttributes
+        If (strItem.bReadOnly    ) Move (iAttributes-faReadOnly)     to iAttributes
+        If (strItem.bReparsePoint) Move (iAttributes-faReparsePoint) to iAttributes
+        If (strItem.bSparseFile  ) Move (iAttributes-faSparseFile)   to iAttributes
+        If (strItem.bSystem      ) Move (iAttributes-faSystem)       to iAttributes
+        If (strItem.bTemporary   ) Move (iAttributes-faTemporary)    to iAttributes
+        If (iAttributes<>0) Begin
+            Error 735 ("Unknown attribute: "+String(iAttributes))
+        End
+    End_Procedure
+    
+        Procedure _InsertSelfParentReferences tFTPDirectoryItem[] ByRef aFolders
+            Integer iIndex iMax
+            Integer iSelfIndex iParentIndex
+            tFTPDirectoryItem strItem
+            Move -1 to iSelfIndex
+            Move -1 to iParentIndex
+            Move (SizeOfArray(aFolders)-1) to iMax
+            For iIndex from 0 to iMax
+                If (aFolders[iIndex].sFileName=".") Begin
+                    Move iIndex to iSelfIndex 
+                End
+                If (aFolders[iIndex].sFileName="..") Begin
+                    Move iIndex to iParentIndex
+                End
+            Loop
+            If (iParentIndex=-1) Begin
+                Move ".." to strItem.sFileName
+                Move True to strItem.bDirectory
+                If (SizeOfArray(aFolders)=0) Begin
+                    Move strItem to aFolders[0]
+                End
+                Else Begin
+                    Move (InsertInArray(aFolders,0,strItem)) to aFolders
+                End
+            End
+            If (iSelfIndex=-1) Begin
+                Move "." to strItem.sFileName
+                Move True to strItem.bDirectory
+                If (SizeOfArray(aFolders)=0) Begin
+                    Move strItem to aFolders[0]
+                End
+                Else Begin
+                    Move (InsertInArray(aFolders,0,strItem)) to aFolders
+                End
+            End
+        End_Procedure
+    
+    Function DirectoryListSture String sPattern Returns tFTPDirectoryList
+        tFTPDirectoryList strEmpty
+        Move strEmpty to _gstrFTPDirectoryList
+        Send DirectoryList sPattern
+        Send _InsertSelfParentReferences (&_gstrFTPDirectoryList.aFolders)
+        Function_Return _gstrFTPDirectoryList
+    End_Function
+    
+    Function FlagsAsString tFTPDirectoryItem strItem Returns String
+        String[] aValues
+        If (strItem.bArchive     ) Move "Archive"      to aValues[SizeOfArray(aValues)]
+        If (strItem.bCompressed  ) Move "Compressed"   to aValues[SizeOfArray(aValues)]
+        If (strItem.bDirectory   ) Move "Directory"    to aValues[SizeOfArray(aValues)]
+        If (strItem.bEncrypted   ) Move "Encrypted"    to aValues[SizeOfArray(aValues)]
+        If (strItem.bHidden      ) Move "Hidden"       to aValues[SizeOfArray(aValues)]
+        If (strItem.bNormal      ) Move "Normal"       to aValues[SizeOfArray(aValues)]
+        If (strItem.bOffline     ) Move "Offline"      to aValues[SizeOfArray(aValues)]
+        If (strItem.bReadOnly    ) Move "ReadOnly"     to aValues[SizeOfArray(aValues)]
+        If (strItem.bReparsePoint) Move "ReparsePoint" to aValues[SizeOfArray(aValues)]
+        If (strItem.bSparseFile  ) Move "SparseFile"   to aValues[SizeOfArray(aValues)]
+        If (strItem.bSystem      ) Move "System"       to aValues[SizeOfArray(aValues)]
+        If (strItem.bTemporary   ) Move "Temporary"    to aValues[SizeOfArray(aValues)]
+        Function_Return (JoinString(oStringFunctions,aValues,", ",0,0))
+    End_Function
+    
+//    //Uploads a single file to FTP server. Returns True if OK.
+//    Function Upload String sLocalFile String sFtpServer String sFtpPath String sFtpUser String sFtpPassword Returns Boolean
+//        Integer iConnected iOk iTemp
+//        String sRemoteFile
+//        Set psRemoteHost to sFtpServer
+//        Set psUsername to sFtpUser
+//        Set psPassword to sFtpPassword
+//        Get Connect to iConnected
+//        If iConnected Begin
+//            If (sFtpPath <> "") Get ChangeDirectory sFtpPath to iOk
+//            If iOk Begin
+//                Move (ParseFileName(sLocalFile)) to sRemoteFile
+//                Get UploadFile sLocalFile sRemoteFile to iOk
+//                If (not(iOk)) Send UserError ("Unable to transfer" * sLocalFile * "to" * sFtpPath - "/" - sRemoteFile) "Ftp transfer failed"
+//            End
+//            Else Begin
+//                Send UserError ("Unable to open remote folder '" - sFtpPath - "'") "Ftp transfer failed"
+//            End
+//            Get Disconnect to iTemp
+//        End
+//        Else Begin
+//            Send UserError ("Unable to log on to '" - sFtpServer - "'") "Ftp transfer failed"
+//        End
+//        Function_Return iOk
+//    End_Procedure
+
+
+    // Some conveniance functions
+
+    // Get NewestApplicationUpdateAvailableAt "ftp://ftp.stureaps.dk/software/visualdataflex/vdfxray/" to nNewestVersion
+    Function NewestApplicationUpdateAvailableAt String sRootFolderUrl String sUpdateFileMask Number ByRef nMostRestVersion Returns Boolean
+        Integer iRval
+        tUrl strUrl
+        tFTPDirectoryList strFolderContent
+        Get Decompose of oUrlFunctions sRootFolderUrl to strUrl
+        If (strUrl.sHost<>"") Begin
+            Set psRemoteHost to strUrl.sHost
+        End
+        If (strUrl.sPort<>"") Begin
+            Set piRemotePort to strUrl.sPort // Check it's an integer?
+        End
+        If (strUrl.sUser<>"") Begin
+            Set psUserName to strUrl.sUser
+        End
+        If (strUrl.sPassword<>"") Begin
+            Set psPassword to strUrl.sPassword
+        End
+        
+        Get Connect to iRval
+        If (iRval<>0) Begin
+            Get ChangeDirectory strUrl.sPath to iRval
+            If (iRval<>0) Begin
+                Get DirectoryListSture (If(sUpdateFileMask="","*",sUpdateFileMask)) to strFolderContent
+//                Move (SortArray
+                // ToDo: Send SortValues (&strFolderContent.
+            End
+        End
+
+        
+        Function_Return False
+    End_Function
+    
+End_Class

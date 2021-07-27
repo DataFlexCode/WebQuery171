@@ -1,0 +1,14 @@
+Use cCJGrid.pkg
+
+Use AttributeFunctions.pkg // Database and global API attributes
+
+Class cDataSources_cCJGrid is a cObject
+    Function FileListData tFileList strFileList Integer[] aTables Returns tDataSourceRow[]
+        tDataSourceRow[] aRows
+        Integer iMax iItem iTable
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iItem from 0 to iMax
+        Loop
+        Function_Return aRows
+    End_Function
+End_Class

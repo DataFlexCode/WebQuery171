@@ -1,0 +1,93 @@
+Use VirtualDimensions\cVirtualColumns.pkg
+
+Use Win\GridFunctions.pkg
+Use VirtualDimensions\VirtualColumnAddDimensionsPanel.pkg
+Use VirtualDimensions\VirtualColumnEditValuePanel.pkg
+
+Class cVirtualDimensionGrid is a cfreeGrid
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        
+        Send SetHighlightRowState of oGridFunctions Self 
+        On_Key kEnter Send OnEnter
+        On_Key kSave_Record Send Request_Save
+        Property Integer phVirtualDimensionsRecordBuffer
+    End_Procedure
+    
+    Procedure OnDimensionCollectionID String sCollectionID
+    End_Procedure
+    
+    Procedure FillGrid
+        Integer iMax iItem iBase
+        Integer hBuffer
+        tvdValue[] aValues
+        Set Dynamic_Update_State to False
+        Send Delete_Data
+        Get phVirtualDimensionsRecordBuffer to hBuffer
+        Get BufferValue of hBuffer to aValues
+        Move (SizeOfArray(aValues)-1) to iMax
+        
+        For iItem from 0 to iMax
+            Get Item_Count to iBase
+            Send Add_Item MSG_NONE aValues[iItem].sColumnID
+            Send Add_Item MSG_NONE aValues[iItem].sValue
+//            Move aValues[iItem
+            Set ItemColor iBase to clBtnFace
+//            Set ItemTextColor iBase to clRed
+        Loop 
+        
+        Send SetEntryState of oGridFunctions Self False
+        Set Dynamic_Update_State to True
+        Send OnDimensionCollectionID (_psCollectionID(hBuffer))
+    End_Procedure
+
+    Procedure EditLine Integer iItem
+        Integer iBase iBufferRow
+        Handle hVirtualDimensionsRecordBuffer
+        String sValue sDimension
+        Boolean bUpdate
+        tvdValue strValue
+        
+        Get BaseItem of oGridFunctions Self to iBase
+        Get Value (iBase+0) to sDimension
+        Get Value (iBase+1) to sValue
+        Get phVirtualDimensionsRecordBuffer to hVirtualDimensionsRecordBuffer
+        Get ItemRow of oGridFunctions Self iBase to iBufferRow
+        
+        Get DimensionValue of oVirtualColumnEditValuePanel (Handler(hVirtualDimensionsRecordBuffer)) sDimension (&sValue) to bUpdate
+
+        If (bUpdate) Begin
+            Get BufferRow of hVirtualDimensionsRecordBuffer iBufferRow to strValue
+            Move sValue to strValue.sValue
+            Set BufferRow of hVirtualDimensionsRecordBuffer iBufferRow to strValue
+            Send FillGrid
+            Set Current_Item to iBase
+        End
+    End_Procedure
+
+    Procedure OnEnter
+        If (Item_Count(Self)<>0) Begin
+            Send EditLine (Current_Item(Self)) 
+        End
+    End_Procedure
+    
+    Procedure OnMouseDoubleClick Integer iItem
+        Send EditLine iItem                                                                                                        
+    End_Procedure
+    
+    Procedure AddDimensionToGrid
+        Integer hHandler hBuffer
+        Boolean bAdd
+        String[] aDims aNotDims
+        Get phVirtualDimensionsRecordBuffer to hBuffer
+        Get Handler of hBuffer to hHandler
+        Get DimensionsInBuffer of hBuffer to aNotDims
+        Get AddDimensions of oVirtualColumnAddDimensionsPanel hHandler aNotDims (&aDims) to bAdd
+        If (bAdd) Begin
+            Send AddDimensionsToBuffer of hBuffer aDims
+            Send FillGrid
+        End
+   End_Procedure
+
+End_Class // cVirtualDimensionGrid
+

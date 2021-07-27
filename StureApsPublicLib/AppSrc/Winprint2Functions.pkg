@@ -1,0 +1,130 @@
+// The purpose of this package is to support image style output to Winprint2
+// reports.
+//
+// The package defines an object oWinprint2Functions that knows 3 messages
+// all concerned with outputting text through the global Winprint2 object
+// (ghoWinPrint2). 
+//
+// The messages are:
+//
+//      procedure Write string sText
+//      procedure WriteLn string sText
+//      procedure OutputImage integer iImage
+//
+// These lets you treat the output device as a lineprinter. They especially
+// make sense when you want to use images as output formatters like this:
+//
+//      /TestImage // Define image
+//        String   Number Date 
+//        _______ ____.__ __/__/____
+//      /*         // end definition
+//
+//      Print "ABCD" to TestImage.1
+//      Print 1234.56 to TestImage.2
+//      Sysdate TestImage.3
+//      Send OutputImage of oWinprint2Functions TestImage.N // <image-name>.N replaces to an integer
+//
+// In this case you almost certainly want to use a mono-spaced font like 
+// "Courier New", because that when formatting via images makes sense.
+//
+// You are able to set font attributes bold, italics and underline by inserting 
+// certain string sequences in the output. If for example you would like the
+// first line to appear in bold and the value of the number field to appear in
+// italics, you would define the image like this:
+//
+//      /TestImage // Define image
+//      <BLD>  String   Number Date <bld>
+//        _______ <ITL>____.__<itl> __/__/____
+//      /*         // end definition
+//
+// This will output vertically aligned fine, but we lost the visual alignment 
+// in our source code. Use the <nop> sequence (which changes nothing) to regain
+// alignment, if that is an issue:
+//
+//      /TestImage // Define image
+//      <BLD>  String  <nop> Number<nop> Date <bld>
+//      <nop>  _______ <ITL>____.__<itl> __/__/____
+//      /*         // end definition
+//
+
+Use Winprint2.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+
+Global_Variable Integer oWinprint2Functions
+
+Object _oWinprint2Functions is a cObject
+    Move Self to oWinprint2Functions
+    
+    
+    Procedure _Write String sValue Boolean ByRef bBold Boolean ByRef bItalics Boolean ByRef bUnderline
+        Boolean bEscapeCode
+        Integer iPos iLen
+        String sItem sChar sEscape
+        
+        Move (Length(sValue)) to iLen
+        Move 1 to iPos
+        Move "" to sItem
+        
+        While (iPos<=iLen)
+            Move (Mid(sValue,1,iPos)) to sChar
+            Move False to bEscapeCode
+            If (sChar="<") Begin // Here comes a new 
+                Move (Mid(sValue,5,iPos)) to sEscape
+                If (sEscape="<nop>" or sEscape="<BLD>" or sEscape="<bld>" or sEscape="<ITL>" or sEscape="<itl>" or sEscape="<UND>" or sEscape="<und>") Begin
+                    Move True to bEscapeCode
+                End
+            End
+            
+            If (bEscapeCode) Begin // Flush
+                If (Length(sItem)<>0) Begin
+                    Send DFWrite of ghoWinPrint2 sItem (FONT_DEFAULT+If(bBold,FONT_BOLD,0)+If(bItalics,FONT_ITALIC,0)+If(bUnderline,FONT_UNDER,0)) 0 -1 0
+                End
+                Move "" to sItem
+                Move (iPos+5) to iPos
+                If (sEscape="<BLD>") Move True to bBold
+                If (sEscape="<bld>") Move False to bBold
+                If (sEscape="<ITL>") Move True to bItalics
+                If (sEscape="<itl>") Move False to bItalics
+                If (sEscape="<UND>") Move True to bUnderline
+                If (sEscape="<und>") Move False to bUnderline
+            End
+            Else Begin
+                Move (sItem+sChar) to sItem
+                Increment iPos
+            End
+        Loop
+        If (Length(sItem)<>0) Begin
+            Send DFWrite of ghoWinPrint2 sItem (FONT_DEFAULT+If(bBold,FONT_BOLD,0)+If(bItalics,FONT_ITALIC,0)+If(bUnderline,FONT_UNDER,0)) 0 -1 0
+        End
+    End_Procedure
+
+    Procedure Write String sValue
+        Boolean bBold bItalics bUnderline
+        Move False to bBold
+        Move False to bItalics
+        Move False to bUnderline
+        Send _Write sValue (&bBold) (&bItalics) (&bUnderline)
+    End_Procedure
+    
+    Procedure Writeln String sValue
+        Send Write sValue
+        Send DFWriteLn of ghoWinPrint2 "" 0 0 -1 0
+    End_Procedure
+    
+    Procedure OutputImage Integer iImage
+        Integer iChannel
+        String sLine
+        Boolean bEOF
+        Get DirectInput of oFileFunctions ("image:"+String(iImage)) to iChannel
+        If (iChannel>=0) Begin
+            Repeat
+                Readln channel iChannel sLine
+                Move (SeqEof) to bEof
+                If (not(bEof)) Begin
+                    Send Writeln (Rtrim(sLine))
+                End
+            Until (bEof)
+            Send CloseInput of oFileFunctions iChannel 
+        End 
+    End_Procedure
+End_Object

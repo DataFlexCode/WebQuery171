@@ -1,0 +1,530 @@
+Use StackFunctions.pkg
+Use StringFunctions.pkg
+
+Enum_List
+    Define CSSP_None
+    // CSS 2
+    Define CSSP_azimuth
+    Define CSSP_background
+    Define CSSP_background_attachment
+    Define CSSP_background_color
+    Define CSSP_background_image
+    Define CSSP_background_position
+    Define CSSP_background_repeat
+    Define CSSP_border
+    Define CSSP_border_collapse
+    Define CSSP_border_color
+    Define CSSP_border_spacing
+    Define CSSP_border_style
+    Define CSSP_border_top
+    Define CSSP_border_right
+    Define CSSP_border_bottom
+    Define CSSP_border_left
+    Define CSSP_border_top_color
+    Define CSSP_border_right_color
+    Define CSSP_border_bottom_color
+    Define CSSP_border_left_color
+    Define CSSP_border_top_style
+    Define CSSP_border_right_style
+    Define CSSP_border_bottom_style
+    Define CSSP_border_left_style
+    Define CSSP_border_top_width
+    Define CSSP_border_right_width
+    Define CSSP_border_bottom_width
+    Define CSSP_border_left_width
+    Define CSSP_border_width
+    Define CSSP_bottom
+    Define CSSP_caption_side
+    Define CSSP_clear
+    Define CSSP_clip
+    Define CSSP_color
+    Define CSSP_content
+    Define CSSP_counter_increment
+    Define CSSP_counter_reset
+    Define CSSP_cue
+    Define CSSP_cue_after
+    Define CSSP_cue_before
+    Define CSSP_cursor
+    Define CSSP_direction
+    Define CSSP_display
+    Define CSSP_elevation
+    Define CSSP_empty_cells
+    Define CSSP_float
+    Define CSSP_font
+    Define CSSP_font_family
+    Define CSSP_font_size
+    Define CSSP_font_size_adjust
+    Define CSSP_font_stretch
+    Define CSSP_font_style
+    Define CSSP_font_variant
+    Define CSSP_font_weight
+    Define CSSP_height
+    Define CSSP_left
+    Define CSSP_letter_spacing
+    Define CSSP_line_height
+    Define CSSP_list_style
+    Define CSSP_list_style_image
+    Define CSSP_list_style_position
+    Define CSSP_list_style_type
+    Define CSSP_margin
+    Define CSSP_margin_top
+    Define CSSP_margin_right
+    Define CSSP_margin_bottom
+    Define CSSP_margin_left
+    Define CSSP_marker_offset
+    Define CSSP_marks
+    Define CSSP_max_height
+    Define CSSP_max_width
+    Define CSSP_min_height
+    Define CSSP_min_width
+    Define CSSP_orphans
+    Define CSSP_outline
+    Define CSSP_outline_color
+    Define CSSP_outline_style
+    Define CSSP_outline_width
+//    Define CSSP_overflow
+    Define CSSP_padding
+    Define CSSP_padding_top
+    Define CSSP_padding_right
+    Define CSSP_padding_bottom
+    Define CSSP_padding_left
+    Define CSSP_page
+    Define CSSP_page_break_after
+    Define CSSP_page_break_before
+    Define CSSP_page_break_inside
+    Define CSSP_pause
+    Define CSSP_pause_after
+    Define CSSP_pause_before
+    Define CSSP_pitch
+    Define CSSP_pitch_range
+    Define CSSP_play_during
+    Define CSSP_position
+    Define CSSP_quotes
+    Define CSSP_richness
+    Define CSSP_right
+    Define CSSP_size
+    Define CSSP_speak
+    Define CSSP_speak_header
+    Define CSSP_speak_numeral
+    Define CSSP_speak_punctuation
+    Define CSSP_speech_rate
+    Define CSSP_stress
+    Define CSSP_table_layout
+    Define CSSP_text_align
+    Define CSSP_text_decoration
+    Define CSSP_text_indent
+    Define CSSP_text_shadow
+    Define CSSP_text_transform
+    Define CSSP_top
+    Define CSSP_unicode_bidi
+    Define CSSP_vertical_align
+    Define CSSP_visibility
+    Define CSSP_voice_family
+    Define CSSP_volume
+    Define CSSP_white_space
+    Define CSSP_widows
+    Define CSSP_width
+    Define CSSP_word_spacing
+    Define CSSP_z_index
+    
+    
+    // CSS 3
+    
+    //Border Radius (Rounded Corners)
+    Define CSSP_border_radius
+    Define CSSP_border_top_left_radius
+    Define CSSP_border_top_right_radius
+    Define CSSP_border_bottom_left_radius
+    Define CSSP_border_bottom_right_radius
+    //Border Images
+    Define CSSP_border_image
+    Define CSSP_border_image_outset
+    Define CSSP_border_image_repeat
+    Define CSSP_border_image_source
+    Define CSSP_border_image_slice
+    Define CSSP_border_image_width
+    //Multi-Column Properties
+    Define CSSP_break_after
+    Define CSSP_break_before
+    Define CSSP_break_inside
+    Define CSSP_columns
+    Define CSSP_column_count
+    Define CSSP_column_fill
+    Define CSSP_column_gap
+    Define CSSP_column_rule
+    Define CSSP_column_rule_color
+    Define CSSP_column_rule_style
+    Define CSSP_column_rule_width
+    Define CSSP_column_span
+    Define CSSP_column_width
+    //Animation Properties
+    Define CSSP_@keyframes
+    Define CSSP_animation
+    Define CSSP_animation_delay
+    Define CSSP_animation_direction
+    Define CSSP_animation_duration
+    Define CSSP_animation_fill_mode
+    Define CSSP_animation_iteration_count
+    Define CSSP_animation_name
+    Define CSSP_animation_play_state
+    Define CSSP_animation_timing_function
+    //Transition Properties
+    Define CSSP_transition
+    Define CSSP_transition_delay
+    Define CSSP_transition_duration
+    Define CSSP_transition_timing_function
+    Define CSSP_transition_property
+    //Transform Properties
+    Define CSSP_backface_visibility
+    Define CSSP_perspective
+    Define CSSP_perspective_origin
+    Define CSSP_transform
+    Define CSSP_transform_origin
+    Define CSSP_transform_style
+    //New Background Properties
+    Define CSSP_background_clip
+    Define CSSP_background_origin
+    Define CSSP_background_size
+    //Overflow Properties
+    Define CSSP_overflow
+    Define CSSP_overflow_x
+    Define CSSP_overflow_y
+    Define CSSP_overflow_style
+    //Marquee Properties
+    Define CSSP_marquee_direction
+    Define CSSP_marquee_play_count
+    Define CSSP_marquee_speed
+    Define CSSP_marquee_style
+    //Other New Properties
+    Define CSSP_box_shadow
+    Define CSSP_box_decoration_break
+    Define CSSP_opacity
+    Define CSSP_MAX
+End_Enum_List
+
+Enum_List // Property types
+    Define CSSPT_DontKnow
+    Define CSSPT_String
+    Define CSSPT_Color // #f0f0f0, rbg(92,128,212), rbga(92,128,212,alpha), inherit, transparent
+End_Enum_List
+
+Struct tCSSPropertyDefinition
+    String sName
+    Integer iType
+    String sNullValue
+End_Struct
+
+Struct tCSSPropertyValue
+    Integer iPropertyIndex
+    String sValue
+End_Struct
+
+Struct tCSSRule
+    String sSelector
+    String sMedia
+    tCSSPropertyValue[] aPropertyValues
+End_Struct
+
+Struct tCSSRules
+    Integer _iPointer
+    tCSSRule[] aRules
+End_Struct
+
+Global_Variable tCSSPropertyDefinition[] _gaCSSPropertyDefinitions
+Global_Variable Integer oCSSFunctions
+
+Class cCSSFunctions is a cObject
+    
+    Function _FindPropertyValueIndex tCSSPropertyValue[] ByRef aCSSPropertyValues Integer iPropertyIndex Boolean bMakeSpace Returns Integer
+        Integer iMax iIndex
+        Move (SizeOfArray(aCSSPropertyValues)-1) to iMax
+        For iIndex from 0 to iMax
+            If (iPropertyIndex=aCSSPropertyValues[iIndex].iPropertyIndex) Begin
+                Function_Return iIndex
+            End
+        Loop
+        If (bMakeSpace) Begin
+            Move iPropertyIndex to aCSSPropertyValues[iMax+1].iPropertyIndex
+            Function_Return (iMax+1)
+        End
+        Function_Return -1
+    End_Function
+
+    Procedure SetPropertyValue tCSSPropertyValue[] ByRef aCSSPropertyValues Integer iPropertyIndex String sValue
+        Integer iPropertyValueIndex
+        If (sValue<>"") Begin
+            Get _FindPropertyValueIndex (&aCSSPropertyValues) iPropertyIndex True to iPropertyValueIndex
+            Move sValue to aCSSPropertyValues[iPropertyValueIndex].sValue
+        End
+    End_Procedure
+    
+    Function PropertyValue tCSSPropertyValue[] aCSSPropertyValues Integer iPropertyIndex Returns String
+        String sValue
+        If (iPropertyIndex<SizeOfArray(aCSSPropertyValues)) Begin
+            Function_Return aCSSPropertyValues[iPropertyIndex].sValue
+        End
+        Function_Return ""
+    End_Function
+    
+    Function CSSStyleAttributeValue tCSSPropertyValue[] aCSSPropertyValues Returns String
+        Integer iIndex iMax
+        String sCSS
+        Move (SizeOfArray(aCSSPropertyValues)-1) to iMax
+        For iIndex from 0 to iMax
+            Move (sCSS+_gaCSSPropertyDefinitions[aCSSPropertyValues[iIndex].iPropertyIndex].sName+":") to sCSS
+            Move (sCSS+aCSSPropertyValues[iIndex].sValue+";") to sCSS
+        Loop
+        Function_Return sCSS
+    End_Function          
+    
+    Function CSSRuleToString tCSSRule strRule Returns String
+        Function_Return (strRule.sSelector+"{"+CSSStyleAttributeValue(Self,strRule.aPropertyValues)+"}")
+    End_Function
+    
+    Function CSSRulesToString tCSSRules strRules Returns String
+        Integer iIndex iMax
+        String sCSS
+        Move (SizeOfArray(strRules.aRules)-1) to iMax
+        For iIndex from 0 to iMax
+            Move (sCSS*CSSRuleToString(Self,strRules.aRules[iIndex])) to sCSS
+        Loop
+        Function_Return sCSS
+    End_Function
+
+    // CSSAppendPropertyValue "appends" in the sense that it sets the CSS property of the most recently added
+    // rule. But if the same propery is set twice the value is overwritten.
+//    Procedure CSSAppendPropertyValue tCSSRules ByRef strRules Integer iPropertyIndex String sValue
+    Procedure CSSAppendRuleProperty tCSSRules ByRef strRules Integer iPropertyIndex String sValue
+        Send SetPropertyValue (&strRules.aRules[strRules._iPointer].aPropertyValues) iPropertyIndex sValue
+    End_Procedure
+    
+    Procedure CSSAppendRule tCSSRules ByRef strRules String sSelector String sMedia Integer iPropertyIndex String sValue
+        Integer iIndex
+        Move (SizeOfArray(strRules.aRules)) to iIndex
+        Move sSelector to strRules.aRules[iIndex].sSelector
+        Move sMedia    to strRules.aRules[iIndex].sMedia
+        Move iIndex to strRules._iPointer
+    End_Procedure
+    
+    Procedure CSSClassSet String[] ByRef aCSSClasses String sCSSClass
+        Boolean bDontCare
+        Get StringAddToSet of oStackFunctions (&aCSSClasses) sCSSClass to bDontCare
+    End_Procedure
+    
+    Procedure CSSClassClear String[] ByRef aCSSClasses String sCSSClass
+        Boolean bDontCare
+        Get StringRemoveFromSet of oStackFunctions (&aCSSClasses) sCSSClass to bDontCare
+    End_Procedure
+    
+    Function CSSClassAttributeValue String[] aCSSClasses Returns String
+        Function_Return (JoinString(oStringFunctions,aCSSClasses," ",0,0))
+    End_Function
+End_Class
+
+Object _oCSSFunctions is a cCSSFunctions
+    Move Self to oCSSFunctions
+
+    Procedure _DefineCSSProperty Integer iPropertyIndex String sName Integer iType
+        Move sName to _gaCSSPropertyDefinitions[iPropertyIndex].sName
+        Move iType to _gaCSSPropertyDefinitions[iPropertyIndex].iType
+    End_Procedure
+
+    Send _DefineCSSProperty CSSP_None                           "None"                     CSSPT_DontKnow
+
+    // CSS 2
+    Send _DefineCSSProperty CSSP_azimuth                        "azimuth"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_background                     "background"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_background_attachment          "background-attachment"    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_background_color               "background-color"         CSSPT_Color
+    Send _DefineCSSProperty CSSP_background_image               "background-image"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_background_position            "background-position"      CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_background_repeat              "background-repeat"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border                         "border"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_collapse                "border-collapse"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_color                   "border-color"             CSSPT_Color
+    Send _DefineCSSProperty CSSP_border_spacing                 "border-spacing"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_style                   "border-style"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_top                     "border-top"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_right                   "border-right"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_bottom                  "border-bottom"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_left                    "border-left"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_top_color               "border-top-color"         CSSPT_Color
+    Send _DefineCSSProperty CSSP_border_right_color             "border-right-color"       CSSPT_Color
+    Send _DefineCSSProperty CSSP_border_bottom_color            "border-bottom-color"      CSSPT_Color
+    Send _DefineCSSProperty CSSP_border_left_color              "border-left-color"        CSSPT_Color
+    Send _DefineCSSProperty CSSP_border_top_style               "border-top-style"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_right_style             "border-right-style"       CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_bottom_style            "border-bottom-style"      CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_left_style              "border-left-style"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_top_width               "border-top-width"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_right_width             "border-right-width"       CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_bottom_width            "border-bottom-width"      CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_left_width              "border-left-width"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_width                   "border-width"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_bottom                         "bottom"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_caption_side                   "caption-side"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_clear                          "clear"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_clip                           "clip"                     CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_color                          "color"                    CSSPT_Color
+    Send _DefineCSSProperty CSSP_content                        "content"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_counter_increment              "counter-increment"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_counter_reset                  "counter-reset"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_cue                            "cue"                      CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_cue_after                      "cue-after"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_cue_before                     "cue-before"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_cursor                         "cursor"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_direction                      "direction"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_display                        "display"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_elevation                      "elevation"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_empty_cells                    "empty-cells"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_float                          "float"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_font                           "font"                     CSSPT_String
+    Send _DefineCSSProperty CSSP_font_family                    "font-family"              CSSPT_String
+    Send _DefineCSSProperty CSSP_font_size                      "font-size"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_font_size_adjust               "font-size-adjust"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_font_stretch                   "font-stretch"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_font_style                     "font-style"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_font_variant                   "font-variant"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_font_weight                    "font-weight"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_height                         "height"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_left                           "left"                     CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_letter_spacing                 "letter-spacing"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_line_height                    "line-height"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_list_style                     "list-style"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_list_style_image               "list-style-image"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_list_style_position            "list-style-position"      CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_list_style_type                "list-style-type"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_margin                         "margin"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_margin_top                     "margin-top"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_margin_right                   "margin-right"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_margin_bottom                  "margin-bottom"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_margin_left                    "margin-left"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_marker_offset                  "marker-offset"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_marks                          "marks"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_max_height                     "max-height"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_max_width                      "max-width"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_min_height                     "min-height"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_min_width                      "min-width"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_orphans                        "orphans"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_outline                        "outline"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_outline_color                  "outline-color"            CSSPT_Color
+    Send _DefineCSSProperty CSSP_outline_style                  "outline-style"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_outline_width                  "outline-width"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_overflow                       "overflow"                 CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_padding                        "padding"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_padding_top                    "padding-top"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_padding_right                  "padding-right"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_padding_bottom                 "padding-bottom"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_padding_left                   "padding-left"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_page                           "page"                     CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_page_break_after               "page-break-after"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_page_break_before              "page-break-before"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_page_break_inside              "page-break-inside"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_pause                          "pause"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_pause_after                    "pause-after"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_pause_before                   "pause-before"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_pitch                          "pitch"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_pitch_range                    "pitch-range"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_play_during                    "play-during"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_position                       "position"                 CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_quotes                         "quotes"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_richness                       "richness"                 CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_right                          "right"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_size                           "size"                     CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_speak                          "speak"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_speak_header                   "speak-header"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_speak_numeral                  "speak-numeral"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_speak_punctuation              "speak-punctuation"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_speech_rate                    "speech-rate"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_stress                         "stress"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_table_layout                   "table-layout"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_text_align                     "text-align"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_text_decoration                "text-decoration"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_text_indent                    "text-indent"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_text_shadow                    "text-shadow"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_text_transform                 "text-transform"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_top                            "top"                      CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_unicode_bidi                   "unicode-bidi"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_vertical_align                 "vertical-align"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_visibility                     "visibility"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_voice_family                   "voice-family"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_volume                         "volume"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_white_space                    "white-space"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_widows                         "widows"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_width                          "width"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_word_spacing                   "word-spacing"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_z_index                        "z-index"                  CSSPT_DontKnow
+
+    // CSS 3
+    //Border Radius (Rounded Corners)
+    Send _DefineCSSProperty CSSP_border_radius                  "border-radius"                      CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_top_left_radius         "border-top-left-radius"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_top_right_radius        "border-top-right-radius"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_bottom_left_radius      "border-bottom-left-radius"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_bottom_right_radius     "border-bottom-right-radius"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_Border                         "Border"                             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_image                   "border-image"                       CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_image_outset            "border-image-outset"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_image_repeat            "border-image-repeat"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_image_source            "border-image-source"                CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_image_slice             "border-image-slice"                 CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_border_image_width             "border-image-width"                 CSSPT_DontKnow
+    //Multi-Column Properties
+    Send _DefineCSSProperty CSSP_break_after                    "break-after"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_break_before                   "break-before"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_break_inside                   "break-inside"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_columns                        "columns"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_count                   "column-count"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_fill                    "column-fill"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_gap                     "column-gap"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_rule                    "column-rule"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_rule_color              "column-rule-color"    CSSPT_Color
+    Send _DefineCSSProperty CSSP_column_rule_style              "column-rule-style"    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_rule_width              "column-rule-width"    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_span                    "column-span"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_column_width                   "column-width"         CSSPT_DontKnow
+    //Animation Properties
+    Send _DefineCSSProperty CSSP_@keyframes                     "@keyframes"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation                      "animation"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_delay                "animation-delay"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_direction            "animation-direction"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_duration             "animation-duration"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_fill_mode            "animation-fill-mode"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_iteration_count      "animation-iteration-count"   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_name                 "animation-name"              CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_play_state           "animation-play-state"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_animation_timing_function      "animation-timing-function"   CSSPT_DontKnow
+    //Transition Properties
+    Send _DefineCSSProperty CSSP_transition                     "transition"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_transition_delay               "transition-delay"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_transition_duration            "transition-duration"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_transition_timing_function     "transition-timing-function"  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_transition_property            "transition-property"         CSSPT_DontKnow
+    //Transform Properties
+    Send _DefineCSSProperty CSSP_backface_visibility            "backface-visibility"         CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_perspective                    "perspective"                 CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_perspective_origin             "perspective-origin"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_transform                      "transform"                   CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_transform_origin               "transform-origin"            CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_transform_style                "transform-style"             CSSPT_DontKnow
+    //New Background Properties
+    Send _DefineCSSProperty CSSP_background_clip                "background-clip"             CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_background_origin              "background-origin"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_background_size                "background-size"             CSSPT_DontKnow
+    //Overflow Properties
+    Send _DefineCSSProperty CSSP_Overflow                       "overflow"                    CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_overflow_x                     "overflow-x"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_overflow_y                     "overflow-y"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_overflow_style                 "overflow-style"              CSSPT_DontKnow
+    //Marquee Properties
+    Send _DefineCSSProperty CSSP_marquee_direction              "marquee-direction"           CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_marquee_play_count             "marquee-play-count"          CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_marquee_speed                  "marquee-speed"               CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_marquee_style                  "marquee-style"               CSSPT_DontKnow
+    //Other New Properties
+    Send _DefineCSSProperty CSSP_box_shadow                     "box-shadow"                  CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_box_decoration_break           "box-decoration-break"        CSSPT_DontKnow
+    Send _DefineCSSProperty CSSP_opacity                        "opacity"                     CSSPT_DontKnow
+
+End_Object
+

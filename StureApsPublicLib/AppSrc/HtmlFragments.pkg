@@ -1,0 +1,682 @@
+Use XmlBuilder.pkg
+Use CSSFunctions.pkg
+Use TableQueryFunctions.pkg
+Use FileFunctions.pkg
+Use Base64Functions.pkg
+Use StructFunctions.pkg
+
+Use IndexFunctions.pkg
+
+Global_Variable Integer _giNextUniqueElementID
+Move 0 to _giNextUniqueElementID
+
+Struct tHTMLDirectLink
+    Integer hEventRecipientObject // Object to send data to
+    Integer hEventRecipientMessage // Procedure to recieve. Default is procedure OnDirectLinkClicked.
+    String  sPage
+    String  sFlavour
+    Integer iTable
+    String  sRowID
+    String  sAuxData
+    String  sUniqueElementID
+End_Struct
+
+Use HtmlSequenceFunctions.pkg
+
+Global_Variable Integer oHTMLDirectLinkFunctions
+
+Object _oHTMLDirectLinkFunctions is a cObject
+    Move Self to oHTMLDirectLinkFunctions
+    
+    //> LID means Link ID as it's used in links
+    //> iIndex must be unique!
+//    Function RecordLID Integer iTable Returns String 
+//        Integer iIndex 
+//        String sValue
+//        Get ShortestUniqueIndex of oIndexFunctions iTable to iIndex
+//        Get IndexValue of oIndexFunctions iTable iIndex (Character(10)) to sValue
+//        Get EncodeString of oBase64Functions sValue to sValue
+//        Function_Return sValue
+//    End_Function
+//    
+//    Function FindRecordByLID Integer iTable String sIndexValue Returns Boolean
+//        Boolean bFound
+//        Integer iIndex 
+//        String[] aValues
+//        Get DecodeString of oBase64Functions sIndexValue to sIndexValue
+//        Send SplitString of oStringFunctions sIndexValue (Character(10)) False False (&aValues)
+//        Get ShortestUniqueIndex of oIndexFunctions iTable to iIndex
+//        Get FindRecordByValueArray of oIndexFunctions iTable iIndex aValues to bFound
+//        Function_Return bFound
+//    End_Function
+    
+    Function NextUniqueElementID Returns String
+        Increment _giNextUniqueElementID
+        Function_Return ("e"+String(_giNextUniqueElementID))
+    End_Function
+    
+    Function NextUniqueElementIDProbe Returns String
+        Function_Return ("e"+String(_giNextUniqueElementID+1))
+    End_Function
+    
+    Function DirectLinkToString tHTMLDirectLink strDirectLink Returns String
+        String sValue
+        Get VariantToString of oStructFunctions strDirectLink to sValue
+        Function_Return sValue
+    End_Function
+
+    Function StringToDirectLink String sValue Returns tHTMLDirectLink 
+        tHTMLDirectLink strDirectLink 
+        tValueTree strValueTree
+        Get StringToValueTree of oStructFunctions sValue to strValueTree
+        ValueTreeDeserializeParameter strValueTree to strDirectLink
+        Function_Return strDirectLink
+    End_Function
+    
+    Function NewDirectLink Integer hEventObj Integer hEventMsg Integer iTable String sPage String sFlavour String sAuxData Returns tHTMLDirectLink
+        tHTMLDirectLink strDirectLink
+        Move hEventObj to strDirectLink.hEventRecipientObject
+        Move hEventMsg to strDirectLink.hEventRecipientMessage
+        Move iTable to strDirectLink.iTable
+        Move sPage to strDirectLink.sPage
+        Move sFlavour to strDirectLink.sFlavour
+        Move sAuxData to strDirectLink.sAuxData
+        Get NextUniqueElementID of oHTMLDirectLinkFunctions to strDirectLink.sUniqueElementID
+        If (iTable>0) Begin
+            Move (SerializeRowID(GetRowID(iTable))) to strDirectLink.sRowID
+//            Get RecordLID iTable to strDirectLink.sRowID
+        End
+        Function_Return strDirectLink
+    End_Function
+    
+//    Function NextNewDirectLinkElementID Returns String
+//        Get NextUniqueElementID of oHTMLDirectLinkFunctions to strDirectLink.sUniqueElementID
+//    End_Function
+    
+    Function NewDirectLinkAsString Integer hEventObj Integer hEventMsg Integer iTable String sPage String sFlavour String sAuxData Returns String
+        String sLinkValue
+        tHTMLDirectLink strDirectLink
+        Get NewDirectLink hEventObj hEventMsg iTable sPage sFlavour sAuxData to strDirectLink
+        Get DirectLinkToString strDirectLink to sLinkValue
+        Function_Return sLinkValue
+    End_Function
+End_Object
+
+Class cHTMLShorthands is a cObject
+    Procedure AddDirectLinkTekst String sTag String sTekst Integer hEventObj Integer hEventMsg Integer iTable String sTargetPage String sTargetFlavour String sAuxData
+        String sLink
+        tHTMLDirectLink strDirectLink
+        Get NewDirectLink of oHTMLDirectLinkFunctions hEventObj hEventMsg iTable sTargetPage sTargetFlavour sAuxData to strDirectLink
+        Get DirectLinkToUrl strDirectLink to sLink
+        Send AddOpenElement "a"
+            Send AddAttribute "class" "linkarea"
+            Send AddAttribute "href" sLink
+            Send AddAttribute "id" strDirectLInk.sUniqueElementID
+            Send AddElement sTag sTekst
+        Send CloseElement // a
+    End_Procedure
+    Procedure AddDirectLinkButton String sTag String sTekst Integer hEventObj Integer hEventMsg Integer iTable String sTargetPage String sTargetFlavour String sAuxData
+        String sLink
+        tHTMLDirectLink strDirectLink
+        Get NewDirectLink of oHTMLDirectLinkFunctions hEventObj hEventMsg iTable sTargetPage sTargetFlavour sAuxData to strDirectLink
+        Get DirectLinkToUrl strDirectLink to sLink
+        Send AddOpenElement "form"
+            Send AddAttribute "method" "GET"
+            Send AddAttribute "action" sLink
+            Send AddAttribute "style" "display:inline;margin-left:2px;margin-right:2px;"
+            Send AddElement "input" ""
+            Send AddAttribute "type" "submit"
+            Send AddAttribute "value" sTekst
+        Send CloseElement // form
+    End_Procedure
+End_Class
+
+Class cHTMLFragment is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String psEmptyText "no data found"
+    End_Procedure
+    
+    Procedure _OutputNoData
+        String sEmptyText
+        Get psEmptyText to sEmptyText
+        If (sEmptyText<>"") Begin
+            Send AddElement "div" sEmptyText
+        End
+    End_Procedure
+    
+    Procedure OnDirectLinkClicked Boolean bRecordFound tHTMLDirectLink strHTMLFragmentDirectLink
+        If (strHTMLFragmentDirectLink.hEventRecipientObject<>Self) Begin
+            Error 324 "Un-intended OnDirectLinkClicked recipient"
+        End
+    End_Procedure
+    
+//    Procedure UpdateDataDirectLink Handle hElement tHTMLDirectLink strDirectLink
+//    End_Procedure
+End_Class
+
+//Class cHTMLFragmentContainer is a cObject
+//    Procedure Construct_Object 
+//        Forward Send Construct_Object
+//        Property Handle phHTMLBuilder
+//    End_Procedure
+//    Procedure AddOpenElement String sElement
+//        Send AddOpenElement of (phHTMLBuilder(Self)) sElement
+//    End_Procedure
+//    Procedure AddElement String sElement String sValue
+//        Send AddElement of (phHTMLBuilder(Self)) sElement sValue
+//    End_Procedure
+//    Procedure AddCDATAElement String sElement String sValue // Same as AddElement but marks up the data in sValue as CDATA
+//        Send AddCDATAElement of (phHTMLBuilder(Self)) sElement sValue
+//    End_Procedure
+//    Procedure CloseElement
+//        Send CloseElement of (phHTMLBuilder(Self))
+//    End_Procedure
+//    Procedure AddAttribute String sAttr String sValue
+//        Send AddAttribute of (phHTMLBuilder(Self)) sAttr sValue
+//    End_Procedure
+//End_Class
+
+//> A cHtmlFragmentBody object outputs a structure like this:
+//>    <html>
+//>        <head>
+//>            call OutputHead
+//>        </head>
+//>        <body>
+//>            call OutputBody
+//>        </body>
+//>    </html>
+Class cHTMLPage is a cHTMLFragment
+
+    Procedure AddExternalScriptTag String sPath
+        String sLocalFolder sTemp
+        Boolean bLocal
+        Move (Lowercase(sPath)) to sTemp
+        Move (not(Left(sTemp,5)="http:" or Left(sTemp,6)="https:")) to bLocal
+        If (bLocal) Begin
+            Get VdfFolderPath of oFileFunctions VDF_PROGRAM to sLocalFolder
+            Get AppendPath of oFileFunctions sLocalFolder "HtmlLocalScripts" to sLocalFolder
+            Get AppendPath of oFileFunctions sLocalFolder sPath to sPath
+            If (FileExists(oFileFunctions,sPath)<>1) Begin
+                Error DFERR_PROGRAM ("File: "+sPath+" not found")
+            End
+        End
+        Send AddElement "script" ""
+        Send AddAttribute "src" sPath
+    End_Procedure
+
+    //> This function should return the CSS style to be applied to html and body tags.
+    Procedure AugmentCSSProperties_Body tCSSRules ByRef strRules
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_overflow         "auto"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border_style     "none"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border_width     "0px"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border           "none"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_outline          "none"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_background_color "#f0f0f0"
+    End_Procedure
+    
+    //> This function should return the title of the document
+    Function HtmlTitle Returns String
+        Function_Return "a title"
+    End_Function
+    
+    Procedure AddCSSRules tCSSRules ByRef strRules
+    End_Procedure
+    
+    Procedure AddExternalScripts 
+    End_Procedure
+    
+    //> Output header-tag content
+    Procedure OutputHead 
+        String sCSS
+        tCSSRules strRules strNoRules
+
+        Send AddElement "title" (HtmlTitle(Self))
+
+        Send AddExternalScripts 
+
+        Send AddElement "script" ""
+            Send AddAttribute "id" "sturescript"
+
+        Send AddCSSRules (&strRules)
+        If (SizeOfArray(strRules.aRules)>0) Begin
+            Get CSSRulesToString of oCSSFunctions strRules to sCSS
+            Send AddElement "style" sCSS
+        End
+        
+        Move strNoRules to strRules // Reinitialise
+        Send CSSAppendRule of oCSSFunctions (&strRules) "html, body" ""
+        Send AugmentCSSProperties_Body (&strRules)   
+        If (SizeOfArray(strRules.aRules[0].aPropertyValues)>0) Begin
+            Get CSSRuleToString of oCSSFunctions strRules.aRules[0] to sCSS
+            Send AddElement "style" sCSS
+        End
+    End_Procedure
+    
+    //> To be populated by descending classes.
+    Procedure OutputBody 
+    End_Procedure
+    
+    //> Sending this will output the entire structure
+    Procedure OutputHTML
+        Send AddOpenElement "html"
+            
+            Send AddOpenElement "head"
+                Send OutputHead 
+            Send CloseElement // head
+        
+            Send AddOpenElement "body"
+                Send OutputBody 
+            Send CloseElement // body
+
+        Send CloseElement // html
+    End_Procedure
+End_Class
+
+Struct tHtmlFragmentSelectionListItem
+    String sLabel
+    String sLink
+End_Struct
+
+Class cHtmlFragmentSelectionList is a cObject
+    Procedure FillList tHtmlFragmentSelectionListItem[] aItems
+    End_Procedure
+    Procedure OutputHTML tHtmlFragmentSelectionListItem[] aItems
+        Send AddOpenElement "ul"
+        Send FillList aItems
+        Send CloseElement // ul
+    End_Procedure
+End_Class
+
+Struct tTableQueryExtended
+    tTableQuery strQ
+    String[] aFixedRecordRowIDs
+End_Struct
+
+Register_Function pbDebug Returns Boolean
+Register_Function pbReadOnly Returns Boolean
+
+Class cHtmlFragmentListTQ is a cHTMLFragment
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String psTargetPage ""
+        Property String psListLabel ""
+        Property Boolean pbAddLinks True
+    End_Procedure
+    
+        Function _TQEx tTableQuery strQ Returns tTableQueryExtended
+            Integer iMax iIndex
+            Integer[] aTables
+            tTableQueryExtended strQex
+            Move strQ to strQex.strQ
+            Get FixedTables of oTQ strQ to aTables
+            Move (SizeOfArray(aTables)-1) to iMax
+            For iIndex from 0 to iMax
+                Move (SerializeRowID(GetRowID(aTables[iIndex]))) to strQex.aFixedRecordRowIDs[iIndex]
+            Loop
+            Function_Return strQex
+        End_Function
+        
+        Function _TQExFindRecordsFixedParents tTableQueryExtended strQex Returns Boolean
+            Integer iMax iIndex 
+            Integer[] aTables
+            RowID riRow
+            Boolean bSuccess
+            Get FixedTables of oTQ strQex.strQ to aTables
+            Move (SizeOfArray(aTables)-1) to iMax
+            Move True to bSuccess
+            For iIndex from 0 to iMax
+                Clear aTables[iIndex]
+                Move (DeserializeRowID(strQex.aFixedRecordRowIDs[iIndex])) to riRow
+                If (not(IsNullRowID(riRow))) Begin
+                    If (not(FindByRowID(aTables[iIndex],riRow))) Begin
+                        Move False to bSuccess
+                    End
+                End
+            Loop
+            Function_Return bSuccess
+        End_Function
+        
+        Function _TQExQueryToString tTableQueryExtended strQex Returns String
+            String sValue            
+            Get VariantToString of oStructFunctions strQex to sValue
+            Function_Return (EncodeString(oBase64Functions,sValue))
+        End_Function
+        
+        Function _TQExStringToQuery String sValue Returns tTableQueryExtended
+            tTableQueryExtended strQex
+            tValueTree strValueTree
+            Move (DecodeString(oBase64Functions,sValue)) to sValue
+            Get StringToValueTree of oStructFunctions sValue to strValueTree
+            ValueTreeDeserializeParameter strValueTree to strQex
+            Function_Return strQex
+        End_Function
+        
+    Function TQExFromElementID String sElementID tTableQueryExtended ByRef strQEx Handle ByRef hElementHandle Returns Boolean
+        String sTQEx
+        Get ElementHandleByID sElementID to hElementHandle
+        If (hElementHandle<>0) Begin
+            Get ComGetAttribute of hElementHandle "data-tq" 0 to sTQEx
+            Get _TQExStringToQuery sTQEx to strQEx
+        End
+        Function_Return (hElementHandle<>0)
+    End_Function
+    
+    Function CanEdit Returns Boolean
+        Function_Return (not(pbReadOnly(Self)))
+    End_Function
+    
+    Procedure HtmlBeginList
+        Send AddOpenElement "ul"
+    End_Procedure
+    
+    Register_Procedure _OnEditItem Boolean bFound tHTMLDirectLink strDirectLink 
+        
+    Procedure HtmlListItem tTableQuery ByRef strQ String sUniqueListID // Default action is to just output the first result column
+        String[] aResultValues
+        Get OutputColumnValues of oTQ (&strQ) True to aResultValues
+        If (SizeOfArray(aResultValues)=0 or aResultValues[0]="") Begin
+            Move "unavngiven" to aResultValues[0]
+            Send AddElement "span" aResultValues[0]
+            Send AddAttribute "style" "color:red;"
+        End
+        Else Begin
+            Send AddElement "span" aResultValues[0]
+        End
+    End_Procedure
+
+//    Procedure OnDirectLinkClicked Boolean bRecordFound String sFlavour
+//    End_Procedure
+    
+    Procedure ModifyEditItemDirectLink tHTMLDirectLink ByRef strDirectLink
+    End_Procedure
+    
+    Function CanEditCurrentRecord Integer iTable Returns Boolean
+        Function_Return True // Augment in subclasses
+    End_Function
+    
+    Procedure _HtmlListItem tTableQuery ByRef strQ String sUniqueListID
+        Boolean bCanEdit bCanEditRecord
+        Integer iRowNumber
+        String sElementID sPage sLink sTQ sDebugString
+        tHTMLDirectLink strDirectLink
+        
+        Get CanEdit to bCanEdit
+        
+        Send AddOpenElement "li"
+            Send AddOpenElement "div"
+                Send AddAttribute "class" "linkarea"
+                If (pbDebug(Self)) Begin
+                    Get RecordIDAsHumanReadableString of oIndexFunctions strQ.iTable to sDebugString
+                    Send AddElement "span" ("["+sDebugString+"]")
+                End
+                If (bCanEdit) Begin
+                    Get CanEditCurrentRecord strQ.iTable to bCanEditRecord
+                    Send AddOpenElement "a"
+                        If (bCanEditRecord) Begin
+                            Get NewDirectLink of oHTMLDirectLinkFunctions Self (RefProc(_OnEditItem)) strQ.iTable "" "" sUniqueListID to strDirectLink
+                            Send ModifyEditItemDirectLink (&strDirectLink)
+                            Get DirectLinkToUrl strDirectLink to sLink
+                            Send AddAttribute "href" sLink
+                        End
+                        Send AddElement "span" "Ret"
+                        Send AddAttribute "class" "listedititembutton"
+                        If (not(bCanEditRecord)) Begin
+                            Send AddAttribute "style" "visibility:hidden;"
+                        End
+                    Send CloseElement // a
+                End
+                
+                If (pbAddLinks(Self)) Begin
+                    Send AddOpenElement "a"
+                    
+                        Get psTargetPage to sPage
+                        Get DirectLinkToUrl (NewDirectLink(oHTMLDirectLinkFunctions,Self,0,strQ.iTable,sPage,"click","")) to sLink
+                        Send AddAttribute "href" sLink
+        
+                        Send AddOpenElement "span"
+                            Send HtmlListItem (&strQ) sUniqueListID
+                        Send CloseElement // div
+        
+                    Send CloseElement // a
+                End
+                Else Begin
+                    Send AddOpenElement "span"
+                        Send HtmlListItem (&strQ) sUniqueListID
+                    Send CloseElement // div
+                End
+            Send CloseElement // div
+        Send CloseElement // li
+    End_Procedure
+    
+    Procedure HtmlEndList
+        Send CloseElement // ul
+    End_Procedure
+    
+    Function TableQuery Returns tTableQuery
+        tTableQuery strQ
+        Function_Return strQ
+    End_Function
+    
+    Procedure OnEditList tTableQuery strQ
+    End_Procedure
+    
+    Procedure _EditList Boolean bFound tHTMLDirectLink strDirectLink
+        tTableQueryExtended strQex
+        Get _TQExStringToQuery strDirectLink.sAuxData to strQex
+        If (_TQExFindRecordsFixedParents(Self,strQex)) Begin
+            Send OnEditList strQex.strQ
+        End 
+        Else Begin
+            Error 876 "Parent records ikke fundet"
+        End
+    End_Procedure
+    
+    Procedure _InnerHTML tTableQuery strLocalQ String sUniqueID Boolean bCanEdit
+        String sListLabel sDebugString
+        Integer iIndentityIndex iSegment iSegments
+        Integer[] aIndexColumns
+        String sLink sEditLink sTQ 
+        tTableQueryExtended strQEx
+        tHTMLDirectLink strDirectLink
+
+        Get psListLabel to sListLabel
+        If (sListLabel<>"") Begin
+            If (pbDebug(Self)) Begin
+                Get_Attribute DF_FILE_LOGICAL_NAME of strLocalQ.iTable to sDebugString
+                Send AddElement "h2" (sListLabel+" ["+sDebugString+"]")
+            End
+            Else Begin
+                Send AddElement "h2" sListLabel
+            End
+
+//            If (bCanEdit) Begin
+//                Send AddAttribute "style" "display:inline;"
+//                Get _TQEx strLocalQ to strQEx
+//                Get _TQExQueryToString strQEx to sTQ
+//                Get NewDirectLink of oHTMLDirectLinkFunctions Self (RefProc(_EditList)) 0 "" "" sTQ to strDirectLink
+//                Send AddElement "a" "ÿ[ret]" // The space is a character 255!!
+//                Send AddAttribute "class" "linkarea"
+//                Get DirectLinkToUrl strDirectLink to sEditLink
+//                Send AddAttribute "href" sEditLink
+//            End
+        End
+            
+        Send HtmlBeginList
+        
+        If (strLocalQ.iTable<>0) Begin
+            Send FixateOutputColumns of oTQ (&strLocalQ) // Do not add house hold columns to the output
+            // Add index columns necessary to identify the record uniquely:
+            Get ShortestUniqueIndex of oIndexFunctions strLocalQ.iTable to iIndentityIndex
+            Get IndexDefinitionColumnNumbers of oIndexFunctions strLocalQ.iTable iIndentityIndex to aIndexColumns
+            Move (SizeOfArray(aIndexColumns)-1) to iSegments
+            For iSegment from 0 to iSegments
+                Send AddResultColumn of oTQ (&strLocalQ) strLocalQ.iTable aIndexColumns[iSegment] True
+            Loop
+            
+            While (FindRecord(oTQ,&strLocalQ))
+                Send _HtmlListItem (&strLocalQ) sUniqueID
+            Loop
+            
+            If (bCanEdit) Begin
+                Send AddOpenElement "li"
+                    Send AddOpenElement "div"
+                        Send AddAttribute "class" "linkarea"
+                        If (bCanEdit) Begin
+                            Send AddOpenElement "a"
+                                Clear strLocalQ.iTable
+                                Get NewDirectLink of oHTMLDirectLinkFunctions Self (RefProc(_OnEditItem)) strLocalQ.iTable "" "" sUniqueID to strDirectLink
+                                Send ModifyEditItemDirectLink (&strDirectLink)
+                                Get DirectLinkToUrl strDirectLink to sLink
+                                                        
+                                Send AddAttribute "href" sLink
+                                Send AddElement "span" "Tilf›j"
+                                Send AddAttribute "class" "listedititembutton"
+                            Send CloseElement
+                        End
+                    Send CloseElement // div
+                Send CloseElement // li
+            End
+            Else Begin
+                If (strLocalQ._strControlBlock.iSelectCount=0) Begin
+                    Send _OutputNoData
+                End
+            End
+        End
+        Send HtmlEndList
+    End_Procedure
+    
+    Procedure OutputHtml tTableQuery strQ
+        Boolean bCanEdit
+        String sUniqueID
+        tTableQuery strLocalQ
+        
+        If (num_arguments>0) Begin
+            Move strQ to strLocalQ
+        End
+        Else Begin
+            Get TableQuery to strLocalQ
+        End
+        
+        Get CanEdit to bCanEdit
+        
+        Send AddOpenElement "div"
+        Get NextUniqueElementID of oHTMLDirectLinkFunctions to sUniqueID
+        Send AddAttribute "id" sUniqueID
+        Send AddAttribute "data-tq" (_TQExQueryToString(Self,_TQEx(Self,strLocalQ)))
+        
+        Send _InnerHTML strLocalQ sUniqueID bCanEdit 
+        
+        Send CloseElement // div
+    End_Procedure
+    
+    Procedure OnUpdateList String sUniqueID
+        Handle hElementHandle
+        tTableQueryExtended strQEx
+
+        If (TQExFromElementID(Self,sUniqueID,&strQEx,&hElementHandle)) Begin
+            If (_TQExFindRecordsFixedParents(Self,strQEx)) Begin
+                Send BeginInnerHTML
+                Send _InnerHTML strQEx.strQ sUniqueID (CanEdit(Self))
+                Send EndInnerHTML hElementHandle
+            End
+            Else Begin
+                Error 242 ("ElementID: '"+sUniqueID+"' could not restore TQ precondition")
+            End
+        End
+        Else Begin
+            Error 243 ("ElementID: '"+sUniqueID+"' not found")
+        End
+    End_Procedure
+        
+//    Procedure OnUpdateList String sUniqueID
+//        Handle hList
+//        String sTQ
+//        tTableQueryExtended strQEx
+//        Get ElementHandleByID sUniqueID to hList
+//        If (hList<>0) Begin
+//            Get ComGetAttribute of hList "data-tq" 0 to sTQ
+//            Get _TQExStringToQuery sTQ to strQEx
+//            If (_TQExFindRecordsFixedParents(Self,strQEx)) Begin
+//                Send BeginInnerHTML
+//                Send _InnerHTML strQEx.strQ sUniqueID (CanEdit(Self))
+//                Send EndInnerHTML hList
+//            End
+//            Else Begin
+//                Error 241 "xxx"
+//            End
+//        End
+//    End_Procedure
+    
+    Function OnEditItem Boolean bFound tHTMLDirectLink strDirectLink Returns Boolean
+        Function_Return False
+    End_Function
+    
+    Procedure _OnEditItem Boolean bFound tHTMLDirectLink strDirectLink 
+        Boolean bParentRestoreError
+        Handle hElementHandle
+        tTableQueryExtended strQEx
+
+        Move False to bParentRestoreError
+        If (not(bFound)) Begin
+            Move True to bParentRestoreError 
+            // If the record was not found we assume that a new one is about to be created
+            // and therefore we find the defining parent records
+            If (TQExFromElementID(Self,strDirectLink.sAuxData,&strQEx,&hElementHandle)) Begin
+                If (_TQExFindRecordsFixedParents(Self,strQEx)) Begin
+                    Move False to bParentRestoreError
+                End
+            End
+        End
+        If (not(bParentRestoreError)) Begin
+            If (OnEditItem(Self,bFound,strDirectLink)) Begin
+                Send OnUpdateList strDirectLink.sAuxData
+            End
+        End
+        Else Begin
+            Error DFERR_PROGRAM "Parent records not found"
+        End
+        
+    End_Procedure
+End_Class
+
+Class cHtmlFragmentGrid is a cHTMLFragment
+    Procedure Construct_Object
+        Forward Send Construct_Object
+    End_Procedure
+    
+    Procedure OutputHeaderRowItem Integer iColumn String sHeaderLabels
+        Send AddElement "th" sHeaderLabels
+    End_Procedure
+    
+    Procedure OutputHeaderRow String[] aHeaderLabels
+        Integer iIndex iMax
+        Send AddOpenElement "tr"
+            Move (SizeOfArray(aHeaderLabels)-1) to iMax
+            For iIndex from 0 to iMax
+                Send OutputHeaderRowItem iIndex aHeaderLabels[iIndex]
+            Loop    
+        Send CloseElement // tr
+    End_Procedure
+    
+    Procedure OutputTableDataRows
+    End_Procedure
+    
+    Procedure OutputHTML String[] aHeaderLabels
+        Send AddOpenElement "table"
+        Send AddAttribute "width" "100%"
+        Send OutputHeaderRow aHeaderLabels
+        Send OutputTableDataRows
+        Send CloseElement // table
+    End_Procedure
+End_Class
+
+Class cHtmlFragmentGridTQ is a cHTMLFragment
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String psTargetPage ""
+        Property String psListLabel  ""
+    End_Procedure
+    Procedure OutputHTML tTableQuery strQ
+    End_Procedure
+End_Class

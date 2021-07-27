@@ -1,0 +1,179 @@
+// SQLStatementHandles.pkg // StureApsPublicLib
+//
+// A SQL connection can execute one SQL statement at a time. It can generate
+// multiple statements but only one may execute at any given time.
+//
+// If you need to be able to execute multiple SQL statements simultaneously
+// you need to create a new connection and this is an un-welcome complication
+// of what should be simple. This package does away with this complexity by
+// automatically creating and reusing connections and therefore a minimum
+// will be created.
+//
+// It also means that at any time the application will have a number of open
+// connections in its 'cache'. If you want to reset this cache and close all
+// the connections (if you change filelist.cfg for example) here is how:
+//
+//  Send DisconnectAllConnections of oSQLStatementHandles
+//
+// (This implementation does not assume MARS to be enabled on ms sql driver)
+//
+// Do it like this:
+//
+//
+// Use SQLStatementHandles.pkg // Declare singleton object oSQLStatementHandles
+//
+// Procedure Something
+//     tSQLStatementHandle strStatement // Clever statement handle
+//     If (OpenStatementOnTable(oSQLStatementHandles,Customer.File_Number,&strStatement)) Begin
+//
+//         // Do anything with the strStatement.hHandle (except SQLClose'ing it)
+//         // At this point strStatement.hStatement is your normal statement handle.
+//
+//         // Close the statement and hand the corresponding connection back to the pool:
+//         Send CloseStatement of oSQLStatementHandles strStatement
+//     End
+// End_Procedure
+//
+
+Use sql.pkg
+
+Struct tSQLConnectionHandle
+    String sDriver
+    String sConnectString
+    Handle hHandle
+End_Struct
+
+Struct tSQLStatementHandle
+    Handle hHandle
+    tSQLConnectionHandle strConnectionHandle
+End_Struct
+
+Global_Variable tSQLConnectionHandle[] _gaSQLConnectionPool // Array of available SQL connections
+
+Global_Variable Integer oSQLStatementHandles
+Object _oSQLStatementHandles is a cObject
+    Move Self to oSQLStatementHandles
+
+    Property String _psCurrentFilelist
+
+    Procedure DisconnectAllConnections // and destroy them
+        Integer iMax iItem
+        Handle hConnection
+        Move (SizeOfArray(_gaSQLConnectionPool)-1) to iMax
+        For iItem from 0 to iMax
+            Move _gaSQLConnectionPool[iItem].hHandle to hConnection
+            If (hConnection<>0) Begin
+                Send SQLDisconnect of hConnection
+                Send Destroy of hConnection
+            End
+        Loop
+        Move (ResizeArray(_gaSQLConnectionPool,0)) to _gaSQLConnectionPool
+    End_Procedure
+
+        Function _FilelistChanged Returns Boolean
+            String sFilelist
+            Get_Attribute DF_FILELIST_NAME to sFilelist
+            Function_Return (sFilelist<>_psCurrentFilelist(Self))
+        End_Function
+
+        // Every time a connection is requested we check if the database
+        // as been switched underneath our feet. This happens only in
+        // applications like VDFxray where a new workspace may be selected
+        // at any time. If it has then we must close all the connection we
+        // have in stock and remove them from our connection "cache":
+        Procedure _CheckIfFilelistChanged
+            String sFilelist
+            If (_FilelistChanged(Self)) Begin
+                Send DisconnectAllConnections
+                Get_Attribute DF_FILELIST_NAME to sFilelist
+                Set _psCurrentFilelist to sFilelist
+            End
+        End_Procedure
+
+        Function _FindConnectionInPool String sDriver String sConnectString Returns Integer
+            Integer iMax iItem
+            Move (SizeOfArray(_gaSQLConnectionPool)-1) to iMax
+            For iItem from 0 to iMax
+                If (sDriver=_gaSQLConnectionPool[iItem].sDriver and sConnectString=_gaSQLConnectionPool[iItem].sConnectString) Begin
+                    Function_Return iItem
+                End
+            Loop
+            Function_Return -1 // not found
+        End_Function
+
+#IF (FMAC_VERSION<15)
+        Function _RemoveConnectionFromArray tSQLConnectionHandle[] aHandles Integer iRemoveIndex Returns tSQLConnectionHandle[]
+            Integer iIndex iMax iCount
+            tSQLConnectionHandle[] aReturn
+            
+            Move 0 to iCount
+            Move (SizeOfArray(aHandles)-1) to iMax
+            
+            For iIndex from 0 to iMax
+                If (iIndex<>iRemoveIndex) Begin // If not the one we delete
+                    Move aHandles[iIndex] to aReturn[iCount]
+                    Increment iCount
+                End
+            Loop
+            
+            Function_Return aReturn
+        End_Function
+#ENDIF
+
+    Function OpenConnection String sDriver String sConnectString tSQLConnectionHandle ByRef strConnectionHandle Returns Boolean
+        Boolean bSuccess
+        Integer iConnectionIndex hConnection hDataBaseConnection
+
+        Send _CheckIfFilelistChanged
+        Move True to bSuccess
+        Get _FindConnectionInPool sDriver sConnectString to iConnectionIndex // Do we already have one?
+        If (iConnectionIndex=-1) Begin // Create one
+            Get Create U_cSQLConnection to hConnection // Create SQL connection. Such a connection can only handle the execution of one statetment at a time.
+            Get SQLConnect of hConnection sDriver sConnectString to hDataBaseConnection
+            // The only thing we use the hDataBaseConnection for is:
+            If (hDataBaseConnection=0) Begin
+                Move False to bSuccess
+                Error 231 (sDriver+" could not connect to: "+sConnectString)
+            End
+            Move sDriver to strConnectionHandle.sDriver
+            Move sConnectString to strConnectionHandle.sConnectString
+            Move hConnection to strConnectionHandle.hHandle
+        End
+        Else Begin // Take that one out of the pool
+            Move _gaSQLConnectionPool[iConnectionIndex] to strConnectionHandle
+#IF (FMAC_VERSION<15)
+            Get _RemoveConnectionFromArray _gaSQLConnectionPool iConnectionIndex to _gaSQLConnectionPool
+#ELSE
+            Move (RemoveFromArray(_gaSQLConnectionPool,iConnectionIndex)) to _gaSQLConnectionPool // Take it out of the pool
+#ENDIF
+        End
+        Function_Return bSuccess
+    End_Function
+
+    Procedure CloseConnection tSQLConnectionHandle strConnectionHandle
+        Move strConnectionHandle to _gaSQLConnectionPool[SizeOfArray(_gaSQLConnectionPool)] // Put back in pool
+    End_Procedure
+
+    Function OpenStatement String sDriver String sConnectString tSQLStatementHandle ByRef strStatementHandle Returns Boolean
+        Boolean bSuccess
+        Move 0 to strStatementHandle.hHandle
+        Get OpenConnection sDriver sConnectString (&strStatementHandle.strConnectionHandle) to bSuccess
+        If (bSuccess) Begin
+            Get SQLOpen of strStatementHandle.strConnectionHandle.hHandle to strStatementHandle.hHandle
+        End
+        Function_Return bSuccess
+    End_Function
+
+    Function OpenStatementOnTable Integer iTable tSQLStatementHandle ByRef strStatementHandle Returns Boolean
+        String sDriver sConnectString
+        Get_Attribute DF_FILE_DRIVER of iTable to sDriver
+        Get_Attribute DF_FILE_LOGIN of iTable to sConnectString
+        Function_Return (OpenStatement(Self,sDriver,sConnectString,&strStatementHandle))
+    End_Function
+
+    Procedure CloseStatement tSQLStatementHandle strStatement
+        Send SQLClose of strStatement.hHandle // obliterates it!
+        Send CloseConnection strStatement.strConnectionHandle // Connection back in pool!
+    End_Procedure
+
+End_Object

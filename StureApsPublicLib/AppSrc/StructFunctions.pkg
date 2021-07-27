@@ -1,0 +1,220 @@
+//> StructFunction.pkg can be used to serialize structs into strings:
+//>
+//>    Function TableQueryToString tTableQuery strQ Returns String
+//>        String sTQ
+//>        Get VariantToString of oStructFunctions strQ to sTQ
+//>        Function_Return sTQ
+//>    End_Function
+//>
+//> Deserializing takes one extra step:
+//>
+//>    Function StringToTableQuery String sTQ Returns tTableQuery
+//>        tTableQuery strQ
+//>        tValueTree strValueTree
+//>        Get StringToValueTree of oStructFunctions sTQ to strValueTree
+//>        ValueTreeDeserializeParameter strValueTree to strQ
+//>        Function_Return strQ
+//>    End_Function
+//>
+//> If your purpose is to read and write structs to sequential files you
+//> may do it like this:
+//>
+//>    Send WriteVariant of oStructFunctions iChannel strQ
+//>
+//> And again, on the way back there is one extra step:
+//>
+//>    Function ReadTableQuery Integer iChannel Returns tTableQuery
+//>        tValueTree strValueTree
+//>        tTableQuery strQ
+//>        Send ReadValueTree of oStructFunctions iChannel (&strValueTree)
+//>        ValueTreeDeserializeParameter strValueTree to strQ
+//>        Function_Return strQ
+//>    End_Function
+//>
+//>
+//> NOTE:
+//>   1. these functions perform no checking on the string input. Things will go
+//>      wrong if values are deserialized into non-conformant structs.
+//>   2. not all simple member types can be handled this way. RowID for example
+//>      will not serialize.
+//>   3. when serializing to/from string max_argument_size must be taken into 
+//>      account. The read/write version does not have that issue.
+//>
+Use cClientWebService.pkg // Struct tValueTree is defined in here
+
+Global_Variable Integer oStructFunctions
+
+Object _oStructFunctions is a cObject
+    Move Self to oStructFunctions
+
+    Procedure WriteValueTree Integer iChannel tValueTree strValueTree
+        Integer iLen iIndex iMax
+        Move (Length(strValueTree.sValue)) to iLen
+        Writeln channel iChannel iLen
+        Write strValueTree.sValue
+        Move (SizeOfArray(strValueTree.children)-1) to iMax
+        Writeln iMax
+        For iIndex from 0 to iMax
+            Send WriteValueTree iChannel strValueTree.children[iIndex]
+        Loop
+    End_Procedure
+
+    Procedure WriteVariant Integer iChannel Variant vValue
+        tValueTree strValueTree
+        ValueTreeSerializeParameter vValue to strValueTree
+        Send WriteValueTree iChannel strValueTree
+    End_Procedure
+
+    Procedure ReadValueTree Integer iChannel tValueTree ByRef strValueTree
+        Integer iLen iIndex iMax
+        tValueTree strEmpty
+        Readln channel iChannel iLen
+        Read_Block strValueTree.sValue iLen
+        Readln iMax
+        For iIndex from 0 to iMax
+            Move strEmpty to strValueTree.children[iIndex]
+            Send ReadValueTree iChannel (&strValueTree.children[iIndex])
+        Loop
+    End_Procedure
+
+            Procedure _VTTS_AppendValue String ByRef sCurrentString String sNewValue
+                Integer iLen
+                Move (Length(sNewValue)) to iLen
+                Move (sCurrentString+String(iLen)+","+sNewValue) to sCurrentString
+            End_Procedure
+
+            Procedure _VTTS_AppendValueTree String ByRef sCurrentString tValueTree strValueTree
+                Integer iIndex iMax
+                Send _VTTS_AppendValue (&sCurrentString) strValueTree.sValue
+                Move (SizeOfArray(strValueTree.children)-1) to iMax
+                Send _VTTS_AppendValue (&sCurrentString) iMax
+                For iIndex from 0 to iMax
+                    Send _VTTS_AppendValueTree (&sCurrentString) strValueTree.children[iIndex]
+                Loop
+            End_Procedure
+
+    //> Use this only for "small" to "moderate" size values of strValueTree. It is not too efficient.
+    Function ValueTreeToString tValueTree strValueTree Returns String
+        String sValue
+        Move "" to sValue
+        Send _VTTS_AppendValueTree (&sValue) strValueTree
+        Function_Return sValue
+    End_Function
+
+            Function _STVT_ReadValue String sCurrentString Integer ByRef iPos Returns String
+                Integer iIndex iMax iCommaPos iLen
+                Move (Pos(",",sCurrentString,iPos,10)) to iCommaPos
+                Move (Integer(Mid(sCurrentString,iCommaPos-iPos,iPos))) to iLen
+                Move (iCommaPos+1) to iPos
+                Move (iPos+iLen) to iPos
+                Function_Return (Mid(sCurrentString,iLen,iPos-iLen))
+            End_Function
+
+
+            Procedure _STVT_ReadValueTree tValueTree ByRef strValueTree String sCurrentString Integer ByRef iPos
+                Integer iIndex iMax
+                tValueTree strValueTreeEmpty
+                Get _STVT_ReadValue sCurrentString (&iPos) to strValueTree.sValue
+                Get _STVT_ReadValue sCurrentString (&iPos) to iMax
+                For iIndex from 0 to iMax
+                    Move strValueTreeEmpty to strValueTree.children[iIndex]
+                    Send _STVT_ReadValueTree (&strValueTree.children[iIndex]) sCurrentString (&iPos)
+                Loop
+            End_Procedure
+
+    //> Use this only for "small" to "moderate" size values of strValueTree. It is not too efficient.
+    Function StringToValueTree String sValue Returns tValueTree
+        Integer iPos
+        tValueTree strValueTree
+        Move 1 to iPos
+        Send _STVT_ReadValueTree (&strValueTree) sValue (&iPos)
+        Function_Return strValueTree
+    End_Function
+
+    Function VariantToString Variant vValue Returns String
+        String sValue
+        tValueTree strValueTree
+
+        ValueTreeSerializeParameter vValue to strValueTree
+        Get ValueTreeToString strValueTree to sValue
+
+        Function_Return sValue
+    End_Function
+
+//    Procedure StringToVariant String sValue Variant ByRef vValue
+//        Variant vLocalValue
+//        tValueTree strValueTree
+//
+//        Move vValue to vLocalValue // We'll work on a local copy
+//        
+//        Get StringToValueTree sValue to strValueTree
+//
+//        ValueTreeDeserializeParameter strValueTree to vLocalValue // Does not work
+//        Move vLocalValue to vValue
+//    End_Procedure
+
+//    Function ReadVariant Variant ByRef vValue Returns Boolean
+//        Integer iChannel
+//        Boolean bOk
+//        tValueTree strValueTree
+//
+//        Move False to bOk
+//        Get DirectInput of oFileFunctions ("binary:"+_FileName(Self)) to iChannel
+//        If (iChannel>=0) Begin
+//            Move True to bOk
+//            Send ReadValueTree iChannel (&strValueTree)
+//            Send CloseInput of oFileFunctions iChannel
+//            ValueTreeDeserializeParameter strValueTree to vValue // Does not work
+//        End
+//        Function_Return bOk
+//    End_Function
+
+        Function _IsIdenticalStructValue tValueTree strValueTree1 tValueTree strValueTree2 Returns Boolean
+            Integer iMax iIndex
+            If (strValueTree1.sValue<>strValueTree2.sValue) Begin
+                Function_Return False
+            End
+            Move (SizeOfArray(strValueTree1.children)) to iMax
+            If (iMax<>SizeOfArray(strValueTree2.children)) Begin
+                Function_Return False
+            End
+            Else Begin
+                Decrement iMax
+                For iIndex from 0 to iMax
+                    If (not(_IsIdenticalStructValue(Self,strValueTree1.children[iIndex],strValueTree2.children[iIndex]))) Begin
+                        Function_Return False
+                    End
+                Loop
+            End
+            Function_Return True
+        End_Function
+    
+    Function IsIdenticalStructValue Variant vValue1 Variant vValue2 Returns Boolean
+        tValueTree strValueTree1 strValueTree2
+        ValueTreeSerializeParameter vValue1 to strValueTree1
+        ValueTreeSerializeParameter vValue2 to strValueTree2
+        Function_Return (_IsIdenticalStructValue(Self,strValueTree1,strValueTree2))
+    End_Function
+End_Object
+
+
+// Test:
+//
+//Struct tTest
+//    Integer iDirection
+//    String  sLabel
+//End_Struct
+//
+//Procedure test
+//    tTest strTest strTest2
+//    String sValue
+//    Move 3 to strTest.iDirection
+//    Move "west" to strTest.sLabel
+//    Get VariantToString of oStructFunctions strTest to sValue
+//    Move 2 to strTest.iDirection
+//    Move "north" to strTest.sLabel
+//    Move strTest to strTest2
+//    Send StringToVariant of oStructFunctions sValue (&strTest2) << - That can't work
+//End_Procedure
+//
+//Send test

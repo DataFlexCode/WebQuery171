@@ -1,0 +1,238 @@
+// This package is kindly donated to this library by its authors.
+
+
+//*************************************************************************
+//*
+//*  Copyright (c) 2009 Data Access Worldwide, Miami Florida,
+//*  All rights reserved.
+//*  DataFlex is a registered trademark of Data Access Corporation.
+//*
+//*************************************************************************
+//*
+//*  Module Name:
+//*      cStringBuilder.PKG
+//*
+//*  Creator:
+//*      Data Access Europe
+//*
+//*  Purpose:
+//*      Class for building up large string in an memory/speed efficient
+//*      way.
+//*
+//*  Modifications:
+//*      EK & BK: 2009-09-17
+//*      Initial version based on prototype of StringBuilder.cpp/.dll
+//*
+//*************************************************************************
+
+Use UI
+Use Heapmem.pkg
+Use Winkern.pkg
+
+
+
+// Class to build up a large string while keeping optimum performance
+// The class allocates a buffer in memory, and will use that memory
+// buffer for direct string manipulations. It keeps track of the address
+// of the buffer, the length of the buffer, the currently used length.
+// Before it appends something to the string, it will check whether or
+// not there is sufficient memory available. If there is not enough
+// memory available, then it will allocate a new buffer which has a
+// size of twice the original buffer
+
+Class cStringBuilder is a cObject
+
+
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        { Category=Behavior }
+        Property Integer piHeapInitialSize 1024
+
+        { Category=Behavior }
+        { DesignTime=False }
+        Property Integer piHeapSize
+
+        { Category=Behavior }
+        { DesignTime=False }
+        Property Handle ppMemory
+
+        { Category=Behavior }
+        { DesignTime=False }
+        Property Handle phAllocatedHeap
+
+        { Category=Behavior }
+        { DesignTime=False }
+        Property Integer piMemoryUsed
+        
+        // Defines the indentation level. Start at 0
+        { Category=Behavior }
+        Property Integer piIndentLevel public 0
+        
+        // Controls the number of spaces to indent
+        { Category=Behavior }
+        Property Integer piIndentSize public 4
+
+    End_Procedure
+
+
+
+    // Allocates the initial amount of memory to be used for a string.
+    Procedure AllocateMemory
+        Integer iHeapSize
+        Handle hHeap hMemory
+        Pointer pMemory
+        
+        Get piHeapInitialSize to iHeapSize
+        Set piHeapSize to iHeapSize
+        
+        Move (GetProcessHeap()) to hHeap
+        Set phAllocatedHeap to hHeap
+        Move (HeapAlloc(hHeap, 0, iHeapSize)) to pMemory
+        If (pMemory = 0) Begin
+            Error 999 "StringBuilder unable to allocate memory."
+            Procedure_Return
+        End
+        Set ppMemory to pMemory
+        
+    End_Procedure
+
+
+
+    // Procedure to call to append something to the string
+    Procedure StringAppend String sValue
+        Integer iHeapSize iStringSize iRetVal iMemoryUsed
+        Address aStringAddress
+        Pointer pMemory
+        String sString
+        Handle hHeap
+        Integer iFactor
+
+        // Get memory address. Get out if none available
+        Get ppMemory to pMemory   
+        If (pMemory = 0) Begin
+            Send AllocateMemory
+            Get ppMemory to pMemory     
+            If (pMemory = 0) Procedure_Return
+        End
+
+        // Check to see if there is enough memory left to append the new value into the 
+        // current buffer. If there is no space, it will allocate more memory that will
+        // have double the size of the original buffer.
+        Get piMemoryUsed to iMemoryUsed
+        Get piHeapSize to iHeapSize
+        Move (Length(sValue)) to iStringSize
+        If ((iMemoryUsed + iStringSize) > iHeapSize) Begin
+            Get phAllocatedHeap to hHeap
+
+            // Calculate the factor to use, minimum is 2, but could be higher
+            // when a large string is appended. For example a 100 byte string is
+            // appended to a 16 byte buffer.
+            Move ( ((iMemoryUsed + iStringSize) / iHeapSize) + 1) to iFactor
+            Move (iHeapSize * iFactor) to iHeapSize
+            Move (HeapReAlloc(hHeap, 0, pMemory, iHeapSize)) to pMemory
+            If (pMemory = 0) Begin
+                Error 10 "StringBuilder unable to allocate memory."
+                Procedure_Return ""
+            End
+            Set ppMemory to pMemory
+            Set piHeapSize to iHeapSize 
+        End
+
+        // Copy the string value into the buffer by adding the used length to the start
+        // pointer of the buffer.
+        Move (AddressOf(sValue)) to aStringAddress
+        Move (CopyMemory(pMemory + iMemoryUsed, aStringAddress, iStringSize)) to iRetVal
+        Set piMemoryUsed to (iMemoryUsed + iStringSize)
+
+    End_Procedure
+
+
+
+    // Increase the indent level use by StringAppendLn
+    Procedure IndentIncrease
+        Integer iIndentLevel
+        Get piIndentLevel to iIndentLevel
+        Increment iIndentLevel
+        Set piIndentLevel to iIndentLevel
+    End_Procedure
+
+
+
+    // Decrease the indent level use by StringAppendLn
+    Procedure IndentDecrease
+        Integer iIndentLevel
+        Get piIndentLevel to iIndentLevel
+        Decrement iIndentLevel
+        Set piIndentLevel to iIndentLevel
+    End_Procedure
+
+
+
+    // Procedure to extend a string with a value and an end-of-line
+    Procedure StringAppendLn String sValue
+        Integer iLevel iSize
+        
+        // Write some spaces to indent, when needed
+        Get piIndentLevel to iLevel
+        If (iLevel > 0) Begin
+            Get piIndentSize to iSize
+            Send StringAppend (Repeat(" ", iSize * iLevel))
+        End
+        
+        // Append the string
+        Send StringAppend sValue
+        
+        // Append an EndOfLine character
+        Send StringAppend (Character(13)+Character(10))
+    End_Procedure        
+
+
+
+    // Returns the build up string
+    Function StringValue Returns String
+        String sString
+        Integer iRetVal iMemoryUsed
+        Pointer pString
+        Pointer pMemory
+
+        Get ppMemory to pMemory   
+        Get piMemoryUsed to iMemoryUsed
+        Move (Repeat(Character(0), iMemoryUsed)) to sString
+        Move (AddressOf(sString)) to pString
+        Move (CopyMemory(pString, pMemory, iMemoryUsed)) to iRetVal
+
+        Function_Return sString
+        
+    End_Function
+
+
+
+    // Frees up the memory in use by the string
+    Procedure StringDelete
+        Handle hHeap
+        Pointer pMemory
+        Integer iRetVal
+        
+        Get ppMemory to pMemory
+        Get phAllocatedHeap to hHeap
+
+        Move (HeapFree(hHeap, 0, pMemory)) to iRetVal
+        
+        Set ppMemory to 0
+        Set piMemoryUsed to 0
+        Set piHeapSize to 0
+    End_Procedure
+
+
+
+    // Make sure that the memory is freed when the object is destroyed.
+    Procedure Destroy_Object
+        Send StringDelete
+        Forward Send Destroy_Object
+    End_Procedure
+
+
+
+End_Class

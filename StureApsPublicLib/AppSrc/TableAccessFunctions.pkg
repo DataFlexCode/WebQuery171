@@ -1,0 +1,832 @@
+// Use TableAccess.pkg // Define oTableAccessFunctions object
+
+//> This package defines the tBasicFieldType type that is used throughout many of the other packages. It also
+//> contains methods for extracting meta data from a DD object.
+//> pkg.doc.end
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use FileFunctions.pkg // Define oFileFunctions object
+Use TableDriverFunctions.pkg
+Use StringFunctions.pkg // Define oStringFunctions object
+Use WorkSpaceFunctions.pkg
+Use IntFileFunctions.pkg
+Use StackFunctions.pkg // Define oStackFunctions object
+
+// Define the maximum number of records defined in an embedded table for other packages to utilize:
+Define C_MaxNumberOfRecordsInEmbeddedTable for 16711679
+Define C_MaxRecordSizeEmbeddedTable for 16384
+
+Struct tTableOpenState
+    Integer iTable
+    Boolean bOpen
+    Integer iDriver    // Rest of the members only hold meaningful values if this member is not TA_DRIVER_ERROR
+    Integer iShareMode // DF_SHARE, DF_EXCLUSIVE
+
+       // DF_FILEMODE_ORIGINAL    -1 // only valid for smart_filemode in data sets
+       // DF_FILEMODE_DEFAULT     0
+       // DF_FILEMODE_NO_REREAD   1
+       // DF_FILEMODE_NO_LOCKS    2
+       // DF_FILEMODE_NO_EDITS    8
+       // DF_FILEMODE_NO_DELETES  16
+       // DF_FILEMODE_NO_FINDS    32
+       // DF_FILEMODE_NO_CREATES  64
+       // DF_FILEMODE_READONLY    91
+       // DF_FILEMODE_SINGLE_USER 3
+
+    Integer iFileMode  // DF_FILEMODE_DEFAULT, DF_FILEMODE_NO_REREAD etc etc etc
+    Integer iAliasMode // DF_FILE_ALIAS_DEFAULT, DF_FILE_IS_MASTER, DF_FILE_IS_ALIAS
+    String  sPhysName  // Runtimes idea of the root name of the table
+End_Struct
+
+If (False) Begin
+    TableAccessOpenError: Move 0 to windowindex
+    return
+End
+
+
+Global_Variable integer oTableAccessFunctions
+
+Object _oTableAccessFunctions is a cObject
+
+    Move Self to oTableAccessFunctions
+
+    //> This function is used to find out if a table is currently open. If not
+    //> it will return 0 (TA_DRIVER_ERROR)  and if it is opened a driver ID like
+    //> TA_DRIVER_DATAFLEX or TA_DRIVER_ORACLE will be returned.
+    Function TableDriver Integer iTable Returns Integer
+        Integer iRval iHandleType iPos iItem iItemMax
+        cIntFile stIntFile
+        String[] aDrivers
+        String sDll
+        String sRootName
+
+        Move TD_DRIVER_UNKNOWN to iRval
+        
+        // If table is currently being restructured we stop here and return 'unknown driver'
+        Get_Attribute DF_FILE_HANDLE_TYPE of iTable to iHandleType
+        If (iHandleType=DF_FILE_HANDLE_EXISTING_RESTRUCTURE or iHandleType=DF_FILE_HANDLE_NEW_RESTRUCTURE) Function_Return TD_DRIVER_UNKNOWN
+        
+        Get_Attribute DF_FILE_OPENED of iTable to iRval
+        If (iRval<>0) Begin // If open
+            Get_Attribute DF_FILE_DRIVER of iTable to sDll
+            Get DriverDllToId of oTableDriverFunctions sDll to iRval
+        End
+        Else Begin // If not open
+            Get_Attribute DF_FILE_ROOT_NAME of iTable to sRootName
+            Move (Trim(sRootName)) to sRootName
+            Move "" to sDll
+            If (Right(Lowercase(sRootName),4)=".int") Begin
+                Get ReadIntFile of oIntFileFunctions sRootName to stIntFile
+                Move stIntFile.sDriverName to sDll
+                Get DriverDllToId of oTableDriverFunctions sDll to iRval
+            End
+            Else Begin
+                // Check if there's a driver prefix
+                Move (Uppercase(sRootName)) to sRootName
+                Move (Pos(":",sRootName)) to iPos
+                If (iPos>0) Begin
+                    Move (Left(sRootName,iPos-1)) to sDll
+                    Get ForeignDriverArray of oTableDriverFunctions to aDrivers 
+                    Move (SizeOfArray(aDrivers)-1) to iItemMax
+                    For iItem from 0 to iItemMax
+                        If (sDll=aDrivers[iItem]) Begin
+                            Get DriverDllToId of oTableDriverFunctions sDll to iRval
+                        End
+                    Loop
+                End
+            End
+        End
+        Function_Return iRval
+    End_Function
+
+    Function IsOpen Integer iTable Returns Boolean
+        Integer iHandleType
+        Boolean bOpen
+        Get_Attribute DF_FILE_HANDLE_TYPE of iTable to iHandleType
+        Move (iHandleType=DF_FILE_HANDLE_EXISTING_RESTRUCTURE or iHandleType=DF_FILE_HANDLE_NEW_RESTRUCTURE) to bOpen
+        If (not(bOpen)) Begin
+            Get_Attribute DF_FILE_OPENED of iTable to bOpen
+        End
+        Function_Return bOpen
+    End_Function
+
+    Function IsOpenAs Integer iTable Returns Boolean
+        Boolean bOpen
+        String sPhysName sRootName
+        Get_Attribute DF_FILE_OPENED of iTable to bOpen
+        If (bOpen) Begin
+            Get_Attribute DF_FILE_PHYSICAL_NAME of iTable to sPhysName
+            Get_Attribute DF_FILE_ROOT_NAME of iTable to sRootName
+            If (uppercase(sPhysName)<>uppercase(sRootName)) Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Property Boolean _pbRecursionStopper False
+    
+    //> The function returns True if the table could be opened. False otherwise.
+    Function OpenTable Integer iTable Integer iMode Integer iBufIndex Returns Boolean
+        Integer iWindowIndex   // *** VOODOO WARNING ***
+        Integer iDriverID
+        String sDll sRootName sRoot sDriver
+        String sFolder
+        Boolean bRval
+        Move WindowIndex to iWindowIndex // Preserve this obsolete global variable for old times sake.
+        Move |VI31 to |VI32 //copy ON ERROR label
+        On Error Gosub TableAccessOpenError
+        Indicate Err False
+        Move 1 to WindowIndex
+        If (iBufIndex<>0) Begin
+            Open iTable Mode iMode iBufIndex
+        End
+        Else Begin
+            Open iTable Mode iMode
+        End
+        Move |VI32 to |VI31 //restore original ON ERROR label
+        Move (WindowIndex<>0) to bRval // If an error was triggered the
+        Indicate Err False        // subroutine will have changed windowindex
+        Move iWindowIndex to WindowIndex
+        If (not(_pbRecursionStopper(Self)) and not(bRval)) Begin
+            Get TableDriver iTable to iDriverID
+            If (iDriverID<>TD_DRIVER_UNKNOWN and iDriverID<>TD_DRIVER_ERROR and iDriverID<>TD_DRIVER_DATAFLEX) Begin
+                Get DriverIdToDll of oTableDriverFunctions iDriverID to sDriver
+                Load_Driver sDriver
+                Set _pbRecursionStopper to True
+                Get OpenTable iTable iMode to bRval
+                Set _pbRecursionStopper to False
+            End
+        End
+        Function_Return bRval
+    End_Function
+    
+    Function OpenTables Integer[] aTables Integer iMode Returns Boolean
+        Boolean bOpen
+        Integer iTable iMax iItem
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iItem from 0 to iMax
+            Get OpenTable aTables[iItem] iMode 0 to bOpen
+            If (not(bOpen)) Begin
+                Function_Return False
+            End
+        Loop
+        Function_Return True
+    End_Function
+
+    Function OpenTableAs String sFileName Integer iTable Integer iMode Integer iBufIndex Returns Boolean
+        Integer iWindowIndex  // *** ALSO VOODOO WARNING ***
+        String sDll
+        Boolean bRval
+        If (IsOpen(Self,iTable)) Close iTable
+        Move (ToAnsi(sFileName)) to sFileName
+        If (sFileName="") Function_Return TD_DRIVER_ERROR
+        Move WindowIndex to iWindowIndex
+        Move |VI31 to |VI32 //copy ON ERROR label
+        On Error Gosub TableAccessOpenError
+        Indicate Err False
+        Move 1 to WindowIndex
+        If (iBufIndex<>0) Open sFileName as iTable Mode iMode iBufIndex
+        Else Open sFileName as iTable Mode iMode
+        Move |VI32 to |VI31 //restore original ON ERROR label
+        Move (WindowIndex<>0) to bRval // If an error was triggered the
+        Indicate Err False // subroutine will have changed windowindex
+        Move iWindowIndex to WindowIndex
+        Function_Return bRval
+    End_Function
+
+    Function OpenTableAsAutoHandle String sFileName Integer iMode Integer iBufIndex Returns Integer
+        Boolean bOpen
+        Integer iTable
+        Get TempFilelistEntry 500 to iTable // Start looking from 500
+        If (iTable<>0) Begin
+            Get OpenTableAs sFileName iTable iMode iBufIndex to bOpen
+            If (not(bOpen)) Begin
+                Move 0 to iTable // Failure
+            End
+        End
+        Else Begin
+            // The reason that the upper code failed may be that we're dealing
+            // with an old filelist.cfg with a maximum of 256 entries. We therefore
+            // try again starting from entry 1:
+            Get TempFilelistEntry 1 to iTable // Start looking from 1
+            If (iTable<>0) Begin
+                Get OpenTableAs sFileName iTable iMode iBufIndex to bOpen
+                If (not(bOpen)) Begin
+                    Move 0 to iTable // Failure
+                End
+            End
+        End
+        Function_Return iTable
+    End_Function
+    
+    Function OpenShadowTable Integer iTable Boolean bReadOnly Returns Integer
+        Integer iShadowTable
+        String sTable
+        Get_Attribute DF_FILE_PHYSICAL_NAME of iTable to sTable
+        Get OpenTableAsAutoHandle sTable DF_SHARE 0 to iShadowTable
+        If (bReadOnly) Begin
+            Send FlagTableReadOnly iShadowTable
+        End
+        Function_Return iShadowTable
+    End_Function
+
+    Procedure CloseTable Integer iTable
+        Boolean bOpen
+        If iTable Begin
+            Get_Attribute DF_FILE_OPENED of iTable to bOpen
+            If bOpen Close iTable
+        End
+    End_Procedure
+
+    Procedure CloseAll
+        Close DF_ALL DF_PERMANENT
+    End_Procedure
+    
+    Function ZeroFileTable Integer iTable Returns Boolean
+        Integer iIndex
+        Boolean bFound bConnectionRestored
+        
+        tTableOpenState strState
+        Get TableOpenState iTable to strState
+        Close iTable
+        If (OpenTable(Self,iTable,DF_EXCLUSIVE,0)) Begin
+            ZeroFile iTable
+        End
+        Else Begin
+            Open iTable
+            Clear iTable
+            Get PrimaryIndex iTable to iIndex
+            Repeat
+                Vfind iTable iIndex (GT)
+                Move (Found) to bFound
+                If (bFound) Begin
+                    Delete iTable
+                End
+            Until (not(bFound))
+        End
+        
+        Get SetTableOpenState strState True False to bConnectionRestored
+        Function_Return bConnectionRestored
+    End_Function
+
+    Function TableIntegerArray Integer iFileListNavAttr Returns Integer[]
+        Integer iTable iIndex
+        Integer[] aTables
+        If (iFileListNavAttr=DF_FILE_NEXT_OPENED or iFileListNavAttr=DF_FILE_NEXT_USED or iFileListNavAttr=DF_FILE_NEXT_EMPTY) Begin
+            Move 0 to iTable
+            Move 0 to iIndex
+            Repeat
+                Get_Attribute iFileListNavAttr of iTable to iTable
+                If (iTable<>0) Begin
+                    Move iTable to aTables[iIndex]
+                    Increment iIndex
+                End
+            Until (iTable=0)
+        End
+        Else Error 810 "Illegal attribute passed to TableIntegerArray function"
+        Function_Return aTables
+    End_Function
+    
+    Function TableArrayNameToNumber String[] aTableNames Returns Integer[]
+        Integer[] aTables
+        Integer iMax iItem
+        Move (SizeOfArray(aTableNames)-1) to iMax
+        For iItem from 0 to iMax
+            Get TableNameToNumber aTableNames[iItem] to aTables[iItem]
+        Loop     
+        Function_Return aTables
+    End_Function
+    
+    //> Function TempFilelistEntry returns the first table number larger than iTable that may be used to temporarily open a table.
+    Function TempFilelistEntry Integer iTable Returns Integer
+        Boolean bOpen
+        Repeat
+            Get_Attribute DF_FILE_NEXT_EMPTY of iTable to iTable
+            If (iTable>0) Begin
+                Get_Attribute DF_FILE_OPENED of iTable to bOpen
+            End
+        Until (iTable=0 or not(bOpen))
+        Function_Return iTable
+    End_Function
+
+    Function TableOpenState Integer iTable Returns tTableOpenState
+        Boolean bIsOpen
+        tTableOpenState stRval
+        Move iTable to stRval.iTable
+        Get TableDriver iTable to stRval.iDriver
+        If (stRval.iDriver<>TD_DRIVER_ERROR) Begin
+            Move True to stRval.bOpen
+            Get_Attribute DF_FILE_OPEN_MODE     of iTable to stRval.iShareMode // DF_SHARE, DF_EXCLUSIVE
+            Get_Attribute DF_FILE_MODE          of iTable to stRval.iFileMode  // DF_FILE_ALIAS_DEFAULT, DF_FILE_IS_MASTER, DF_FILE_IS_ALIAS
+            Get_Attribute DF_FILE_ALIAS         of iTable to stRval.iAliasMode // DF_FILEMODE_DEFAULT, DF_FILEMODE_NO_REREAD etc etc etc
+            Get_Attribute DF_FILE_PHYSICAL_NAME of iTable to stRval.sPhysName  // Runtimes idea of the root name of the file
+        End
+        Else Begin
+            Move False to stRval
+        End
+        Function_Return stRval
+    End_Function
+
+    Function TableOpenStates Returns tTableOpenState[]
+        Integer iTable iItem
+        tTableOpenState[] aTables
+        Move 0 to iTable
+        Move 0 to iItem
+        Repeat
+            Get_Attribute DF_FILE_NEXT_OPENED of iTable to iTable
+            If (iTable<>0) Begin
+                Get TableOpenState iTable to aTables[iItem]
+                Increment iItem
+            End
+        Until (iTable=0)
+        Function_Return aTables
+    End_Function
+
+//    Function IsTableEntryAvailable Integer iTable Returns Boolean
+//        Boolean bOpen bIsAvailable
+//        String sRoot
+//        Get_Attribute DF_FILE_OPENED of iTable to bOpen
+//        If (bOpen) Begin
+//            Move False to bIsAvailable
+//        End
+//        Else Begin
+//            Get_Attribute DF_FILE_ROOT_NAME of iTable to sRoot
+//            Move (sRoot="") to bIsAvailable
+//        End
+//        Function_Return bIsAvailable
+//    End_Function
+//
+
+    Function SetTableOpenState tTableOpenState stOpenState Boolean bQuiet Boolean bIgnorePhysicalName Returns Boolean
+        Boolean bOpen
+        Close stOpenState.iTable // Apparantly doesn't fail if table isn't open
+        If (stOpenState.bOpen) Begin
+            Get OpenTable of oTableAccessFunctions stOpenState.iTable stOpenState.iShareMode 0 to bOpen
+            If (bOpen) Begin
+                Set_Attribute DF_FILE_ALIAS of stOpenState.iTable to stOpenState.iAliasMode // DF_FILE_ALIAS_DEFAULT, DF_FILE_IS_MASTER, DF_FILE_IS_ALIAS
+                Set_Attribute DF_FILE_MODE  of stOpenState.iTable to stOpenState.iFileMode  // DF_FILEMODE_DEFAULT, DF_FILEMODE_NO_REREAD etc etc etc
+            End
+            Function_Return bOpen
+        End
+        Function_Return True
+    End_Function
+    
+    Function SetTableOpenStates tTableOpenState[] aOpenStates Boolean bQuiet Boolean bIgnorePhysicalName Returns Boolean
+        Integer iIndex iMax
+        Boolean bOpen bRval
+        Move True to bRval
+        Move (SizeOfArray(aOpenStates)-1) to iMax
+        For iIndex from 0 to iMax
+            Get SetTableOpenState aOpenStates[iIndex] bQuiet bIgnorePhysicalName to bOpen
+            If (not(bOpen)) Begin
+                Move False to bRval
+            End
+        Loop
+        Function_Return bRval
+    End_Function
+
+    // FileModeSjov
+
+    Struct tTAFileMode
+        Integer iTable
+        Integer iFileMode
+    End_Struct
+
+    Function TableFileModesSetAll Integer iFileMode Integer[] aExceptTables Returns tTAFileMode[]
+        Integer iItem iMax iTable
+        Integer[] aOpenTables
+        Integer iCount
+        tTAFileMode[] aOriginalFileModes
+        
+        Get TableIntegerArray DF_FILE_NEXT_OPENED to aOpenTables
+        Move 0 to iCount
+        Move (SizeOfArray(aOpenTables)-1) to iMax
+        For iItem from 0 to iMax
+            Move aOpenTables[iItem] to iTable
+            If (not(IntegerIsOnStack(oStackFunctions,iTable,aExceptTables))) Begin
+                Move iTable to aOriginalFileModes[iCount].iTable
+                Get_Attribute DF_FILE_MODE of iTable to aOriginalFileModes[iCount].iFileMode
+                Increment iCount
+                Set_Attribute DF_FILE_MODE of iTable to iFileMode
+            End
+        Loop
+        
+        Function_Return aOriginalFileModes
+    End_Function
+    
+    Function TableFileModesSetAll2 Integer iFileMode Integer iExceptTable1 Integer iExceptTable2 Integer iExceptTable3 Integer iExceptTable4 Integer iExceptTable5 Returns tTAFileMode[]
+        Integer[] aExceptTables
+        
+        If (num_arguments>1) Move iExceptTable1 to aExceptTables[0]
+        If (num_arguments>2) Move iExceptTable2 to aExceptTables[1]
+        If (num_arguments>3) Move iExceptTable3 to aExceptTables[2]
+        If (num_arguments>4) Move iExceptTable4 to aExceptTables[3]
+        If (num_arguments>5) Move iExceptTable5 to aExceptTables[4]
+        
+        Function_Return (TableFileModesSetAll2(Self))
+    End_Function
+    
+    Procedure TableFileModesRestore tTAFileMode[] aOriginalFileModes
+        Integer iItem iMax iTable iFileMode
+        Move (SizeOfArray(aOriginalFileModes)-1) to iMax
+        for iItem from 0 to iMax
+            Move aOriginalFileModes[iItem].iTable to iTable
+            Move aOriginalFileModes[iItem].iFileMode to iFileMode
+            Set_Attribute DF_FILE_MODE of iTable to iFileMode
+        Loop
+    End_Procedure
+    
+    // End FileModeSjov
+    
+    //> The function returns true if the file passed in sFilelistPath is a valid filelist.cfg
+    Function FilelistOk String sFilelistPath Returns Boolean
+        Integer iChannel
+        Boolean bSuccess
+        String sTest
+        Move False to bSuccess
+        If (FileExists(oFileFunctions,sFilelistPath)=1) Begin // Must be a file!
+            Get DirectInput of oFileFunctions sFilelistPath to iChannel
+            If (iChannel>=0) Begin
+                Read_Block channel iChannel sTest 12
+                Send CloseInput of oFileFunctions iChannel
+                If (sTest="filelist.cfg") Begin // This has to be the first 12 characters
+                    Move True to bSuccess
+                End
+            End
+        End
+        Function_Return bSuccess
+    End_Function
+
+    Function ChangeFilelist String sFilelistPath Returns Boolean
+        Boolean bSuccess
+        If (FilelistOk(Self,sFilelistPath)) Begin
+            Send CloseAll
+            Set_Attribute DF_FILELIST_NAME to sFilelistPath
+            Set_Attribute DF_OPEN_PATH to (PathToFolder(oFileFunctions,sFilelistPath))
+            Move True to bSuccess
+        End
+        Else Begin
+            Move False to bSuccess
+        End
+        Function_Return bSuccess
+    End_Function
+
+    Function ChangeDatabase String sNewDataFolder Returns Boolean
+        Integer hWS
+        Boolean bSuccess
+        tTableOpenState[] aOpenStates
+        Get TableOpenStates of oTableAccessFunctions to aOpenStates
+        Get WorkSpaceObject of oWorkSpaceFunctions to hWS
+        Close DF_ALL DF_PERMANENT
+        If (hWS<>"") Begin
+            Set psDataPath of hWS to sNewDataFolder
+            Set psFileList of hWS to sNewDataFolder
+            Send DoSetPaths of hWS
+        End
+        Else Begin
+            Set_Attribute DF_FILELIST_NAME to sNewDataFolder
+            Set_Attribute DF_OPEN_PATH     to sNewDataFolder
+        End
+        Get SetTableOpenStates of oTableAccessFunctions aOpenStates False True to bSuccess
+        Function_Return bSuccess
+    End_Function
+
+    Procedure FlagTableReadOnly Integer iTable
+        Move iTable to FileNumber
+        File_Mode Indirect_File READ_ONLY
+    End_Procedure
+
+    Procedure RunDbExplorer String sTableFilePath
+        String sDbExplorPath
+        Get VdfFolderPath of oFileFunctions VDF_ROOT to sDbExplorPath
+        Get AppendPath of oFileFunctions sDbExplorPath "Bin" to sDbExplorPath
+        Get AppendPath of oFileFunctions sDbExplorPath "DBExplor.exe" to sDbExplorPath
+        Runprogram Background (sDbExplorPath+' -t"'+sTableFilePath+'"')
+    End_Procedure
+
+    Procedure RunVDFXray String sTablePath Integer iTable Integer iColumn
+        Runprogram Background ("vdfxray -filelist "+sTablePath+" "+String(iTable)+" "+String(iColumn))
+    End_Procedure
+
+    Procedure RunVDFXrayCurrentFileList Integer iTable Integer iColumn
+        String sTablePath
+        Get_Attribute DF_FILELIST_NAME to sTablePath
+        Send RunVDFXray sTablePath iTable iColumn
+    End_Procedure
+    
+    Procedure RunNewVDFXRay
+        RunProgram Background "vdfxray"
+    End_Procedure
+    
+    //> Get "open as" path of filelist entry iTable
+    Function TableOpenAsPath Integer iTable Returns String
+        Boolean bResolved
+        Integer iPos
+        String sOpenPath sRootName sOpenAsPath sExt sFolder sDriver
+        String sTemp sDriverArray
+
+        If (iTable>0) Begin
+            Move False to bResolved
+            Get_Attribute DF_FILE_ROOT_NAME of iTable to sRootName
+
+            // Is root name prefixed by a driver id? (MSSQLDRV:Customer)
+            Move (Pos(":",sRootName)) to iPos
+            If (iPos>0) Begin
+                Move (Uppercase(Left(sRootName,iPos))) to sTemp
+                Get JoinString of oStringFunctions (ForeignDriverArray(oTableDriverFunctions)) ":" 0 0 to sDriver
+                Move (sDriver+":") to sDriver
+                If (Uppercase(sDriver) contains sTemp) Begin
+                    // There definately was a driver prefix
+                    Move (Left(sRootName,iPos-1)) to sDriver
+                    
+                    Move (Remove(sRootName,1,iPos)) to sRootName
+                    
+                    Get PathToType of oFileFunctions sRootName to sExt
+                    If (sExt="") Begin
+                        Move (sRootName+".int") to sRootName
+                    End
+                    Move True to bResolved
+                End
+            End
+            
+            If (not(bResolved)) Begin
+                Get PathToType of oFileFunctions sRootName to sExt
+                If (sExt="") begin
+                    Move (sRootName+".dat") to sRootName
+                End
+            End
+
+            // Is absolute path included?
+            If (sRootName contains ":" or sRootName contains "\") Begin
+                // Yes! Don't do a thing. Other than:
+                Move sRootName to sOpenAsPath
+            End
+            Else Begin
+                Get_Attribute DF_OPEN_PATH to sOpenPath
+                Get FindFile of oFileFunctions sRootName sOpenPath to sFolder
+                If (sFolder<>"") Begin
+                    Get AppendPath of oFileFunctions sFolder sRootName to sOpenAsPath
+                End
+                Else Begin
+                    Move sRootName to sOpenAsPath
+                End
+            End
+        End
+        Function_Return sOpenAsPath
+    End_Function
+
+    Function FieldNameToNumber Integer iTable String sName Returns Integer
+        Integer iMax iField
+        String sFieldName
+        Move (Lowercase(sName)) to sName
+        Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iMax
+        For iField from 1 to iMax
+            Get_Attribute DF_FIELD_NAME of iTable iField to sFieldName
+            If (sName=Lowercase(sFieldName)) Begin
+                Function_Return iField
+            End
+        Loop
+        If (sName="recnum") Begin
+            Function_Return 0
+        End
+        Function_Return -1 // not found
+    End_Function
+
+    Function TableNameToNumber String sLogicalName Returns Integer
+        Integer iTable
+        String sValue
+        Move (Uppercase(sLogicalName)) to sLogicalName
+        Move 0 to iTable
+        Repeat
+            Get_Attribute DF_FILE_NEXT_USED of iTable to iTable
+            If (iTable<>0) Begin
+                Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sValue
+                If (sLogicalName=Uppercase(sValue)) Begin
+                    Function_Return iTable
+                End
+            End
+        Until (iTable=0)
+
+        Function_Return -1
+    End_Function
+    
+    Function FieldNumberMirror Integer iColumn Returns Integer // Get FieldNumberMirror of oTableAccessFunctions field Customer.Name to iFieldName
+        Function_Return iColumn
+    End_Function
+
+    Function FieldName Integer iTable Integer iField Boolean bInclTableName Returns String
+        String sColumnName sTableName
+        If (iField<0) Begin
+            Function_Return ""
+        End
+        Get_Attribute DF_FIELD_NAME of iTable iField to sColumnName
+        If (iField=0 and sColumnName="") Begin
+            Move "Recnum" to sColumnName
+        End
+        If (bInclTableName and sColumnName<>"") Begin
+            Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sTableName
+            Move (sTableName+"."+sColumnName) to sColumnName
+        End
+        Function_Return sColumnName
+    End_Function
+
+    Function FieldValue Integer iTable Integer iField Returns String
+        String sValue
+        If (iField>=1) Begin
+            Get_Field_Value iTable iField to sValue
+        End
+        Else Begin
+            Move "Error" to sValue
+            Error 251 "Field index out of range"
+        End
+        Function_Return sValue
+    End_Function
+    
+    Function FieldNameValue Integer iTable String sName Returns String
+        Integer iField
+        Get FieldNameToNumber iTable sName to iField
+        Function_Return (FieldValue(Self,iTable,iField))
+    End_Function
+    
+    Procedure Set FieldNameValue Integer iTable String sName String sValue
+        Integer iField
+        Get FieldNameToNumber iTable sName to iField
+        Set_Field_Value iTable iField to sValue
+    End_Procedure
+
+    Function StripPathAndDriverFromTableRootName String sRoot Returns String
+        Integer iPos
+        Get rPos of oStringFunctions "\" sRoot to iPos
+        If (iPos>0) Begin
+            Move (Remove(sRoot,1,iPos)) to sRoot
+        End
+        Get rPos of oStringFunctions ":" sRoot to iPos
+        If (iPos>0) Begin
+            Move (Remove(sRoot,1,iPos)) to sRoot
+        End
+        Get PathStripType of oFileFunctions sRoot to sRoot
+        Function_Return sRoot
+    End_Function
+    
+//    Function TableDriver Integer iTable Returns String
+//        
+//    End_Function
+
+    Function FieldTypeText Integer iType Integer iTextType Returns String
+        If (iTextType=0) Begin
+            If (iType=DF_ASCII   ) Function_Return "ASCII"
+            If (iType=DF_BCD     ) Function_Return "Number"
+            If (iType=DF_DATE    ) Function_Return "Date"
+            If (iType=DF_DATETIME) Function_Return "DateTime"
+            If (iType=DF_OVERLAP ) Function_Return "Overlap"
+            If (iType=DF_TEXT    ) Function_Return "Text"
+            If (iType=DF_BINARY  ) Function_Return "Binary"
+            Function_Return "Type Unknown"
+        End
+        If (iTextType=1) Begin
+            If (iType=DF_ASCII   ) Function_Return "ASC"
+            If (iType=DF_BCD     ) Function_Return "NUM"
+            If (iType=DF_DATE    ) Function_Return "DAT"
+            If (iType=DF_DATETIME) Function_Return "DT"
+            If (iType=DF_OVERLAP ) Function_Return "OVE"
+            If (iType=DF_TEXT    ) Function_Return "TXT"
+            If (iType=DF_BINARY  ) Function_Return "BIN"
+            Function_Return "???"
+        End
+        If (iTextType=2) Begin
+            If (iType=DF_ASCII   ) Function_Return "DF_ASCII"
+            If (iType=DF_BCD     ) Function_Return "DF_BCD"
+            If (iType=DF_DATE    ) Function_Return "DF_DATE"
+            If (iType=DF_DATETIME) Function_Return "DF_DATETIME"
+            If (iType=DF_OVERLAP ) Function_Return "DF_OVERLAP"
+            If (iType=DF_TEXT    ) Function_Return "DF_TEXT"
+            If (iType=DF_BINARY  ) Function_Return "DF_BINARY"
+            Function_Return "Type Unknown"
+        End
+    End_Function
+
+    Function FieldLengthText Integer iType Integer iLen Integer iPrec Returns String
+        String sRval
+        Move iLen to sRval
+        If (iType=DF_BCD) Begin
+            Move "#.#" to sRval
+            Move (Replace("#",sRval,iLen-iPrec)) to sRval
+            Move (Replace("#",sRval,iPrec)) to sRval
+        End
+        Function_Return sRval
+    End_Function
+
+
+    Define C_LegalColumnNameFirstLetters      for "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    Define C_LegalColumnNameSucceedingLetters for "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_#@"
+
+    Function IsLegalColumnName String sName Returns Boolean
+        Integer iLen iPos
+        String sChar
+        Move (Trim(Uppercase(sName))) to sName
+        Move (Length(sName)) to iLen
+        If (iLen>0 and iLen<=15) Begin
+            For iPos from 1 to iLen
+                Move (Mid(sName,1,iPos)) to sChar
+                If (iPos=1) Begin
+                    If (not(C_LegalColumnNameFirstLetters contains sChar)) Begin
+                        Function_Return False
+                    End
+                End
+                Else Begin
+                    If (not(C_LegalColumnNameSucceedingLetters contains sChar)) Begin
+                        Function_Return False
+                    End
+                End
+            Loop
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    //> Returns something that can be used with vfind command. -1 is returned of no index can me found
+    Function AnyIndex Integer iTable Returns Integer
+        Integer iTableIndex iTableIndexMax
+        Integer iSegments iIndexType
+        String sDriver
+        Boolean bEmbedded
+        
+        Get_Attribute DF_FILE_DRIVER of iTable to sDriver
+        Move (sDriver="DATAFLEX") to bEmbedded
+        If (bEmbedded) Begin
+            Function_Return 0
+        End
+        
+        Get_Attribute DF_FILE_LAST_INDEX_NUMBER of iTable to iTableIndexMax
+        For iTableIndex from 1 to iTableIndexMax
+            Get_Attribute DF_INDEX_NUMBER_SEGMENTS of iTable iTableIndex to iSegments
+            If (iSegments>0) Begin
+                Get_Attribute DF_INDEX_TYPE of iTable iTableIndex to iIndexType
+                If (iIndexType<>DF_INDEX_TYPE_BATCH) Begin
+                    Function_Return iTableIndex
+                End
+            End
+        Loop
+        Function_Return -1 // vfind can't be used with this table
+    End_Function
+
+    Function IndexColumns Integer iTable Integer iIndex Returns Integer[]
+        Integer iSegmentMax iSegmentIndex
+        Integer[] aColumns
+        Get_Attribute DF_INDEX_NUMBER_SEGMENTS of iTable iIndex to iSegmentMax
+        If (iSegmentIndex>=1) Begin
+            For iSegmentIndex from 1 to iSegmentMax
+                Get_Attribute DF_INDEX_SEGMENT_FIELD of iTable iIndex iSegmentIndex to aColumns[SizeOfArray(aColumns)]
+            Loop
+        End
+        Function_Return aColumns
+    End_Function
+    
+    Function PrimaryIndex Integer iTable Returns Integer
+        Integer iIndex
+        Get_Attribute DF_FILE_PRIMARY_INDEX of iTable to iIndex
+        Function_Return iIndex
+    End_Function
+    
+    Function RecordIdentityColumns Integer iTable Returns Integer[]
+    End_Function
+    
+    Function ColumnValues Integer iTable Integer[] aColumns Returns String[]
+        Integer iMax iIndex iColumn
+        String sValue
+        String[] aValues
+        Move (SizeOfArray(aColumns)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aColumns[iIndex] to iColumn
+            Get_Field_Value iTable iColumn to sValue
+            Move (Rtrim(sValue)) to aValues[iIndex]
+        Loop
+        Function_Return aValues
+    End_Function
+    
+    Function DriversLoaded Returns Integer[]
+        Integer iDriverIndex iDriverMax
+        Integer[] aDrivers
+        String sDll
+        Get_Attribute DF_NUMBER_DRIVERS to iDriverMax
+        For iDriverIndex from 1 to iDriverMax
+            Get_Attribute DF_DRIVER_NAME of iDriverIndex to sDll
+            Get DriverDllToId of oTableDriverFunctions sDll to aDrivers[iDriverIndex-1]
+        Loop
+        Function_Return aDrivers
+    End_Function
+    
+    Function DriversListedInFilelistCfg Returns Integer[] 
+        Integer iMax iIndex iDriver
+        Integer[] aTables aDrivers 
+        Get TableIntegerArray DF_FILE_NEXT_USED to aTables
+        Move (SizeOfArray(aTables)-1) to iMax
+        for iIndex from 0 to iMax
+            Get TableDriver aTables[iIndex] to iDriver
+            If (not(IntegerIsOnStack(oStackFunctions,iDriver,aDrivers))) Begin
+                Send IntegerPush of oStackFunctions iDriver (&aDrivers)
+            End
+        Loop
+        Function_Return aDrivers
+    End_Function
+    
+End_Object // oTableAccessFunctions

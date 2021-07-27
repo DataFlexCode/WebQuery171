@@ -1,0 +1,1057 @@
+Use TableQueryFunctions.pkg // Define oTableQueryFunctions object
+Use StringFunctions.pkg // Define oStringFunctions object
+Use DateFunctions.pkg // Define oDateFunctions object
+Use FileFunctions.pkg // Define oFileFunctions object
+Use StackFunctions.pkg // Define oStackFunctions object
+Use WindowsInfo.pkg
+Use VdfRuntime.pkg
+Use XmlBuilder.pkg
+
+Struct tTQB_OutputFile
+    String  sLabel
+    String  sOutputFileName  // without path
+    Boolean bStatic          // Content should be constant
+    String sCongruenceGroup  // If more files are in the same "congruence group" (<>0) they will be checked to see if the files are identical
+End_Struct
+
+Struct tTQB_ResultParameter
+    String sLabel
+    // Switch:
+    Integer iType // tqNUMBER tqSTRING tqDATE tqDATETIME tqTEXT
+    Integer iDecimals
+    String sUnit
+    Number nValue
+    Date dtValue
+    Date dValue
+    String sValue
+End_Struct
+
+Struct tTQB_ResultArray
+    String sLabel
+    Integer iDecimals
+    String[] aLabels
+    Number[] aValues
+    String sUnit
+End_Struct
+
+Struct tTQB_ResultMatrix
+    String sLabel
+    Integer iDecimals
+    String sUnit
+    String sColumnsAxisLabel
+    String sRowsAxisLabel
+    String[] aColumnLabels
+    String[] aRowLabels
+    Number[][] aaValues
+End_Struct
+
+Struct _tTQBenchmark_Environment
+    String   sTQVersion
+    String   sComputerName
+    Integer  iZeroSelectTime
+    Boolean  bUnderDebugger
+    Number   nTotalRuntimeSeconds
+    String   sVdfVersion
+    String   sOperatingSystem
+    DateTime dtTimeOfExecution
+End_Struct
+
+Enum_List
+    Define TQB_MEMBER_sLabel
+    Define TQB_MEMBER_sFolderName
+    Define TQB_MEMBER_sTimeStamp
+    Define TQB_MEMBER_sUserDisplayLabel
+    Define TQB_MEMBER_sDescriptionText
+    Define TQB_MEMBER_sTQVersion
+    Define TQB_MEMBER_sComputerName
+    Define TQB_MEMBER_iZeroSelectTime
+    Define TQB_MEMBER_bUnderDebugger
+    Define TQB_MEMBER_nTotalRuntimeSeconds
+    Define TQB_MEMBER_sVdfVersion
+    Define TQB_MEMBER_sOperatingSystem
+    Define TQB_MEMBER_dtTimeOfExecution
+End_Enum_List
+
+Struct tTQBenchmark // One test
+    String sLabel
+    String sFolderName          // without path
+    String sTimeStamp
+    String sUserDisplayLabel
+    String sDescriptionText
+    
+    _tTQBenchmark_Environment strEnvironment
+    
+    Integer[] _aAddSequence //Records the sequence in which items were added to the arrays.
+    tTQB_OutputFile[] aOutputFiles
+    
+    tTQB_ResultParameter[] aResultParameters
+    tTQB_ResultArray[]     aResultArrays
+    tTQB_ResultMatrix[]    aResultMatrices
+    String[] aComments
+    String[] aErrors
+    String[] aCongruenceGroups
+    Boolean[] aCongruenceGroupsCongruent
+End_Struct
+
+Struct tTQB_TestItemFolder
+    String sFolderName
+    tTQBenchmark[] aTestItems
+End_Struct
+
+Struct tTQB_Collection // A collection of tests that can be run
+    String sFolderName // Must be unique and good for file name
+    tTQB_TestItemFolder[] aTestItemFolders
+End_Struct
+
+Enum_List // Define sequence symbols
+    Define _tqTestTypeID_Parameter
+    Define _tqTestTypeID_Array
+    Define _tqTestTypeID_Matrix
+    Define _tqTestTypeID_OutputFile
+    Define _tqTestTypeID_Comment
+    Define _tqTestTypeID_Error 
+    Define _tqTestTypeID_GroupComment
+End_Enum_List
+
+Object _TQBConfigReaderWriter is a cObject
+    
+    Procedure Write_tTQB_ResultParameterArray tTQB_ResultParameter[] aResultParameters Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aResultParameters)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aResultParameters[iItem].sLabel
+            Writeln aResultParameters[iItem].iType
+            Writeln aResultParameters[iItem].iDecimals
+            Writeln aResultParameters[iItem].sUnit
+            Writeln aResultParameters[iItem].dtValue
+            Writeln aResultParameters[iItem].dValue
+            Writeln aResultParameters[iItem].nValue
+            Writeln aResultParameters[iItem].sValue
+        Loop
+    End_Procedure
+
+    Function Read_tTQB_ResultParameterArray Integer iChannel Returns tTQB_ResultParameter[]
+        Integer iItem iItemMax
+        String sValue
+        tTQB_ResultParameter[] aResultParameters
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aResultParameters[iItem].sLabel 
+            Readln aResultParameters[iItem].iType  
+            Readln aResultParameters[iItem].iDecimals
+            Readln aResultParameters[iItem].sUnit
+            Readln aResultParameters[iItem].dtValue
+            Readln aResultParameters[iItem].dValue 
+            Readln aResultParameters[iItem].nValue 
+            Readln aResultParameters[iItem].sValue 
+        Loop
+        Function_Return aResultParameters
+    End_Function
+    
+    Procedure Write_tTQB_ResultArrayArray tTQB_ResultArray[] aResultArrays Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aResultArrays)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aResultArrays[iItem].sLabel
+            Writeln aResultArrays[iItem].iDecimals
+            Writeln aResultArrays[iItem].sUnit
+            Send WriteStringArray of oFileFunctions aResultArrays[iItem].aLabels iChannel
+            Send WriteStringArray of oFileFunctions aResultArrays[iItem].aValues iChannel
+        Loop
+    End_Procedure
+
+    Function Read_tTQB_ResultArrayArray Integer iChannel Returns tTQB_ResultArray[]
+        Integer iItem iItemMax
+        tTQB_ResultArray[] aResultArrays
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aResultArrays[iItem].sLabel
+            Readln aResultArrays[iItem].iDecimals
+            Readln aResultArrays[iItem].sUnit
+            Get ReadStringArray of oFileFunctions iChannel to aResultArrays[iItem].aLabels
+            Get ReadNumberArray of oFileFunctions iChannel to aResultArrays[iItem].aValues
+        Loop
+        Function_Return aResultArrays
+    End_Function
+    
+        Procedure _Write_NumericMatrix Number[][] aaValues Integer iChannel
+            Integer iItem iItemMax iItem2 iItem2Max
+            Move (SizeOfArray(aaValues)-1) to iItemMax
+            Writeln channel iChannel iItemMax
+            For iItem from 0 to iItemMax
+                Move (SizeOfArray(aaValues[iItem])-1) to iItem2Max
+                For iItem2 from 0 to iItem2Max
+                    Writeln aaValues[iItem][iItem2]
+                Loop
+            Loop
+        End_Procedure
+
+    Procedure Write_tTQB_ResultMatrixArray tTQB_ResultMatrix[] aResultMatrices Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aResultMatrices)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aResultMatrices[iItem].sLabel
+            Writeln aResultMatrices[iItem].iDecimals
+            Writeln aResultMatrices[iItem].sUnit
+            Writeln aResultMatrices[iItem].sRowsAxisLabel
+            Writeln aResultMatrices[iItem].sColumnsAxisLabel
+            Send WriteStringArray of oFileFunctions aResultMatrices[iItem].aRowLabels
+            Send WriteStringArray of oFileFunctions aResultMatrices[iItem].aColumnLabels
+            Send _Write_NumericMatrix aResultMatrices[iItem].aaValues
+        Loop
+    End_Procedure
+    
+        Function _Read_NumericMatrix Integer iChannel Returns Number[][]
+            Number[][] aaValues 
+            Integer iItem iItemMax iItem2 iItem2Max
+            Readln channel iChannel iItemMax
+            For iItem from 0 to iItemMax
+                Readln iItem2Max
+                For iItem2 from 0 to iItem2Max
+                    Readln aaValues[iItem][iItem2]
+                Loop
+            Loop
+            Function_Return aaValues 
+        End_Function
+        
+    Function Read_tTQB_ResultMatrixArray Integer iChannel Returns tTQB_ResultMatrix[]
+        Integer iItem iItemMax
+        tTQB_ResultMatrix[] aResultMatrices
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aResultMatrices[iItem].sLabel
+            Readln aResultMatrices[iItem].iDecimals
+            Readln aResultMatrices[iItem].sUnit
+            Readln aResultMatrices[iItem].sRowsAxisLabel
+            Readln aResultMatrices[iItem].sColumnsAxisLabel
+            Get ReadStringArray of oFileFunctions iChannel to aResultMatrices[iItem].aRowLabels
+            Get ReadStringArray of oFileFunctions iChannel to aResultMatrices[iItem].aColumnLabels
+            Get _Read_NumericMatrix iChannel to aResultMatrices[iItem].aaValues
+        Loop
+        Function_Return aResultMatrices
+    End_Function
+    
+    Procedure Write_tTQB_OutputFileArray tTQB_OutputFile[] aOutputFiles Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aOutputFiles)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aOutputFiles[iItem].sLabel          
+            Writeln aOutputFiles[iItem].sOutputFileName 
+            Writeln aOutputFiles[iItem].bStatic         
+            Writeln aOutputFiles[iItem].sCongruenceGroup
+        Loop
+    End_Procedure
+
+    Function Read_tTQB_OutputFileArray Integer iChannel Returns tTQB_OutputFile[]
+        Integer iItem iItemMax
+        tTQB_OutputFile[] aOutputFiles
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aOutputFiles[iItem].sLabel         
+            Readln aOutputFiles[iItem].sOutputFileName
+            Readln aOutputFiles[iItem].bStatic        
+            Readln aOutputFiles[iItem].sCongruenceGroup
+        Loop
+        Function_Return aOutputFiles
+    End_Function
+    
+    Procedure Write_tTQBenchmark tTQBenchmark strItem Integer iChannel
+        Writeln channel iChannel "TableQueryTestItem Version 1.0"
+        Writeln strItem.sLabel
+        Writeln strItem.sFolderName
+        Writeln strItem.sTimeStamp
+        Writeln strItem.sUserDisplayLabel
+        Writeln (Length(strItem.sDescriptionText))
+        Write strItem.sDescriptionText
+        Writeln strItem.strEnvironment.sTQVersion
+        Writeln strItem.strEnvironment.sComputerName         
+        Writeln strItem.strEnvironment.iZeroSelectTime      
+        Writeln strItem.strEnvironment.bUnderDebugger       
+        Writeln strItem.strEnvironment.nTotalRuntimeSeconds
+        Writeln strItem.strEnvironment.sVdfVersion
+        Writeln strItem.strEnvironment.sOperatingSystem
+        Writeln strItem.strEnvironment.dtTimeOfExecution
+        Send WriteIntegerArray of oFileFunctions strItem._aAddSequence iChannel
+        Send Write_tTQB_OutputFileArray strItem.aOutputFiles iChannel
+        Send Write_tTQB_ResultParameterArray strItem.aResultParameters iChannel
+        Send Write_tTQB_ResultArrayArray strItem.aResultArrays iChannel
+        Send WriteStringArray of oFileFunctions strItem.aComments iChannel
+        Send WriteStringArray of oFileFunctions strItem.aErrors iChannel
+        Send WriteStringArray of oFileFunctions strItem.aCongruenceGroups iChannel
+        Send WriteBooleanArray of oFileFunctions strItem.aCongruenceGroupsCongruent iChannel
+    End_Procedure
+    
+    Function Read_tTQBenchmark Integer iChannel Returns tTQBenchmark 
+        Integer iLen
+        tTQBenchmark strItem
+        String sValue
+        Readln channel iChannel sValue
+        If (sValue="TableQueryTestItem Version 1.0") Begin
+            Readln strItem.sLabel
+            Readln strItem.sFolderName
+            Readln strItem.sTimeStamp
+            Readln strItem.sUserDisplayLabel
+            Readln iLen
+            Read_Block strItem.sDescriptionText iLen
+            Readln strItem.strEnvironment.sTQVersion
+            Readln strItem.strEnvironment.sComputerName        
+            Readln strItem.strEnvironment.iZeroSelectTime     
+            Readln strItem.strEnvironment.bUnderDebugger      
+            Readln strItem.strEnvironment.nTotalRuntimeSeconds
+            Readln strItem.strEnvironment.sVdfVersion
+            Readln strItem.strEnvironment.sOperatingSystem
+            Readln strItem.strEnvironment.dtTimeOfExecution
+            Get ReadIntegerArray of oFileFunctions iChannel to strItem._aAddSequence
+            Get Read_tTQB_OutputFileArray iChannel to strItem.aOutputFiles
+            Get Read_tTQB_ResultParameterArray iChannel to strItem.aResultParameters
+            Get Read_tTQB_ResultArrayArray iChannel to strItem.aResultArrays
+            Get ReadStringArray of oFileFunctions iChannel to strItem.aComments 
+            Get ReadStringArray of oFileFunctions iChannel to strItem.aErrors
+            Get ReadStringArray of oFileFunctions iChannel to strItem.aCongruenceGroups
+            Get ReadBooleanArray of oFileFunctions iChannel to strItem.aCongruenceGroupsCongruent
+        End
+        Else Begin
+            Error 751 "TQB: File does not contain a tTQBenchmark definition"
+        End
+        Function_Return strItem
+    End_Function
+
+End_Object
+
+Class cTQTXmlBuilder is a cXmlBuilder
+    Procedure AddElement String sElement String sValue
+        Forward Send AddElement (ToANSI(sElement)) (ToANSI(sValue))
+    End_Procedure
+    Procedure AddOpenElement String sElement
+        Forward Send AddOpenElement (ToANSI(sElement))
+    End_Procedure
+    Procedure AddAttribute String sAttr String sValue
+        Forward Send AddAttribute (ToANSI(sAttr)) (ToANSI(sValue))
+    End_Procedure
+End_Class
+
+Class cTQB is a cObject
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String psFolderName "TableQuery"
+        Property String psResultFileName "Result.txt"
+        Property Boolean _pbDoNotUpdateListOfOutputFiles False
+        Object oHtmlBuilder is a cTQTXmlBuilder
+        End_Object
+    End_Procedure
+    
+    Function NewBenchmark String sLabel String sFolder Returns tTQBenchmark
+        tTQBenchmark strItem
+        Move sLabel to strItem.sLabel
+        Move sFolder to strItem.sFolderName
+
+        Get Version of oTQ to strItem.strEnvironment.sTQVersion
+        Move -1 to strItem.strEnvironment.iZeroSelectTime // Not determined
+        Get ComputerName of oWindowsInfo to strItem.strEnvironment.sComputerName
+        Get CurrentVdfVer of oVdfRuntimeFunctions to strItem.strEnvironment.sVdfVersion
+        Move (SysConf(SYSCONF_OS_NAME)+" "+SysConf(SYSCONF_OS_MAJOR_REV)+"."+SysConf(SYSCONF_OS_MINOR_REV) + ;
+            " ("+SysConf(SYSCONF_OS_SHORT_NAME)+")") to strItem.strEnvironment.sOperatingSystem 
+        Get SystemDateTime of oDateFunctions to strItem.strEnvironment.dtTimeOfExecution
+        Get IsDebuggerActive of oVdfRuntimeFunctions to strItem.strEnvironment.bUnderDebugger
+        Function_Return strItem
+    End_Function
+    
+        Procedure _UpdateSequenceArray tTQBenchmark ByRef strItem Integer iTypeID
+            Move iTypeID to strItem._aAddSequence[SizeOfArray(strItem._aAddSequence)]
+        End_Procedure
+        
+    Procedure RecordZeroSelectTime tTQBenchmark ByRef strItem tTableQuery strQ
+        Integer iMS
+        Get ZeroSelectTime of oTQ strQ.iTable to iMS
+        Move iMS to strItem.strEnvironment.iZeroSelectTime
+    End_Procedure
+
+    Function ArrayDeclare tTQBenchmark ByRef strItem String sLabel Integer iDecimals String sUnit Returns Integer
+        Integer iArrayID
+        tTQB_ResultArray strEmpty
+        Move (SizeOfArray(strItem.aResultArrays)) to iArrayID
+        Move sLabel to strItem.aResultArrays[iArrayID].sLabel
+        Move iDecimals to strItem.aResultArrays[iArrayID].iDecimals
+        Move sUnit to strItem.aResultArrays[iArrayID].sUnit
+        Send _UpdateSequenceArray (&strItem) _tqTestTypeID_Array
+        Function_Return iArrayID
+    End_Function
+
+    Procedure ArrayOutputValue tTQBenchmark ByRef strItem Integer iArrayID String sLabel Number nValue
+        Integer iItem
+        Move (SizeOfArray(strItem.aResultArrays[iArrayID].aValues)) to iItem
+        Move sLabel to strItem.aResultArrays[iArrayID].aLabels[iItem]
+        Move nValue to strItem.aResultArrays[iArrayID].aValues[iItem]
+    End_Procedure
+    
+    Function ParameterValue tTQB_ResultParameter strParam Returns String
+        String sValue
+        If (strParam.iType=tqNUMBER) Begin
+            Get NumberToString of oStringFunctions strParam.nValue strParam.iDecimals to sValue
+        End
+        If (strParam.iType=tqDATE) begin
+            Move strParam.dValue to sValue
+        End
+        If (strParam.iType=tqDATETIME) begin
+            Move strParam.dtValue to sValue
+        End
+        
+        If (sValue<>"" and strParam.sUnit) Begin
+            Move (sValue+" "+strParam.sUnit) to sValue
+        End
+        
+        Function_Return sValue
+    End_Function
+    
+    Procedure OutputNumberValue tTQBenchmark ByRef strItem String sLabel Number nValue Integer iDecimals
+        Integer iItem
+        tTQB_ResultParameter strParam
+        Move tqNUMBER to strParam.iType
+        Move iDecimals to strParam.iDecimals
+        Move sLabel to strParam.sLabel
+        Move nValue to strParam.nValue
+        Move (SizeOfArray(strItem.aResultParameters)) to iItem
+        Move strParam to strItem.aResultParameters[iItem]
+        Send _UpdateSequenceArray (&strItem) _tqTestTypeID_Parameter
+    End_Procedure
+    
+    Procedure OutputStringValue tTQBenchmark ByRef strItem String sLabel String sValue
+        Integer iItem
+        tTQB_ResultParameter strParam
+        Move tqSTRING to strParam.iType
+        Move sLabel to strParam.sLabel
+        Move sValue to strParam.sValue
+        Move (SizeOfArray(strItem.aResultParameters)) to iItem
+        Move strParam to strItem.aResultParameters[iItem]
+        Send _UpdateSequenceArray (&strItem) _tqTestTypeID_Parameter
+    End_Procedure
+    
+    Procedure OutputParameterComment tTQBenchmark ByRef strItem String sComment
+        Integer iItem
+        tTQB_ResultParameter strParam
+        Move -1 to strParam.iType // Means its a fake parameter
+        Move sComment to strParam.sLabel
+        Move "" to strParam.sValue
+        Move (SizeOfArray(strItem.aResultParameters)) to iItem
+        Move strParam to strItem.aResultParameters[iItem]
+        Send _UpdateSequenceArray (&strItem) _tqTestTypeID_GroupComment
+    End_Procedure
+    
+    Procedure OutputComment tTQBenchmark ByRef strItem String sComment
+        Move sComment to strItem.aComments[SizeOfArray(strItem.aComments)]
+        Send _UpdateSequenceArray (&strItem) _tqTestTypeID_Comment
+    End_Procedure
+
+    Procedure OutputError tTQBenchmark ByRef strItem String sError
+        Move sError to strItem.aErrors[SizeOfArray(strItem.aErrors)]
+        Send _UpdateSequenceArray (&strItem) _tqTestTypeID_Error
+    End_Procedure
+    
+    Procedure _AddCongruenceGroup tTQBenchmark ByRef strItem String sCongruenceGroup
+        Boolean bWasAdded
+        Get StringAddToSet of oStackFunctions (&strItem.aCongruenceGroups) sCongruenceGroup to bWasAdded
+        If (bWasAdded) Begin
+            // Not nice to assume a particular implementation of StringAddToSet.
+            Move False to strItem.aCongruenceGroupsCongruent[SizeOfArray(strItem.aCongruenceGroupsCongruent)]
+        End
+    End_Procedure
+    
+    Function MatrixDeclare tTQBenchmark ByRef strItem String sLabel Integer iDecimals String sColumnsAxisLabel String sRowsAxisLabel Returns Integer
+        Integer iMatrixID
+        tTQB_ResultMatrix strEmpty
+        Move (SizeOfArray(strItem.aResultMatrices)) to iMatrixID
+        Move sLabel to strItem.aResultMatrices[iMatrixID].sLabel
+        Move iDecimals to strItem.aResultMatrices[iMatrixID].iDecimals      
+        Move sColumnsAxisLabel to strItem.aResultMatrices[iMatrixID].sColumnsAxisLabel   
+        Move sRowsAxisLabel to strItem.aResultMatrices[iMatrixID].sRowsAxisLabel   
+        Send _UpdateSequenceArray (&strItem) _tqTestTypeID_Matrix
+        Function_Return iMatrixID
+    End_Function
+    
+    Function MatrixColumnID tTQBenchmark ByRef strItem Integer iMatrixID String sLabel Returns Integer
+        Integer iColumnID iItemMax
+        tTQB_ResultMatrix strMatrix
+        Move strItem.aResultMatrices[iMatrixID] to strMatrix
+        Move (SizeOfArray(strMatrix.aRowLabels)-1) to iItemMax
+        For iColumnID from 0 to iItemMax
+            If (strMatrix.aRowLabels[iColumnID]=sLabel) Begin
+                Function_Return iColumnID
+            End
+        Loop
+        Move (iItemMax+1) to iColumnID
+        Move sLabel to strItem.aResultMatrices[iMatrixID].aRowLabels[iColumnID]
+        Function_Return iColumnID
+    End_Function
+    
+    Function MatrixRowID tTQBenchmark ByRef strItem Integer iMatrixID String sLabel Returns Integer
+        Integer iRowID iItemMax
+        tTQB_ResultMatrix strMatrix
+        Move strItem.aResultMatrices[iMatrixID] to strMatrix
+        Move (SizeOfArray(strMatrix.aColumnLabels)-1) to iItemMax
+        For iRowID from 0 to iItemMax
+            If (strMatrix.aColumnLabels[iRowID]=sLabel) Begin
+                Function_Return iRowID
+            End
+        Loop
+        Move (iItemMax+1) to iRowID
+        Move sLabel to strItem.aResultMatrices[iMatrixID].aColumnLabels[iRowID]
+        Function_Return iRowID
+    End_Function
+    
+    Procedure MatrixSetValue tTQBenchmark ByRef strItem Integer iMatrixID Integer iRowID Integer iColumnID Number nValue
+        Move nValue to strItem.aResultMatrices[iMatrixID].aaValues[iRowID][iColumnID]
+    End_Procedure
+    
+    Function _TimeFolderName Returns String
+        String sSysTime
+        tSystemTimeMS stTime
+
+        Get SystemTimeMilliSeconds of oDateFunctions to stTime
+        Get SystemTimeToString of oDateFunctions stTime to sSysTime
+        Move (Left(sSysTime,14)) to sSysTime // Skip milliseconds
+        Move (Insert("-",sSysTime,9)) to sSysTime
+        
+        Function_Return (sSysTime)
+    End_Function
+
+    
+    Function _OutputFileFullPath tTQBenchmark ByRef strItem String sFileNameNoPath Returns String
+        String sFolder sTimePath
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        Get AppendPath of oFileFunctions sFolder "Benchmarks" to sFolder
+        Get AppendPath of oFileFunctions sFolder (psFolderName(Self)) to sFolder
+        Get AppendPath of oFileFunctions sFolder strItem.sFolderName to sFolder
+        If (strItem.sTimeStamp="") Begin
+            Get _TimeFolderName to strItem.sTimeStamp
+        End
+        Get AppendPath of oFileFunctions sFolder strItem.sTimeStamp to sFolder
+        Get AppendPath of oFileFunctions sFolder sFileNameNoPath to sFolder
+        Function_Return sFolder
+    End_Function
+    
+    Function _ProvideFolder tTQBenchmark strItem String ByRef sFolder Returns Boolean
+        String sRootFolder sSubFolder
+        Boolean bSuccess
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sRootFolder
+        Get AppendPath of oFileFunctions "Benchmarks" (psFolderName(Self)) to sSubFolder
+        Get AppendPath of oFileFunctions sSubFolder strItem.sFolderName to sSubFolder
+        Get AppendPath of oFileFunctions sSubFolder strItem.sTimeStamp to sSubFolder
+        Get CreateFolderMultiLevel of oFileFunctions sRootFolder sSubFolder to bSuccess
+        Get AppendPath of oFileFunctions sRootFolder sSubFolder to sFolder
+        Function_Return bSuccess
+    End_Function
+    
+    Function DirectOutput tTQBenchmark ByRef strItem String sLabel String sFileNameNoPath Boolean bContentStatic String sCongruenceGroup Returns Integer
+        Integer iChannel iItem
+        Boolean bFolderInPlace
+        String sFullPath sFolder
+        Move (SizeOfArray(strItem.aOutputFiles)) to iItem
+        Move sLabel to strItem.aOutputFiles[iItem].sLabel
+        Move sFileNameNoPath to strItem.aOutputFiles[iItem].sOutputFileName
+        Move bContentStatic to strItem.aOutputFiles[iItem].bStatic
+        Move sCongruenceGroup to strItem.aOutputFiles[iItem].sCongruenceGroup
+        Get _OutputFileFullPath (&strItem) sFileNameNoPath to sFullPath
+        Get _ProvideFolder strItem (&sFolder) to bFolderInPlace
+        If (bFolderInPlace) Begin
+            If (not(_pbDoNotUpdateListOfOutputFiles(Self))) Begin // If it's the
+                Send _AddCongruenceGroup (&strItem) sCongruenceGroup
+            End
+            Get DirectOutput of oFileFunctions sFullPath to iChannel
+            If (not(_pbDoNotUpdateListOfOutputFiles(Self))) Begin
+                Send _UpdateSequenceArray (&strItem) _tqTestTypeID_OutputFile
+            End
+        End
+        Else Begin
+            Error 752 ("TQB: Could not create target folder ("+sFolder+")")
+            Move -1 to iChannel
+        End
+        Function_Return iChannel
+    End_Function
+    
+    Procedure WriteBenchmarkConfigFile tTQBenchmark ByRef strItem
+        Integer iChannel
+        String sFileName
+        Set _pbDoNotUpdateListOfOutputFiles to True
+        Get DirectOutput (&strItem) "Config file" (psResultFileName(Self)) False "" to iChannel
+        If (iChannel>=0) Begin
+            Send Write_tTQBenchmark of _TQBConfigReaderWriter strItem iChannel
+            Send CloseOutput of oFileFunctions iChannel
+        End
+        Set _pbDoNotUpdateListOfOutputFiles to False
+    End_Procedure
+    
+    Function ReadBenchmarkConfigFile String sFullPath Returns tTQBenchmark
+        Integer iChannel
+        tTQBenchmark strItem
+        Get DirectInput of oFileFunctions sFullPath to iChannel
+        If (iChannel>=0) Begin
+            Get Read_tTQBenchmark of _TQBConfigReaderWriter iChannel to strItem
+            Send CloseInput of oFileFunctions iChannel
+        End
+        Else Begin
+            Error 753 ("TQT: Configuration file not found ("+sFullPath+")")
+        End
+        Function_Return strItem
+    End_Function
+    
+        Function _ReadBenchmarkCollectionFolder String sAbsoluteFolder Returns tTQBenchmark[]
+            Integer iItem iItemMax
+            String sConfigFile
+            tFileData[] aFileData
+            tTQBenchmark[] aTestItems
+            tTQBenchmark strTestItem
+            
+            Send ReadFolder of oFileFunctions sAbsoluteFolder "*" (&aFileData) 2 // 2 means folders only
+            Move (SizeOfArray(aFileData)-1) to iItemMax
+            For iItem from 0 to iItemMax
+                If (not(aFileData[iItem].bSelfReference)) Begin
+                    Get AppendPath of oFileFunctions sAbsoluteFolder aFileData[iItem].sFileName to sConfigFile
+                    Get AppendPath of oFileFunctions sConfigFile (psResultFileName(Self)) to sConfigFile
+                    Get ReadBenchmarkConfigFile sConfigFile to strTestItem
+                    Move strTestItem to aTestItems[SizeOfArray(aTestItems)]
+                End
+            Loop
+    
+            Function_Return aTestItems
+        End_Function
+        
+    Function ReadBenchmarkCollection Returns tTQB_Collection
+        Integer iItem iItemMax iAnotherItem
+        String sFolder sSubfolder
+        tFileData[] aFileData
+        tTQB_Collection strCollection
+        Get psFolderName to strCollection.sFolderName
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        Get AppendPath of oFileFunctions sFolder "Benchmarks" to sFolder
+        Get AppendPath of oFileFunctions sFolder strCollection.sFolderName to sFolder
+        Send ReadFolder of oFileFunctions sFolder "*" (&aFileData) 2 // 2 means folders only
+        Move (SizeOfArray(aFileData)-1) to iItemMax
+        For iItem from 0 to iItemMax
+            If (not(aFileData[iItem].bSelfReference)) Begin
+                Move (SizeOfArray(strCollection.aTestItemFolders)) to iAnotherItem
+                Move aFileData[iItem].sFileName to sSubfolder
+                Move sSubfolder to strCollection.aTestItemFolders[iAnotherItem].sFolderName
+                Get AppendPath of oFileFunctions sFolder sSubfolder to sSubfolder
+                Get _ReadBenchmarkCollectionFolder sSubfolder to strCollection.aTestItemFolders[iAnotherItem].aTestItems
+            End
+        Loop
+        Function_Return strCollection
+    End_Function
+    
+    Function HtmlReportName tTQBenchmark strItem Returns String
+        String sFolder sTimePath
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        Get AppendPath of oFileFunctions sFolder "Benchmarks" to sFolder
+        Get AppendPath of oFileFunctions sFolder (psFolderName(Self)) to sFolder
+        Get AppendPath of oFileFunctions sFolder strItem.sFolderName to sFolder
+        If (strItem.sTimeStamp="") Begin
+            Get _TimeFolderName to strItem.sTimeStamp
+        End
+        Get AppendPath of oFileFunctions sFolder strItem.sTimeStamp to sFolder
+        Get AppendPath of oFileFunctions sFolder "HtmlReport.html" to sFolder
+        Function_Return sFolder
+    End_Function
+
+    Procedure _HtmlReportEnvironmentValue String sLabel String[] aValues
+        Integer iItem iItemMax
+        Move (SizeOfArray(aValues)-1) to iItemMax
+
+        Send AddOpenElement of oHtmlBuilder "tr"
+            Send AddElement of oHtmlBuilder "td" sLabel
+            Send AddAttribute of oHtmlBuilder "class" "cLabel"
+            For iItem from 0 to iItemMax
+                Send AddElement of oHtmlBuilder "td" aValues[iItem]
+                Send AddAttribute of oHtmlBuilder "class" "cValue"
+            Loop
+        Send CloseElement of oHtmlBuilder // tr
+    End_Procedure
+
+        Function _HtmlReportParameter2StringArray tTQBenchmark[] aTestItems Integer iWhatMember Returns String[]
+            Integer iItem iItemMax
+            String sValue
+            String[] aValues
+            Move (SizeOfArray(aTestItems)-1) to iItemMax
+            For iItem from 0 to iItemMax
+                If (iWhatMember=TQB_MEMBER_sTQVersion) Begin
+                    Move aTestItems[iItem].strEnvironment.sTQVersion to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sComputerName) Begin
+                    Move aTestItems[iItem].strEnvironment.sComputerName to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_iZeroSelectTime) Begin
+                    Move (If(aTestItems[iItem].strEnvironment.iZeroSelectTime=-1,"n/a",String(aTestItems[iItem].strEnvironment.iZeroSelectTime)+"ms")) to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_bUnderDebugger) Begin
+                    Move (If(aTestItems[iItem].strEnvironment.bUnderDebugger,"Yes","No")) to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_nTotalRuntimeSeconds) Begin
+                    Move aTestItems[iItem].strEnvironment.nTotalRuntimeSeconds to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sVdfVersion) Begin
+                    Move aTestItems[iItem].strEnvironment.sVdfVersion to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sOperatingSystem) Begin
+                    Move aTestItems[iItem].strEnvironment.sOperatingSystem to sValue
+                    If (sValue="WINDOWS NT 5.1 (WIN32)") Begin
+                        Move "Windows XP (32 bit)" to sValue
+                    End
+                    If (sValue="WINDOWS NT 6.1 (WIN32)") Begin
+                        Move "Windows 7 (32 bit)" to sValue
+                    End
+                    Move sValue to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_dtTimeOfExecution) Begin
+                    Move aTestItems[iItem].strEnvironment.dtTimeOfExecution to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sLabel) Begin
+                    Move aTestItems[iItem].sLabel to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sFolderName) Begin
+                    Move aTestItems[iItem].sFolderName to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sTimeStamp) Begin
+                    Move aTestItems[iItem].sTimeStamp to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sUserDisplayLabel) Begin
+                    Move aTestItems[iItem].sUserDisplayLabel to aValues[iItem]
+                End
+                Else If (iWhatMember=TQB_MEMBER_sDescriptionText) Begin
+                    Move aTestItems[iItem].sDescriptionText to aValues[iItem]
+                End
+            Loop
+            Function_Return aValues
+        End_Function
+        
+// -- HTML ----------------------------------------------------------------------------------------
+        
+    Procedure _HtmlReportAddHeader String sLabel
+        Send AddElement of oHtmlBuilder "h2" sLabel
+        Send AddElement of oHtmlBuilder "hr" ""
+    End_Procedure
+
+    Procedure _HtmlReportAddSubheader String sLabel
+        Send AddElement of oHtmlBuilder "h3" sLabel
+    End_Procedure
+    
+    Procedure _HtmlWriteMetaData tTQBenchmark[] aTestItems
+        Send _HtmlReportAddHeader "Meta data"
+        Send AddOpenElement of oHtmlBuilder "table"
+        Send _HtmlReportEnvironmentValue "Label:"         (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sLabel           ))        // aTestItems[0].sLabel           
+        Send _HtmlReportEnvironmentValue "Folder:"        (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sFolderName      ))        // aTestItems[0].sFolderName      
+        Send _HtmlReportEnvironmentValue "Time stamp:"    (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sTimeStamp       ))        // aTestItems[0].sTimeStamp       
+        Send _HtmlReportEnvironmentValue "Display label:" (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sUserDisplayLabel))        // aTestItems[0].sUserDisplayLabel
+        Send _HtmlReportEnvironmentValue "Description:"   (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sDescriptionText ))        // aTestItems[0].sDescriptionText 
+        Send CloseElement of oHtmlBuilder // table                                                                  
+    End_Procedure
+    
+    Procedure _HtmlWriteReportTestEnvironment tTQBenchmark[] aTestItems
+        Send _HtmlReportAddHeader "Test environment"
+        Send AddOpenElement of oHtmlBuilder "table"
+        Send _HtmlReportEnvironmentValue "TableQuery version:"  (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sTQVersion))        // aTestItems[0].strEnvironment.sTQVersion
+        Send _HtmlReportEnvironmentValue "Computer name:"       (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sComputerName))     // aTestItems[0].strEnvironment.sComputerName
+        Send _HtmlReportEnvironmentValue "Zero Select Time:"    (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_iZeroSelectTime))   // (If(aTestItems[0].strEnvironment.iZeroSelectTime=-1,"Not measured",String(aTestItems[0].strEnvironment.iZeroSelectTime)+"ms"))
+        Send _HtmlReportEnvironmentValue "Debugger present:"    (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_bUnderDebugger))    // (If(aTestItems[0].strEnvironment.bUnderDebugger,"Yes","No"))
+        Send _HtmlReportEnvironmentValue "VDF version"          (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sVdfVersion))       // aTestItems[0].strEnvironment.sVdfVersion
+        Send _HtmlReportEnvironmentValue "Operating system:"    (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_sOperatingSystem))  // aTestItems[0].strEnvironment.sOperatingSystem
+        Send _HtmlReportEnvironmentValue "Time of execution:"   (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_dtTimeOfExecution)) // aTestItems[0].strEnvironment.dtTimeOfExecution
+        Send _HtmlReportEnvironmentValue "Total excution time:" (_HtmlReportParameter2StringArray(Self,aTestItems,TQB_MEMBER_nTotalRuntimeSeconds)) // aTestItems[0].strEnvironment.nTotalRuntimeSeconds
+        Send CloseElement of oHtmlBuilder // table                                                                  
+    End_Procedure
+    
+        Function _HtmlWriteParameterIndex tTQB_ResultParameter[] aParams String sLabel Returns Integer
+            Integer iIndex iIndexMax
+            Move (SizeOfArray(aParams)-1) to iIndexMax
+            For iIndex from 0 to iIndexMax
+                If (sLabel=aParams[iIndex].sLabel) Begin
+                    Function_Return iIndex
+                End
+            Loop
+            Function_Return -1
+        End_Function
+    
+    Procedure _HtmlWriteParameter tTQBenchmark[] aTestItems String sLabel
+        Integer iItem iItemMax iParameterIndex
+        String sValue
+        tTQB_ResultParameter strParam
+        Move (SizeOfArray(aTestItems)-1) to iItemMax
+        For iItem from 0 to iItemMax
+            Get _HtmlWriteParameterIndex aTestItems[iItem].aResultParameters sLabel to iParameterIndex
+            If (iParameterIndex=-1) Begin
+                Move "" to sValue
+            End
+            Else Begin
+                Move aTestItems[iItem].aResultParameters[iParameterIndex] to strParam
+                Get ParameterValue strParam to sValue
+            End
+            Send AddElement of oHtmlBuilder "td" sValue
+                Send AddAttribute of oHtmlBuilder "class" "cValue"
+        Loop
+    End_Procedure
+    
+    Procedure _HtmlWriteParameters tTQBenchmark[] aTestItems
+        Integer iItem iItemMax iItem2
+        Send _HtmlReportAddHeader "Parameters, scalars"
+        Send AddOpenElement of oHtmlBuilder "table"
+        
+        Move (SizeOfArray(aTestItems[0].aResultParameters)-1) to iItemMax
+        For iItem from 0 to iItemMax
+            Send AddOpenElement of oHtmlBuilder "tr"
+
+            If (aTestItems[0].aResultParameters[iItem].iType<>-1) Begin
+                Send AddElement of oHtmlBuilder "td" aTestItems[0].aResultParameters[iItem].sLabel
+                    Send AddAttribute of oHtmlBuilder "class" "cLabel"
+                Send _HtmlWriteParameter aTestItems aTestItems[0].aResultParameters[iItem].sLabel
+            End
+            Else Begin
+                Send AddElement of oHtmlBuilder "td" aTestItems[0].aResultParameters[iItem].sLabel
+                    Send AddAttribute of oHtmlBuilder "class" "cParamComment"
+            End
+            Send CloseElement of oHtmlBuilder // tr
+        Loop
+        Send CloseElement of oHtmlBuilder // table                                                                  
+    End_Procedure
+    
+            Function _HtmlWriteArrayIndex tTQB_ResultArray[] aArrays String sLabel Returns Integer
+                Integer iIndex iIndexMax
+                Move (SizeOfArray(aArrays)-1) to iIndexMax
+                For iIndex from 0 to iIndexMax
+                    If (sLabel=aArrays[iIndex].sLabel) Begin
+                        Function_Return iIndex
+                    End
+                Loop
+                Function_Return -1
+            End_Function
+    
+            Function _HtmlWriteArrayLabelIndex tTQB_ResultArray strArray String sItemLabel Returns Integer
+                Integer iIndex iIndexMax
+                Move (SizeOfArray(strArray.aLabels)-1) to iIndexMax
+                For iIndex from 0 to iIndexMax
+                    If (sItemLabel=strArray.aLabels[iIndex]) Begin
+                        Function_Return iIndex
+                    End
+                Loop
+                Function_Return -1
+            End_Function
+            
+        Procedure _HtmlWriteArrayItem tTQBenchmark[] aTestItems String sArrayLabel String sItemLabel
+            Integer iItem iItemMax
+            Integer iArrayIndex iLabelIndex
+            Number nValue
+            String sValue
+            
+            Move (SizeOfArray(aTestItems)-1) to iItemMax
+            For iItem from 0 to iItemMax
+                Move "" to sValue
+                Get _HtmlWriteArrayIndex aTestItems[iItem].aResultArrays sArrayLabel to iArrayIndex
+                If (iArrayIndex>=0) Begin
+                    Get _HtmlWriteArrayLabelIndex aTestItems[iItem].aResultArrays[iArrayIndex] sItemLabel to iLabelIndex
+                    If (iLabelIndex>=0) Begin
+                        Move aTestItems[iItem].aResultArrays[iArrayIndex].aValues[iLabelIndex] to nValue
+                        Get NumberToString of oStringFunctions nValue aTestItems[iItem].aResultArrays[iArrayIndex].iDecimals to sValue
+//                        Send AddElement of oHtmlBuilder "td" sValue
+//                            Send AddAttribute of oHtmlBuilder "class" "cValue"
+                    End
+                End
+                If (sValue<>"" and iArrayIndex>=0 and aTestItems[iItem].aResultArrays[iArrayIndex].sUnit<>"") Begin  // Add unit
+                    Move (sValue+" "+aTestItems[iItem].aResultArrays[iArrayIndex].sUnit) to sValue
+                End
+                Send AddElement of oHtmlBuilder "td" sValue
+                Send AddAttribute of oHtmlBuilder "class" "cValue"
+            Loop
+        End_Procedure
+        
+        Procedure _HtmlWriteArray tTQBenchmark[] aTestItems String sArrayLabel
+            Integer iArrayIndex iItem iItemMax
+            tTQB_ResultArray strArray
+            String sItemLabel
+            
+            Move aTestItems[0].aResultArrays[iArrayIndex] to strArray
+            Move (SizeOfArray(strArray.aLabels)-1) to iItemMax
+            
+            For iItem from 0 to iItemMax // Go through all the labels
+                
+                Send AddOpenElement of oHtmlBuilder "tr"
+                    Move strArray.aLabels[iItem] to sItemLabel
+                    
+                    Send AddElement of oHtmlBuilder "td" sItemLabel
+                        Send AddAttribute of oHtmlBuilder "class" "cLabel"
+                        
+                    Send _HtmlWriteArrayItem aTestItems sArrayLabel sItemLabel
+                        
+                Send CloseElement of oHtmlBuilder // tr
+            Loop
+        End_Procedure
+
+    Procedure _HtmlWriteArrays tTQBenchmark[] aTestItems
+        Integer iItem iItemMax iItem2
+        Send _HtmlReportAddHeader "Parameters, arrays"
+        Move (SizeOfArray(aTestItems[0].aResultArrays)-1) to iItemMax
+        For iItem from 0 to iItemMax
+            Send _HtmlReportAddSubheader aTestItems[0].aResultArrays[iItem].sLabel
+            Send AddOpenElement of oHtmlBuilder "table"
+            Send _HtmlWriteArray aTestItems aTestItems[0].aResultArrays[iItem].sLabel
+            Send CloseElement of oHtmlBuilder // table
+        Loop
+    End_Procedure
+
+    Procedure _HtmlReportBody tTQBenchmark[] aTestItems
+        Integer iItem iItemMax iType
+        Integer iParameterItem iArrayItem iMatrixItem iOutputFileItem iCommentItem iErrorItem
+        
+        Move 0 to iParameterItem 
+        Move 0 to iArrayItem 
+        Move 0 to iMatrixItem 
+        Move 0 to iOutputFileItem 
+        Move 0 to iCommentItem
+        Move 0 to iErrorItem
+
+        Move (SizeOfArray(aTestItems[0]._aAddSequence)-1) to iItemMax
+        For iItem from 0 to iItemMax
+            Move aTestItems[0]._aAddSequence[iItem] to iType
+            If (iType=_tqTestTypeID_Parameter) Begin
+                Send AddOpenElement of oHtmlBuilder "div"
+                    Send AddElement of oHtmlBuilder "span" (aTestItems[0].aResultParameters[iParameterItem].sLabel+":")
+                    Send AddElement of oHtmlBuilder "span" (ParameterValue(Self,aTestItems[0].aResultParameters[iParameterItem]))
+                Send CloseElement of oHtmlBuilder 
+                Increment iParameterItem
+            End
+            If (iType=_tqTestTypeID_Array) Begin
+                Increment iArrayItem
+            End
+            If (iType=_tqTestTypeID_Matrix) Begin
+                Increment iMatrixItem
+            End
+            If (iType=_tqTestTypeID_OutputFile) Begin
+                Send AddOpenElement of oHtmlBuilder "div"
+                    Send AddElement of oHtmlBuilder "span" aTestItems[0].aOutputFiles[iOutputFileItem].sLabel
+                    Send AddElement of oHtmlBuilder "span" aTestItems[0].aOutputFiles[iOutputFileItem].sOutputFileName
+                    Send AddElement of oHtmlBuilder "span" aTestItems[0].aOutputFiles[iOutputFileItem].sCongruenceGroup
+                    Send AddElement of oHtmlBuilder "span" aTestItems[0].aOutputFiles[iOutputFileItem].bStatic
+                Send CloseElement of oHtmlBuilder 
+                Increment iOutputFileItem
+            End
+            If (iType=_tqTestTypeID_Comment) Begin
+                Increment iCommentItem
+            End
+            If (iType=_tqTestTypeID_Error) Begin
+                Increment iErrorItem
+            End
+        Loop
+    End_Procedure
+
+    Procedure DoHtmlReport tTQBenchmark[] aTestItems
+        Integer iChannel
+        String sFileName
+        Get HtmlReportName aTestItems[0] to sFileName
+        Get DirectOutput of oFileFunctions sFileName to iChannel
+        If (iChannel>=0) Begin
+            Write channel iChannel ('<!'+'DOCTYPE html">')
+            Send XmlToChannel of oHtmlBuilder iChannel
+
+            Send AddOpenElement of oHtmlBuilder "html"
+                Send AddOpenElement of oHtmlBuilder "head"
+                    Send AddElement of oHtmlBuilder "title" aTestItems[0].sLabel
+                    Send AddElement of oHtmlBuilder "style" 'div:hover{background-color:rgb(192,192,255);} a{text-decoration:none;color:black;} h1,h2{font-family:"Verdana", Arial, sans-serif;font-size:1.0em;}'
+                        Send AddAttribute of oHtmlBuilder "type" "text/css"
+                    Send AddElement of oHtmlBuilder "style" '.cLabel {width:200px;valign:top;}'
+                        Send AddAttribute of oHtmlBuilder "type" "text/css"
+                    Send AddElement of oHtmlBuilder "style" '.cValue {width:200px;valign:top;}'
+                        Send AddAttribute of oHtmlBuilder "type" "text/css"
+                    Send AddElement of oHtmlBuilder "style" '.cParamComment {width:200px;valign:top;background-color:AntiqueWhite}'
+                        Send AddAttribute of oHtmlBuilder "type" "text/css"
+                        
+
+                        
+                    Send AddElement of oHtmlBuilder "style" 'tr:hover{background-color:rgb(192,192,255);}'
+                        Send AddAttribute of oHtmlBuilder "type" "text/css"
+                Send CloseElement of oHtmlBuilder
+                Send AddOpenElement of oHtmlBuilder "body"
+                    Send _HtmlWriteMetaData aTestItems
+                    Send _HtmlWriteReportTestEnvironment aTestItems
+//                        Send _HtmlReportBody aTestItems
+                    Send _HtmlWriteParameters aTestItems
+                    Send _HtmlWriteArrays aTestItems
+                Send CloseElement of oHtmlBuilder // body
+            Send CloseElement of oHtmlBuilder // html
+            Send EndXml of oHtmlBuilder
+ 
+            Send CloseOutput of oFileFunctions iChannel
+        End
+    End_Procedure
+End_Class
+
+Global_Variable Integer oTQB
+Object _oTQB is a cTQB
+    Move Self to oTQB
+End_Object
+
+Class cTableQueryTestCompilation is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer[] paTestItemObjects
+    End_Procedure
+    
+    Procedure _Register_TestItemObject Integer hTestItemObject
+        Integer[] aTestItemObjects
+        Get paTestItemObjects to aTestItemObjects
+        Move hTestItemObject to aTestItemObjects[SizeOfArray(aTestItemObjects)]
+        Set paTestItemObjects to aTestItemObjects
+    End_Procedure
+    
+    Procedure ExecuteAll
+        Integer iItem iItemMax
+        Integer[] aTestItemObjects
+        String sTimeStamp
+        Get _TimeFolderName of oTQB to sTimeStamp
+        Get paTestItemObjects to aTestItemObjects
+        Move (SizeOfArray(aTestItemObjects)-1) to iItemMax
+        For iItem from 0 to iItemMax
+            Send DoRunTest of aTestItemObjects[iItem] sTimeStamp
+        Loop
+    End_Procedure
+End_Class
+
+Class cTQBenchmark is a cObject
+    Procedure Construct_Object
+        Integer hParent iDM
+        Forward Send Construct_Object
+        Property String psLabel 
+        Property String psSubfolder
+        Move (Parent(Self)) to hParent
+        Get Delegation_Mode of hParent to iDM
+        Set Delegation_Mode of hParent to No_Delegate_Or_Error // Make no noise of parent object does not understand _Register_TestItemObject
+        Send _Register_TestItemObject of hParent Self
+        Set Delegation_Mode of hParent to iDM
+    End_Procedure
+    
+    Procedure OnRunTest tTQBenchmark ByRef strTest
+    End_Procedure
+    
+    Procedure DoRunTest String sTimeStamp
+        Number nMS
+        String sTemp
+        tSystemTimeMS strStopWatch
+        tTQBenchmark strTest
+
+        If (num_arguments>0) Begin
+            Move sTimeStamp to sTemp
+        End
+        Else Begin
+            Get _TimeFolderName of oTQB to sTemp
+        End
+        
+        Get NewBenchmark of oTQB (psLabel(Self)) (psSubfolder(Self)) to strTest
+        Move sTemp to strTest.sTimeStamp
+        Get SystemTimeMilliSeconds of oDateFunctions to strStopWatch
+        Send OnRunTest (&strTest)
+        Get SystemTimeMilliSecondsElapsed of oDateFunctions strStopWatch to nMS
+        Move (nMS/1000) to strTest.strEnvironment.nTotalRuntimeSeconds
+        Send WriteBenchmarkConfigFile of oTQB (&strTest)
+    End_Procedure
+    
+End_Class

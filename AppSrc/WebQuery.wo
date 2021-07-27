@@ -1,0 +1,2261 @@
+//==============================================================================
+// WebQuery: An ad-hoc query tool designed tio be built into applications
+//           (most probably as a "Report" option).
+//
+//           It REQUIRES Sture Andersen's "StureApsPublicLib" (20131023 or
+//           later) - you can find it at:
+//              ftp://ftp.stureaps.dk/software/visualdataflex/stureapspubliclib/
+//
+// See the ReadMe.txt file in AppHTML for usage details.
+//
+// Author: Mike Peat; copyright (c) Unicorn InterGlobal, 2013
+//
+//==============================================================================
+
+//==============================================================================
+// Use statements
+//==============================================================================
+
+// Framework packages
+Use cWebView.pkg
+Use cWebPanel.pkg
+Use cWebForm.pkg 
+Use cWebCombo.pkg
+Use cWebButton.pkg
+Use cWebTabContainer.pkg
+Use cWebTabPage.pkg
+Use cWebGrid.pkg
+Use cWebColumn.pkg
+Use cWebList.pkg
+Use cWebHtmlBox.pkg
+Use cWebLabel.pkg
+Use cWebEdit.pkg
+Use cWebSpacer.pkg
+Use cWebColumnCheckbox.pkg
+Use cWebCheckBox.pkg
+Use cWebRadio.pkg
+
+// Web Query packages
+Use cWebQueryFunctions.pkg
+Use wqTableSelection.wo
+Use wqSelectionOperators.wo
+Use wqSelectionValues.wo
+Use wqSelectionRanges.wo
+Use wqSelectionList.wo
+Use wqExpressionPopup.wo
+Use wqAddInsEdit.wo
+Use wqOpenQuery.wo
+Use wqOutputModal.wo
+Use wqAdHocIndex.wo
+Use wqCalcColumn.wo
+Use wqColourPicker.wo
+Use wqDownload.wo
+
+//==============================================================================
+//  The view
+//==============================================================================
+
+Object oWebQuery is a cWebView
+
+    //==========================================================================
+    //  Web properties
+    //==========================================================================
+    
+    { WebProperty=True }
+    Property String  wpsQuery
+    { WebProperty=True }
+    Property Handle  wphMainTable
+    { WebProperty=True }
+    Property Integer wpiIndex
+    { WebProperty=True }
+    Property String  wpsSegmentData
+    { WebProperty=True }
+    Property String  wpsFieldsData
+    { WebProperty=True }
+    Property String  wpsSaveFilename
+    { WebProperty=True }
+    Property String  wpsSelectExpression
+    { WebProperty=True }
+    Property String  wpsIndexSegments
+    
+    // Web properties used for inserting new rows in
+    // the Print Fields and Selection tables
+    { WebProperty=True }
+    Property String  wpsNewField    
+    { WebProperty=True }
+    Property Handle  wphNewTable
+    { WebProperty=True }
+    Property Integer wpiNewColumn
+    { WebProperty=True }
+    Property Integer wpiNewDataType
+    { WebProperty=True }
+    Property Boolean wpbNewAppend
+    { WebProperty=True }
+    Property Integer wpiNewOperator
+    
+    //==========================================================================
+    //  Normal properties
+    //==========================================================================
+    
+    Property String         psVersion "0.4 - beta 2"
+    
+    Property Handle         phSelectedTable
+    Property wqPrintField[] paFields
+    Property wqSelections[] paSelections
+    Property wqWebQuery     pQuery
+    Property Handle         phoSessionObj       ghoWebSessionManager
+    Property Handle         phLoggedInFunc      (RefFunc(IsLoggedIn))
+    Property Handle         phUserNameFunc      (RefFunc(psLoginName))
+    Property String         psOutputDirectory   "WebQuery"                                          // Where reports are written
+    Property String         psStoreDirectory    (psHome(phoWorkspace(oApplication)) + "WebQuery")   // Where queries are saved
+    Property String         psDownloadDirectory (psHome(phoWorkspace(oApplication)) + "WebQuery")   // Where downloads are written
+    Property Boolean        pbAllowRawOutput    False
+    Property Boolean        pbUseSqlDefault     False
+    
+    //==========================================================================
+    //  Initialisation
+    //==========================================================================
+    
+    Set piWidth             to 800
+    Set psCaption           to "WebQuery Definition"
+    Set pbFillHeight        to True
+    Set pbServerOnSubmit    to True
+    Set pbServerOnShow      to True
+    
+    Move Self to ghoWebQry
+    
+    //==========================================================================
+    //  Start of methods
+    //==========================================================================
+    
+    Procedure ExcludeTable Handle hTable
+        Handle[] ahExcluded
+        
+        Get pahExcludedTables of ghoWQF to ahExcluded
+        Move hTable to ahExcluded[(SizeOfArray(ahExcluded))]
+        Set pahExcludedTables of ghoWQF to ahExcluded
+    End_Procedure
+
+    Procedure ClearExcludedTables
+        Handle[] ahExcluded
+        
+        Set pahExcludedTables to ahExcluded
+    End_Procedure
+    
+    Procedure ExcludeField Handle hTable Integer iField
+        wqTableField[] atExcluded
+        Integer i
+        
+        Get patExcludedFields of ghoWQF to atExcluded
+        Move (SizeOfArray(atExcluded))  to i
+        Move hTable to atExcluded[i].hTable
+        Move iField to atExcluded[i].iField
+        Set patExcludedFields of ghoWQF to atExcluded
+    End_Procedure
+    
+    Procedure ClearExcludedFields
+        wqTableField[] atExcluded
+        
+        Set patExcludedFields of ghoWQF to atExcluded
+    End_Procedure
+    
+    Function PublicPath Returns String
+        Function_Return (PublicPath(ghoWQF))
+    End_Function
+    
+    Function PrivatePath Returns String
+        Function_Return (PrivatePath(ghoWQF))
+    End_Function
+    
+    Procedure Enableling
+        Handle  hTab
+        Boolean bEn
+        wqPrintField[] aFields
+        
+        WebGet wphMainTable to hTab
+        Move (hTab > 0)     to bEn
+        Get paFields        to aFields
+        
+        WebSet pbEnabled of oRunButton      to (bEn and (SizeOfArray(aFields) > 0))
+        WebSet pbEnabled of oQueryTitle     to bEn
+        WebSet pbEnabled of oTablesPage     to bEn
+        WebSet pbEnabled of oSelectionPage  to bEn
+        WebSet pbEnabled of oOrderingPage   to bEn
+        WebSet pbEnabled of oTextsPage      to bEn
+        WebSet pbEnabled of oOrderingPage   to bEn
+        WebSet pbEnabled of oOutputPage     to bEn
+        WebSet pbEnabled of oAddField       to bEn
+        WebSet pbEnabled of oInsertField    to bEn
+        WebSet pbEnabled of oDeleteField    to bEn
+        WebSet pbEnabled of oExprnField     to bEn
+//        WebSet pbEnabled of oAdjustField    to bEn
+        WebSet pbEnabled of oSelAddBtn      to bEn
+        WebSet pbEnabled of oSelInsertBtn   to bEn
+        WebSet pbEnabled of oSelDeleteBtn   to bEn
+        WebSet pbEnabled of oSelValueBtn    to bEn
+        WebSet pbEnabled of oSaveQry        to bEn
+        WebSet pbEnabled of oTablesList     to bEn
+        WebSet pbEnabled of oColumnsList    to bEn
+        WebSet pbEnabled of oPrintedFields  to bEn
+        WebSet pbEnabled of oSelTablesList  to bEn
+        WebSet pbEnabled of oSelColumnsList to bEn
+        WebSet pbEnabled of oSelections     to bEn
+        WebSet pbEnabled of oSelTables      to bEn
+        WebSet pbEnabled of oSelColumns     to bEn
+        WebSet pbEnabled of oFieldCol       to bEn
+        WebSet pbEnabled of oSumCol         to bEn
+        WebSet pbEnabled of oCRCol          to bEn
+    End_Procedure
+
+    // This is just a wrapper for RelatedFiles in cWebQueryFunctions 
+    // to kick it off with the correct main table
+    Procedure CollectRelated tWebRow[] ByRef aRows
+        Handle  hTab
+        
+        WebGet wphMainTable to hTab
+        If hTab Send RelatedFiles of ghoWQF (&aRows) hTab
+    End_Procedure
+    
+    // This is here to catch double-click events on the columns tables and use
+    // them to trigger "Add" events on the fields and selections.
+    Procedure OnSubmit
+        String  sFoc
+        Handle  hoFoc
+        
+        Get FocusObject to hoFoc
+        
+        If (hoFoc = oColumnsList)    Send AddPrintField True
+        If (hoFoc = oSelColumnsList) Send AddSelField   True
+    End_Procedure
+    
+    Procedure OnLoad
+        Send ClearQuery
+    End_Procedure
+
+// I don't think we really want to do this:    
+//    Procedure OnShow
+//        Send ClearQuery
+//    End_Procedure
+    
+    Procedure ClearDependant
+        wqPrintField[] aFields
+        wqSelections[] aSels
+
+        Set paFields                        to aFields
+        Set paSelections                    to aSels
+        Set phSelectedTable                 to 0
+        Send GridRefresh of oTablesList
+        Send GridRefresh of oSelTablesList
+        Send GridRefresh of oPrintedFields
+        Send GridRefresh of oSelections
+        Send GridRefresh of oColumnsList
+        Send GridRefresh of oSelColumnsList
+        WebSet wpsSelectExpression          to ""
+        Send Refill      of oOrder
+        WebSet wpsIndexSegments to ""
+        Send GridRefresh of oSegments
+        Send Clear       of oWqOpenQuery
+    End_Procedure
+    
+    Procedure ClearQuery
+        WebSet wphMainTable                 to 0
+        WebSet psValue of oMainFile         to 0
+        
+        Send Show of oTablesPage
+        Send ClearDependant
+        
+        WebSet wpiIndex                         to 0
+        Set phSelectedTable                     to 0
+        WebSet psValue of oQueryTitle           to ""
+        WebSet psValue of oTextBefore           to ""
+        WebSet psValue of oTextAfter            to ""
+        WebSet psValue of oFontCombo            to "Arial, Helvetica, sans-serif"
+        WebSet psValue of oFontSizeCombo        to "medium"
+        WebSet psValue of oIncSelections        to False
+        WebSet psValue of oTotalsOnly           to False
+        WebSet psValue of oPrintCount           to True
+        WebSet psValue of oTextColour           to "black"
+        WebSet psBackgroundColor of oTextCol    to "black"
+        WebSet psValue of oBGColour             to "white"
+        WebSet psBackgroundColor of oBGCol      to "white"
+        WebSet psValue of oAltRowHighlight      to True
+        WebSet psValue of oHighlightColour      to "#AAFFFF"
+        WebSet psBackgroundColor of oHLCol      to "#AAFFFF"
+        Send SetSelected of oOutModal
+        Send SetSelected of oViewOutput
+        Send SetSelected of oOutHTML
+        WebSet psValue   of oColHeads           to False
+        WebSet psValue   of oPrintGenLine       to True
+        WebSet psValue   of oUseSQL             to (pbUseSqlDefault(Self))
+        
+        Send ChangeOutput C_wqModalWin
+        
+//        Send Show of oTablesPage   // This does not work as advertised in the current situation
+//        Send Focus of oTablesPage  // And neither does this
+        
+        Send Enableling
+    End_Procedure
+    
+    Procedure MainTableSelected Handle hTab
+        Integer iIdx
+        
+        Send ClearDependant
+        
+        WebSet wphMainTable                             to hTab
+        
+        If hTab Begin
+            Send GridRefresh        of oTablesList
+            WebSet psCurrentRowID   of oTablesList      to hTab
+            Send FieldsTableSelected                       hTab
+            
+            Send GridRefresh        of oSelTablesList
+            WebSet psCurrentRowID   of oSelTablesList   to hTab
+            Send SelTableSelected                          hTab
+            
+            Send Refill             of oOrder
+            WebGet wpiIndex                             to iIdx
+            Send GridRefresh        of oSegments
+            WebSet psValue          of oOrder           to iIdx
+//            Send Refill of oSearchOrd
+        End
+        
+        Send Enableling
+    End_Procedure
+        
+    Procedure FieldsTableSelected Handle hTab
+        Set phSelectedTable     to hTab
+        Send GridRefresh        of oColumnsList
+        WebSet psCurrentRowID   of oColumnsList to 1
+    End_Procedure
+    
+    Procedure SelTableSelected Handle hTab
+        Set phSelectedTable     to hTab
+        Send GridRefresh        of oSelColumnsList
+        WebSet psCurrentRowID   of oSelColumnsList to 1
+    End_Procedure
+    
+    Procedure IndexSelected Integer iIndex
+        wqIndexSeg[] aSegs
+        String  sSegs
+        
+        WebSet wpiIndex to iIndex
+        Send GridRefresh of oSegments
+    End_Procedure
+
+    Procedure AddPrintField Boolean bAppend
+        Handle  hTable
+        Integer iColumn iRow
+        wqPrintField tField
+        String  sField
+        
+        WebGet psCurrentRowID of oColumnsList to tField.iColumn
+        WebGet psCurrentRowID of oTablesList  to tField.iTable
+        Move False                            to tField.bCalc
+        
+        Open tField.iTable
+        Get_Attribute DF_FIELD_TYPE      of tField.iTable tField.iColumn to tField.iType
+        Get_Attribute DF_FIELD_LENGTH    of tField.iTable tField.iColumn to tField.iWidth
+        Get_Attribute DF_FIELD_PRECISION of tField.iTable tField.iColumn to tField.iDecimals
+        
+        Get VariantToString of oStructFunctions tField to sField
+        WebSet wpsNewField to sField
+        
+        Send ProcessDataSet of oPrintedFields (If(bAppend, C_wqAppendRow, C_wqInsertRow))
+    End_Procedure
+    
+    Procedure DeletePrintField
+        Send ProcessDataSet of oPrintedFields C_wqDeleteRow
+    End_Procedure
+    
+    Procedure FieldListReturned tWebRow[] ByRef aRows Integer eOp Integer iCurrRow
+        wqPrintField[] aFields
+        wqPrintField newField
+        Integer i iRows iRowPos iRow iMax
+        String  sField
+        tValueTree tVT
+        
+        Move (SizeOfArray(aRows)) to iRows
+        
+        For i from 0 to (iRows - 1)
+            Move aRows[i].aValues[4]  to sField
+            Get DeSerializeField of ghoWQF sField to aFields[i]
+            
+            Move aRows[i].aValues[1]  to aFields[i].sUserName
+            Move aRows[i].aValues[2]  to aFields[i].bSum
+            Move aRows[i].aValues[3]  to aFields[i].bCR
+        Loop
+        
+        WebGet wpsNewField to sField
+        Get StringToValueTree of oStructFunctions sField to tVT
+        ValueTreeDeserializeParameter tVT to newField
+        
+        If ((eOp = C_wqAppendRow) or (eOp = C_wqInsertRow)) Begin
+            Move False  to newField.bSum
+            Move False  to newField.bCR
+            Move (NiceFieldName(ghoWQF, newField.iTable, newField.iColumn)) ;
+                        to newField.sUserName
+                        
+            WebGet piCurrentRowIndex of oColumnsList to iRow
+            WebGet piRowCount        of oColumnsList to iMax
+            If (iRow < (iMax - 1)) Send MoveToRow of oColumnsList (iRow + 1)
+        End
+        Else If ((eOp = C_wqAddExpression) or (eOp = C_wqInsertExpression)) Begin
+            Move False  to newField.bSum
+            Move False  to newField.bCR
+        End
+        
+        If      (eOp = C_wqAppendRow) Begin
+            Move newField to aFields[iRows]
+        End
+        Else If (eOp = C_wqInsertRow) Begin
+            If ((iCurrRow => 0) and (iCurrRow < iRows)) ;
+                Move (InsertInArray(aFields, iCurrRow, newField)) to aFields
+        End
+        Else If (eOp = C_wqDeleteRow) Begin
+            If ((iCurrRow => 0) and (iCurrRow < iRows)) ;
+                Move (RemoveFromArray(aFields, iCurrRow)) to aFields
+        End
+        Else If (eOp = C_wqAddExpression) Begin
+            Move newField to aFields[iRows]
+        End
+        Else If (eOp = C_wqInsertExpression) Begin
+            If ((iCurrRow => 0) and (iCurrRow < iRows)) ;
+                Move (InsertInArray(aFields, iCurrRow, newField)) to aFields
+        End
+        Else If (eOp = C_wqEditExpression) Begin
+            Move newField to aFields[iCurrRow]
+        End
+        
+        Set paFields to aFields
+        Send Enableling
+        Send GridRefresh of oPrintedFields
+    End_Procedure
+    
+    Procedure AddSelField Boolean bAppend
+        Handle  hTable
+        Integer iColumn iRow iType
+        
+        WebGet psCurrentRowID of oSelTablesList  to hTable
+        WebGet psCurrentRowID of oSelColumnsList to iColumn
+        
+        If not hTable Procedure_Return
+        
+        Open hTable
+        Get_Attribute DF_FIELD_TYPE of hTable iColumn to iType
+        
+        WebSet wphNewTable      to hTable
+        WebSet wpiNewColumn     to iColumn
+        WebSet wpiNewDataType   to iType
+        WebSet wpbNewAppend     to bAppend
+        
+        Send DoPopup of oWqSelectionOperators Self (If(bAppend, C_wqAppendRow, C_wqInsertRow))
+    End_Procedure
+    
+    Procedure LoadPrintFields tWebRow[] ByRef aRows String ByRef sCurrentRowID
+        Integer i
+        wqPrintField[] aFields
+        String  sField
+        
+        Get paFields to aFields
+        
+        For i from 0 to (SizeOfArray(aFields) - 1)
+            Move i                      to aRows[i].aValues[0]
+            Move aFields[i].sUserName   to aRows[i].aValues[1]
+            Move aFields[i].bSum        to aRows[i].aValues[2]
+            Move aFields[i].bCR         to aRows[i].aValues[3]
+            Get SerializeField of ghoWQF aFields[i] to sField
+            Move sField                 to aRows[i].aValues[4]
+        Loop
+        
+    End_Procedure
+    
+    Procedure LoadSelections tWebRow[] ByRef aRows String ByRef sCurrentRowID
+        Integer iRows i
+        wqSelections[] aSels
+        
+        Get paSelections of ghoWebQry to aSels
+        
+        For i from 0 to (SizeOfArray(aSels) - 1)
+            Move i                  to aRows[i].aValues[0]
+            Move aSels[i].sUserName to aRows[i].aValues[1]
+            Move aSels[i].sType     to aRows[i].aValues[2]
+            Move aSels[i].sValue    to aRows[i].aValues[3]
+            Move aSels[i].iTable    to aRows[i].aValues[4]
+            Move aSels[i].iColumn   to aRows[i].aValues[5]
+            Move aSels[i].iType     to aRows[i].aValues[6]
+        Loop
+        
+    End_Procedure
+    
+    Procedure TableSelected Handle hoObj
+        Handle  hTab
+        
+        Get TableSelected of oWqTableSelection to hTab
+        WebSet psValue of oMainFile to hTab
+        Send MainTableSelected hTab
+    End_Procedure
+    
+    Procedure SelsListReturned tWebRow[] ByRef aRows Integer eOp Integer iCurrRow
+        wqSelections[] aSels
+        wqSelections   newSel
+        Integer i iRows iOp iType iCurr iRow iMax
+        Boolean bAppend
+                                
+        Move (SizeOfArray(aRows)) to iRows
+        
+        For i from 0 to (iRows - 1)
+            Move aRows[i].aValues[1] to aSels[i].sUserName
+            Move aRows[i].aValues[2] to aSels[i].sType
+            Move aRows[i].aValues[3] to aSels[i].sValue                                    
+            Move aRows[i].aValues[4] to aSels[i].iTable
+            Move aRows[i].aValues[5] to aSels[i].iColumn
+            Move aRows[i].aValues[6] to aSels[i].iType
+        Loop
+        
+        If ((eOp = C_wqAppendRow) or (eOp = C_wqInsertRow)) Begin
+            WebGet wphNewTable                      to newSel.iTable
+            WebGet wpiNewColumn                     to newSel.iColumn
+            WebGet wpiNewDataType                   to newSel.iType
+            WebGet wpiNewOperator                   to iOp
+            Move (SelCode(oWqSelectionTypes, iOp))  to newSel.sType
+            WebGet wpbNewAppend                     to bAppend
+        
+            Move "No limitation"                    to newSel.sValue
+            
+            Move (NiceFieldName(ghoWQF, newSel.iTable, newSel.iColumn)) to newSel.sUserName
+            
+            WebGet piCurrentRowIndex of oSelColumnsList to iRow
+            WebGet piRowCount        of oSelColumnsList to iMax
+            If (iRow < (iMax - 1)) Send MoveToRow of oSelColumnsList (iRow + 1)
+        End
+        
+        WebGet piCurrentRowIndex of oSelections to iCurr
+        
+        If (eOp = C_wqAppendRow) Begin
+            Move newSel to aSels[iRows]
+        End
+        Else If (eOp = C_wqInsertRow) Begin
+            If ((iCurr => 0) and (iCurr < iRows)) ;
+                Move (InsertInArray(aSels, iCurr, newSel)) to aSels
+        End
+        Else If (eOp = C_wqDeleteRow) Begin
+            If ((iCurr => 0) and (iCurr < iRows)) ;
+                Move (RemoveFromArray(aSels, iCurr)) to aSels
+        End
+        
+        Set paSelections to aSels
+        Send GridRefresh of oSelections
+    End_Procedure
+    
+    Procedure SelOpSelected Handle hoObj
+        Integer iOp eOp
+        
+        Get SelectedOperator of hoObj to iOp
+        Get Operation        of hoObj to eOp
+        WebSet wpiNewOperator to iOp
+        Send ProcessDataSet of oSelections eOp
+    End_Procedure
+    
+    Procedure SelectValue
+        Handle  hTab
+        Integer iCol iDT
+        String  sOp sName sVal
+        
+        WebGet psValue of oSelTabCol    to hTab
+        WebGet psValue of oSelColCol    to iCol
+        WebGet psValue of oSelType      to sOp
+        WebGet psValue of oSelField     to sName
+        WebGet psValue of oSelValue     to sVal
+        WebGet psValue of oSelDataType  to iDT
+        
+        Get WebDataType of ghoWQF iDT   to iDT
+        
+        If (sOp = "in list")                     Send PopupGetList  of oWqSelectionList   Self sName sOp sVal iDT
+        Else If ((sOp = "x-y") or (sOp = "CBT")) Send PopupGetRange of oWqSelectionRanges Self sName sOp sVal iDT
+        Else                                     Send PopupGetValue of oWqSelectionValues Self sName sOp sVal iDT
+    End_Procedure
+    
+    Procedure LoadSegments tWebRow[] ByRef aRows String ByRef sRowID
+        Handle  hTab
+        Integer iIdx iSegs i iFld iUC iDirn
+        String  sSegs
+        wqIndexSeg[] aSegs
+        tValueTree tVT
+        
+        WebGet wphMainTable to hTab
+        
+        If not hTab Procedure_Return
+        
+        Open hTab
+        WebGet wpiIndex             to iIdx
+        WebSet psValue of oOrder    to iIdx
+                
+        WebSet pbEnabled of oAdHocButton to (iIdx = -1)
+        
+        WebGet wpsIndexSegments to sSegs
+        
+        If (sSegs <> "") Begin
+            Get StringToValueTree of oStructFunctions sSegs to tVT
+            ValueTreeDeserializeParameter tVT to aSegs
+        
+            For i from 0 to (SizeOfArray(aSegs) - 1)
+                Move i               to aRows[i].aValues[0]
+                Move aSegs[i].bBreak to aRows[i].aValues[1]
+                Move aSegs[i].sName  to aRows[i].aValues[2]
+                Move aSegs[i].iTable to aRows[i].aValues[3]
+                Move aSegs[i].iField to aRows[i].aValues[4]
+                Move aSegs[i].bUC    to aRows[i].aValues[5]
+                Move aSegs[i].bDesc  to aRows[i].aValues[6]
+            Loop
+            
+        End
+        Else If (iIdx <> -1) Begin
+            Get_Attribute DF_INDEX_NUMBER_SEGMENTS of hTab iIdx to iSegs
+            
+            For i from 1 to iSegs
+                Get_Attribute DF_INDEX_SEGMENT_FIELD     of hTab iIdx i to iFld
+                Get_Attribute DF_INDEX_SEGMENT_CASE      of hTab iIdx i to iUC
+                Get_Attribute DF_INDEX_SEGMENT_DIRECTION of hTab iIdx i to iDirn
+                
+                If (iFld > 0) Begin  // Don't add recnum to the segments...
+                    Move i                                          to aRows[i - 1].aValues[0]
+                    Move False                                      to aRows[i - 1].aValues[1]
+                    Move (NiceFieldName(ghoWQF, hTab, iFld) + ": ") to aRows[i - 1].aValues[2]
+                    WebGet wphMainTable                             to aRows[i - 1].aValues[3]
+                    Move iFld                                       to aRows[i - 1].aValues[4]
+                    Move (iUC = DF_CASE_IGNORED)                    to aRows[i - 1].aValues[5]
+                    Move (iDirn = DF_DESCENDING)                    to aRows[i - 1].aValues[6]
+                End
+                
+            Loop
+            
+        End
+        
+        WebSet psValue of oOrder to iIdx
+    End_Procedure
+    
+    Procedure CalcField
+        Boolean bCalc bHaveRows
+        Integer iRows
+        String  sField
+        wqPrintField tField
+
+        WebGet psValue of oFieldData to sField
+        If (sField <> "") Get DeSerializeField of ghoWQF sField to tField
+        WebGet piRowCount           of oPrintedFields   to iRows
+        
+        Move (iRows > 0) to bHaveRows
+        
+        Send PopupOptions of oWqAddInsEdit Self bHaveRows tField.bCalc
+    End_Procedure
+    
+    Procedure ExprAction
+        Integer iAct iRows
+        wqPrintField tField
+        Handle  hTab
+        String  sField
+        
+        Get ActionSelected          of oWqAddInsEdit    to iAct
+        WebGet piRowCount           of oPrintedFields   to iRows        
+        WebGet wphMainTable                             to hTab
+        WebGet psValue              of oFieldData       to sField
+        If (sField <> "") Get DeSerializeField of ghoWQF sField to tField
+        
+        If (iAct = C_wqAddExpression) Begin
+            Send PopupCalcCol of oWqCalcColumn Self tField iAct hTab
+        End
+        Else If (iAct = C_wqInsertExpression) Begin
+            If (iRows < 1) Procedure_Return
+            Send PopupCalcCol of oWqCalcColumn Self tField iAct hTab
+        End
+        Else If (iAct = C_wqEditExpression) Begin
+            If (iRows < 1)        Procedure_Return
+            If not (tField.bCalc) Procedure_Return  // Shouldn't happen!
+            Send PopupCalcCol of oWqCalcColumn Self tField iAct hTab
+        End
+        
+    End_Procedure
+    
+    Procedure CalcColReturn Handle hoObj
+        wqPrintField tField
+        String  sField
+        Integer iOp iFld
+        
+        Get CalcColInfo of oWqCalcColumn to tField
+        Get piOperation of oWqCalcColumn to iOp
+        
+        Get VariantToString of oStructFunctions tField to sField
+        WebSet wpsNewField to sField
+        
+        Send ProcessDataSet of oPrintedFields iOp
+    End_Procedure
+    
+    Procedure EnterSelExpr
+        String  sExpr
+        Handle  hTab
+        
+        WebGet wpsSelectExpression to sExpr
+        WebGet wphMainTable        to hTab
+        
+        Send DoPopup of oWqExpressionPopup Self sExpr C_wqSelectExpr 0 hTab ""
+    End_Procedure
+    
+    Procedure ExprReturned  Handle hoExpr
+        wqExpressionReturn tExpr
+        wqPrintField tField
+        String  sField
+        
+        Get ExprValue of hoExpr to tExpr
+        
+        If (tExpr.iOp = C_wqSelectExpr) WebSet wpsSelectExpression to tExpr.sExpression
+    End_Procedure
+    
+    Procedure SpecAdHoc
+        Send ProcessDataSet of oSegments C_wqGetIndexInfo
+    End_Procedure
+    
+    Procedure IndexDataReceived tWebRow[] ByRef aData Integer eOp Integer iSelRow
+        Handle  hTab
+        Integer i
+        String  sSegs
+        wqIndexSeg[] aSegs
+        tValueTree tVT
+        
+        WebGet wphMainTable  to hTab
+            
+        For i from 0 to (SizeOfArray(aData) - 1)
+            Move aData[i].aValues[1] to aSegs[i].bBreak
+            Move aData[i].aValues[2] to aSegs[i].sName
+            Move aData[i].aValues[3] to aSegs[i].iTable
+            Move aData[i].aValues[4] to aSegs[i].iField
+            Move aData[i].aValues[5] to aSegs[i].bUC
+            Move aData[i].aValues[6] to aSegs[i].bDesc
+        Loop
+        
+        Send PopupAdHoc of oWqAdHocIndex Self hTab aSegs
+    End_Procedure
+    
+    Procedure AdHocDefined Handle hObj
+        wqIndexSeg[] aSegs
+        String  sSegs
+        
+        Get AdHocSegments of hObj to aSegs
+        Get VariantToString of oStructFunctions aSegs to sSegs
+        WebSet wpsIndexSegments to sSegs
+        Send GridRefresh of oSegments
+    End_Procedure
+    
+    Procedure ColourSelected Handle hoObj
+        String  sColour
+        Handle  hoTarg
+        
+        Get ColourValue  of hoObj  to sColour
+        Get TargetObject of hoObj  to hoTarg
+        WebSet psValue   of hoTarg to sColour
+        
+        If      (hoTarg = oTextColour)      WebSet psBackgroundColor of oTextCol to sColour
+        Else If (hoTarg = oBGColour)        WebSet psBackgroundColor of oBGCol   to sColour
+        Else If (hoTarg = oHighlightColour) WebSet psBackgroundColor of oHLCol   to sColour
+        
+    End_Procedure
+    
+    Procedure ChangeOutput String sVal
+        String  sFormat
+        
+        If (sVal = C_wqViewOutput) Begin
+            WebSet pbRender of oLabFormat   to False
+            WebSet pbRender of oOutHTML     to False
+            WebSet pbRender of oOutText     to False
+            WebSet pbRender of oOutCSV      to False
+            WebSet pbRender of oOutXML      to False
+            WebSet pbRender of oColHeads    to False
+            WebSet pbRender of oOutputLab   to True
+            WebSet pbRender of oOutModal    to True
+            WebSet pbRender of oOutTab      to True
+            WebSet pbRender of oOutWin      to True
+            WebSet pbRender of oNewWarning  to True
+        End
+        Else Begin
+            WebSet pbRender of oOutputLab   to False
+            WebSet pbRender of oOutModal    to False
+            WebSet pbRender of oOutTab      to False
+            WebSet pbRender of oOutWin      to False
+            WebSet pbRender of oNewWarning  to False
+            WebSet pbRender of oLabFormat   to True
+            WebSet pbRender of oOutHTML     to True
+            WebSet pbRender of oOutText     to True
+            WebSet pbRender of oOutCSV      to True
+            WebSet pbRender of oOutXML      to True
+            WebSet pbRender of oColHeads    to True
+            WebGet psValue  of oOutCSV      to sFormat
+            WebSet pbEnabled of oColHeads   to (sFormat = C_wqOutputCSV)
+        End
+        
+    End_Procedure
+    
+    Procedure ChangeFormat String sFormat
+        WebSet pbEnabled of oColHeads to (sFormat = C_wqOutputCSV)
+    End_Procedure
+    
+    Procedure OpenQuery
+        Send PopupDialog of oWqOpenQuery Self C_wqOpenQuery ""
+    End_Procedure
+    
+    Function QueryFileError String sFile Returns Boolean
+        String sFName
+        
+        Get FilenameFromPath of ghoWQF sFile to sFName
+        
+        Send ShowInfoBox ("The file" * sFName * "does not appear to be valid") "Invalid Query File"
+    End_Function
+    
+    Procedure PopulateUI
+        wqWebQuery tQuery
+        tValueTree tVT
+        String  sSegs
+        Boolean bView
+        
+        Get pQuery to tQuery
+        
+        WebSet psValue      of oQueryTitle      to tQuery.sTitle
+        WebSet psValue      of oMainFile        to tQuery.hMainTable
+        Send MainTableSelected tQuery.hMainTable
+        Set paFields                            to tQuery.aPrintFields
+        Send GridRefresh    of oPrintedFields
+        Set paSelections                        to tQuery.aSelections
+        Send GridRefresh    of oSelections
+        WebSet psValue      of oOrder           to tQuery.iIndex
+        WebSet wpsSelectExpression              to tQuery.sSelectExpression
+        Send IndexSelected                         tQuery.iIndex
+        
+        Get VariantToString of oStructFunctions tQuery.aSegments to sSegs
+        WebSet wpsIndexSegments             to sSegs
+        
+        Send GridRefresh    of oSegments
+//        WebSet psValue      of oSearchOrd       to tQuery.iSearchOrd
+        WebSet psValue      of oTextBefore      to tQuery.sTextBefore
+        WebSet psValue      of oTextAfter       to tQuery.sTextAfter
+        WebSet psValue      of oFontCombo       to tQuery.sTypeface
+        WebSet psValue      of oFontSizeCombo   to tQuery.sFontSize
+        WebSet psValue      of oIncSelections   to tQuery.bPrintSels
+        WebSet psValue      of oTotalsOnly      to tQuery.bTotalsOnly
+        WebSet psValue      of oPrintCount      to tQuery.bPrintCount
+        WebSet psValue      of oTextColour      to tQuery.sTextColour
+        WebSet psBackgroundColor of oTextCol    to tQuery.sTextColour
+        WebSet psValue      of oBGColour        to tQuery.sBGColour
+        WebSet psBackgroundColor of oBGCol      to tQuery.sBGColour
+        WebSet psValue      of oAltRowHighlight to tQuery.bHighlightAlt
+        WebSet psValue      of oHighlightColour to tQuery.sHighlightColour
+        WebSet psBackgroundColor of oHLCol      to tQuery.sHighlightColour
+        WebSet psValue      of oOutModal        to tQuery.iDestination
+        WebSet psValue      of oOutHTML         to tQuery.iOutputFormat
+        
+        If (tQuery.iDestination = C_wqDownload) Begin
+            WebSet psValue  of oViewOutput      to C_wqDownloadOutput
+            Send ChangeOutput C_wqDownloadOutput
+        End
+        Else Begin
+            WebSet psValue  of oViewOutput      to C_wqViewOutput
+            Send ChangeOutput C_wqViewOutput
+        End
+        
+        WebSet psValue      of oColHeads        to tQuery.bColHeads
+        WebSet psValue      of oPrintGenLine    to tQuery.bGeneratedLine
+        WebSet psValue      of oUseSQL          to tQuery.bUseSQL
+        
+        Send Enableling
+    End_Procedure
+    
+    Procedure QueryOpened Handle hoObj
+        wqWebQuery tQuery
+        tValueTree tVT
+        String  sFile String sFName
+        Integer iChn
+        Boolean bOK
+        
+        Get FileOpened of hoObj to sFile
+        Get FilenameFromPath of ghoWQF sFile to sFName
+        Get Seq_New_Channel     to iChn
+        Direct_Input channel iChn sFile
+        Move (not(SeqEof)) to bOK
+
+        If bOK Begin
+            Send ReadValueTree of oStructFunctions iChn (&tVT)
+            ValueTreeDeserializeParameter tVT to tQuery
+            Close_Input channel iChn
+            Send Seq_Release_Channel iChn
+            Set pQuery to tQuery
+            Send PopulateUI
+        End
+        Else Begin
+            Close_Input channel iChn
+            Send Seq_Release_Channel iChn
+            Procedure_Return (QueryFileError(Self, sFile))
+        End
+        
+    End_Procedure
+    
+    Procedure FileReturned Handle hoObj
+        Integer iMode
+        
+        WebGet wpiMode of hoObj to iMode
+        
+        If (iMode = C_wqOpenQuery) Send QueryOpened hoObj
+        If (iMode = C_wqSaveQuery) Send DoSave      hoObj
+    End_Procedure
+    
+    Procedure SaveQuery
+        String sDefault
+        Handle hTable
+        
+        WebGet psValue of oQueryTitle to sDefault
+        
+        If (sDefault = "") Begin
+            WebGet wphMainTable to hTable
+            Open hTable
+            Get_Attribute DF_FILE_DISPLAY_NAME of hTable to sDefault
+            If (sDefault = "") Procedure_Return
+        End
+        
+        Send PopupDialog of oWqOpenQuery Self C_wqSaveQuery sDefault
+    End_Procedure
+    
+    Procedure DoSave Handle hoObj
+        String  sFile
+        
+//        Send SetActionMode (RefProcDoSave)) scModeProgress "Your report is being processed"
+        
+        Get FileOpened of hoObj to sFile
+        WebSet wpsSaveFilename  to sFile
+        Send AssembleQuery C_wqAssembleSave
+    End_Procedure
+    
+    Procedure DoSaveQuery
+        wqWebQuery tQuery
+        String  sFile
+        Integer iChn
+        
+        WebGet wpsSaveFilename          to sFile
+        Get Seq_New_Channel to iChn
+        Direct_Output channel iChn sFile
+        Get pQuery to tQuery
+        Send WriteVariant of oStructFunctions iChn tQuery
+        Close_Output channel iChn
+        Send Seq_Release_Channel iChn
+    End_Procedure
+    
+    Procedure RunQuery
+        wqWebQuery tQuery
+        String   sFile sTitle sPath sDir sExt sUrl
+        String[] aParams
+        Handle   hTab
+
+        Get pQuery                              to tQuery
+        Get OutputReport of ghoWQF (&tQuery)    to sFile
+        
+        Move tQuery.sTitle to sTitle
+        
+        If (Trim(sTitle) = "") Begin
+            Move tQuery.hMainTable to hTab
+            Open hTab
+            Get_Attribute DF_FILE_DISPLAY_NAME of hTab to sTitle
+        End
+        
+        If (tQuery.iDestination = C_wqDownload) Begin
+            If      (tQuery.iOutputFormat = C_wqOutputHtml) Move ".html"            to sExt
+            Else If (tQuery.iOutputFormat = C_wqOutputCSV)  Move ".csv"             to sExt
+            Else If (tQuery.iOutputFormat = C_wqOutputText) Move ".txt"             to sExt
+            Else If (tQuery.iOutputFormat = C_wqOutputXML)  Move ".xml"             to sExt
+            Else                                            Move ""                 to sExt
+            Move (sTitle - sExt)                                                    to sTitle
+            Get psDownloadDirectory                                                 to sDir
+            Move (sDir + "\" + sFile)                                               to sDir
+            Get CustomDownloadURL of ghoWebResourceManager sDir True sTitle True 0  to sUrl
+        End
+        Else Begin
+            Get psOutputDirectory                                                   to sDir
+            Move (sDir + "/" + sFile)                                               to sPath
+        End
+        
+        If (tQuery.iDestination = C_wqModalWin) Begin
+            Send PopupOutput of oWqOutputModal Self sPath sTitle
+        End
+        Else If (tQuery.iDestination = C_wqNewTab) Begin
+            Send NavigateToPage of oWebApp sPath btNewTab
+        End
+        Else If (tQuery.iDestination = C_wqNewWin) Begin
+            Set NewWindowOption to C_nwMenuBar    True
+            Set NewWindowOption to C_nwScrollBars True
+            Set NewWindowOption to C_nwStatusBar  False
+            Set NewWindowOption to C_nwTitleBar   True
+            Set NewWindowOption to C_nwToolBar    True
+            Set NewWindowOption to C_nwResizable  True
+            Send NavigateNewWindow  of oWebApp sPath 600 400
+        End
+        Else If (tQuery.iDestination = C_wqDownload) Begin
+            Send DoPopup of oWqDownload Self sUrl sDir
+        End
+        
+    End_Procedure
+    
+    Procedure LoadAndRun String sQueryFile
+        Integer iChn
+        Boolean bOK
+        tValueTree tVT
+        wqWebQuery tQuery
+        
+        Get Seq_New_Channel     to iChn
+        Direct_Input channel iChn sQueryFile
+        Move (not(SeqEof)) to bOK
+
+        If bOK Begin
+            Send ReadValueTree of oStructFunctions iChn (&tVT)
+            ValueTreeDeserializeParameter tVT to tQuery
+            Close_Input channel iChn
+            Send Seq_Release_Channel iChn
+            Set pQuery to tQuery
+//            Send PopulateUI
+        End
+        Else Begin
+            Close_Input channel iChn
+            Send Seq_Release_Channel iChn
+            Procedure_Return (QueryFileError(Self, sQueryFile))
+        End
+        
+        Send RunQuery
+    End_Procedure
+    
+    //==========================================================================
+    //
+    // Assemble query process:
+    //
+    // Assemble Query involves a multi-step process because we have three sets
+    // of grid data to get back: Fields, Selections and Ordering, which we will
+    // do by serializing the index segment and print fields into web property
+    // strings before going onto the next step.
+    
+    Function SerializeSegments tWebRow[] ByRef aData Returns String
+        wqIndexSeg[] aSegs
+        Integer i
+        String  sData
+        
+        For i from 0 to (SizeOfArray(aData) - 1)
+            Move aData[i].aValues[1] to aSegs[i].bBreak
+            Move aData[i].aValues[2] to aSegs[i].sName
+            Move aData[i].aValues[3] to aSegs[i].iTable
+            Move aData[i].aValues[4] to aSegs[i].iField
+            Move aData[i].aValues[5] to aSegs[i].bUC
+            Move aData[i].aValues[6] to aSegs[i].bDesc
+        Loop
+        
+        Get VariantToString of oStructFunctions aSegs to sData
+        
+        Function_Return sData
+    End_Function
+    
+    Function DeserializeSegments String sData Returns wqIndexSeg[]
+        wqIndexSeg[] aSegs
+        tValueTree tVT
+
+        Get StringToValueTree of oStructFunctions sData to tVT
+        ValueTreeDeserializeParameter tVT to aSegs
+        Function_Return aSegs
+    End_Function
+    
+    Function SerializeFields tWebRow[] ByRef aData Returns String
+        wqPrintField[] aFields
+        Integer i
+        String  sData
+        tValueTree tVT
+
+        For i from 0 to (SizeOfArray(aData) - 1)
+            Get DeSerializeField of ghoWQF aData[i].aValues[4] to aFields[i]
+            Move aData[i].aValues[1]  to aFields[i].sUserName
+            Move aData[i].aValues[2]  to aFields[i].bSum
+            Move aData[i].aValues[3]  to aFields[i].bCR
+        Loop
+        
+        Get VariantToString of oStructFunctions aFields to sData
+        
+        Function_Return sData
+    End_Function
+    
+    Procedure AssembleQuery Integer eOp
+        Send ProcessDataSet of oSegments eOp
+    End_Procedure
+    
+    Procedure AssembleQuery2 tWebRow[] aData Integer eOp Integer iSelRowIndex
+        Integer i
+        String  sData
+        
+        Get SerializeSegments (&aData) to sData
+        WebSet wpsSegmentData to sData
+        Send ProcessDataSet of oPrintedFields eOp
+    End_Procedure
+    
+    Procedure AssembleQuery3 tWebRow[] ByRef aData Integer eOp Integer iSelRowIndex
+        String  sData
+        
+        Get SerializeFields (&aData) to sData
+        WebSet wpsFieldsData to sData
+        Send ProcessDataSet of oSelections eOp
+    End_Procedure
+    
+    Procedure AssembleQuery4 tWebRow[] ByRef aData Integer eOp Integer iSelRowIndex
+        wqWebQuery tQuery
+        Integer i iView
+        String  sData
+        
+        // Get the selection data first:
+        For i from 0 to (SizeOfArray(aData) - 1)
+            Move aData[i].aValues[1]            to tQuery.aSelections[i].sUserName
+            Move aData[i].aValues[2]            to tQuery.aSelections[i].sType
+            Move aData[i].aValues[3]            to tQuery.aSelections[i].sValue
+            Move aData[i].aValues[4]            to tQuery.aSelections[i].iTable
+            Move aData[i].aValues[5]            to tQuery.aSelections[i].iColumn
+            Move aData[i].aValues[6]            to tQuery.aSelections[i].iType
+        Loop
+        
+        WebGet wpsFieldsData                    to sData
+        Get DeserializeFields of ghoWQF sData   to tQuery.aPrintFields
+        WebGet wpsSegmentData                   to sData
+        Get DeserializeSegments sData           to tQuery.aSegments
+        WebGet wphMainTable                     to tQuery.hMainTable
+        WebGet psValue of oQueryTitle           to tQuery.sTitle
+        WebGet wpsSelectExpression              to tQuery.sSelectExpression
+        WebGet psValue of oOrder                to tQuery.iIndex
+//        WebGet psValue of oSearchOrd            to tQuery.iSearchOrd
+        WebGet psValue of oTextBefore           to tQuery.sTextBefore
+        WebGet psValue of oTextAfter            to tQuery.sTextAfter
+        WebGet psValue of oFontCombo            to tQuery.sTypeface
+        WebGet psValue of oFontSizeCombo        to tQuery.sFontSize
+        WebGet psValue of oAltRowHighlight      to tQuery.bHighlightAlt
+        WebGet psValue of oHighlightColour      to tQuery.sHighlightColour
+        WebGet psValue of oIncSelections        to tQuery.bPrintSels
+        WebGet psValue of oTotalsOnly           to tQuery.bTotalsOnly
+        WebGet psValue of oPrintCount           to tQuery.bPrintCount
+        WebGet psValue of oTextColour           to tQuery.sTextColour
+        WebGet psValue of oBGColour             to tQuery.sBGColour
+        
+        WebGet psValue of oViewOutput           to iView
+        
+        If (iView = C_wqDownloadOutput) Begin
+            Move   C_wqDownload                 to tQuery.iDestination
+            WebGet psValue of oOutHTML          to tQuery.iOutputFormat
+        End
+        Else WebGet psValue of oOutModal        to tQuery.iDestination
+        
+        WebGet psValue of oColHeads             to tQuery.bColHeads
+        WebGet psValue of oPrintGenLine         to tQuery.bGeneratedLine
+        WebGet psValue of oUseSQL               to tQuery.bUseSQL
+        
+        Set pQuery to tQuery
+        
+        If (eOp = C_wqAssembleSave) Send DoSaveQuery
+        If (eOp = C_wqAssembleRun)  Send RunQuery
+    End_Procedure
+    
+    Function SerializeQuery Returns String
+        wqWebQuery tQuery
+        String  sQuery
+        
+        Get pQuery to tQuery
+        Get VariantToString of oStructFunctions tQuery to sQuery
+        
+        Function_Return sQuery
+    End_Procedure
+    
+    Procedure DeserializeQuery String sQuery
+        wqWebQuery tQuery
+        tValueTree tVT
+        Boolean bOK
+        
+        Get StringToValueTree of oStructFunctions sQuery to tVT
+        ValueTreeDeserializeParameter tVT to tQuery
+        Set pQuery to tQuery
+    End_Procedure
+
+    Procedure RemoveReport String sFile
+        Boolean bExists
+        String  sPath sDir
+        
+        Move (psAppHtmlPath(phoWorkspace(oApplication)))    to sPath
+        Get  psOutputDirectory                              to sDir
+        Move (sPath + "\" + sDir + "\" + sFile)             to sPath
+
+        File_Exist sPath bExists
+        If bExists EraseFile sPath        
+    End_Procedure
+    
+    WebPublishProcedure RemoveReport
+    
+    Procedure DoneDownload Handle hoObj
+        String  sFile
+        Boolean bExists
+        
+        WebGet wpsFile of hoObj to sFile
+        File_Exist sFile bExists
+        If bExists EraseFile sFile
+    End_Procedure
+    
+    //==========================================================================
+    
+    // Here we handle the return call from all modal dialogs, dispatching
+    // them to the correct method depending on the returned object handle.
+    Procedure OnCloseModalDialog Handle hoMD
+        If (hoMD = oWqSelectionOperators) Send SelOpSelected  hoMD
+        If (hoMD = oWqTableSelection)     Send TableSelected  hoMD
+        If (hoMD = oWqAddInsEdit)         Send ExprAction     hoMD
+        If (hoMD = oWqCalcColumn)         Send CalcColReturn  hoMD
+        If (hoMD = oWqSelectionValues)    WebSet psValue of oSelValue to (ValueSelected(hoMD))
+        If (hoMD = oWqSelectionRanges)    WebSet psValue of oSelValue to (RangeSelected(hoMD))
+        If (hoMD = oWqSelectionList)      WebSet psValue of oSelValue to (ListSelected(hoMD))
+        If (hoMD = oWqExpressionPopup)    Send ExprReturned   hoMD
+        If (hoMD = oWqAdHocIndex)         Send AdHocDefined   hoMD
+        If (hoMD = oWqOpenQuery)          Send FileReturned   hoMD
+        If (hoMD = oWqColourPicker)       Send ColourSelected hoMD
+        If (hoMD = oWqDownload)           Send DoneDownload   hoMD
+    End_Procedure
+    
+    //==========================================================================
+    //  End of methods
+    //==========================================================================
+    
+    //==========================================================================
+    //
+    //  User interfasce objects (try to keep logic code out of these where 
+    //  possible)
+    //
+    //==========================================================================
+
+    Object oWebMainPanel is a cWebPanel
+        Set piColumnCount to 20
+        Set pbFillHeight to True
+        
+        Object oMainFile is a cWebCombo
+            Set piColumnSpan            to 15
+            Set psLabel                 to "Main Table:"
+            Set peLabelAlign            to alignRight
+            Set pbServerOnChange        to True
+            
+            Procedure OnChange String sNewValue String sOldValue
+                If (sNewValue <> sOldValue) Send MainTableSelected sNewValue
+            End_Procedure
+            
+            Procedure OnFill
+                wqTableInfo[] tTabs
+                Integer i
+                
+                Send AddComboItem 0 ""
+                Get TableInfo of ghoWQF to tTabs
+                
+                For i from 0 to (SizeOfArray(tTabs) - 1)
+                    Send AddComboItem tTabs[i].iNum tTabs[i].sDispName
+                Loop
+                
+            End_Procedure
+            
+        End_Object
+        
+        Object oTabSel is a cWebButton
+            Set piColumnSpan  to 1
+            Set piColumnIndex to 16
+            Set piHeight      to 30
+            Set piWidth       to 24
+            Set psCaption     to " "
+            Set psTooltip     to "Table selector"
+            Set psTextColor   to (psBackgroundColor(Self))
+            Set psHtmlId      to "wqTabSelButton"
+        
+            Procedure OnClick
+                Send TabListPopup of oWqTableSelection ghoWebQry
+            End_Procedure
+            
+        End_Object
+
+        Object oOpenQry is a cWebButton
+            Set piColumnSpan  to 1
+            Set piColumnIndex to 17
+            Set piHeight      to 30
+            Set piWidth       to 24
+            Set psCaption     to " "
+            Set psTooltip     to "Open query definition"
+            Set psHtmlId      to "wqOpenQueryButton"
+        
+            Procedure OnClick
+                Send OpenQuery
+            End_Procedure
+            
+        End_Object
+
+        Object oSaveQry is a cWebButton
+            Set piColumnSpan  to 1
+            Set piColumnIndex to 18
+            Set piHeight      to 30
+            Set piWidth       to 24
+            Set psCaption     to " "
+            Set psTooltip     to "Save query definition"
+            Set psHtmlId      to "wqSaveQueryButton"
+            
+            Procedure OnClick
+                Send SaveQuery
+            End_Procedure
+            
+        End_Object
+
+        Object oNewQry is a cWebButton
+            Set piColumnSpan  to 1
+            Set piColumnIndex to 19
+            Set piHeight      to 30
+            Set piWidth       to 24
+            Set psCaption     to " "
+            Set psTooltip     to "Clear query"
+            Set psHtmlId      to "wqClearQueryButton"
+            
+            Procedure OnClick
+                Send ClearQuery
+            End_Procedure  // OnClick
+            
+        End_Object
+
+        Object oQueryTitle is a cWebForm
+            Set psCSSClass to "KeyField"
+            Set piColumnSpan to 15
+            Set psLabel to "Query Title:"
+            Set peLabelAlign to alignRight
+        End_Object
+
+        Object oQueryCriteria is a cWebTabContainer
+            Set pbFillHeight to True
+            
+            Object oTablesPage is a cWebTabPage
+                Set psCaption to "Fields"
+                Set piColumnCount to 10
+                
+                Object oFieldsPanel is a cWebPanel
+                    Set piHeight to 250
+                    
+                    Object oFieldSelect is a cWebPanel
+                        Set peRegion to prLeft
+                        Set piWidth  to 300
+
+                        Object oTablesList is a cWebList
+                            Set pbDataAware         to False
+                            Set piColumnIndex       to 0
+                            Set piColumnSpan        to 0
+                            Set pbFillHeight        to True
+                            Set pbColumnSortable    to False
+                            
+                            Object oFieldTables is a cWebColumn
+                                Set psCaption to "Tables"
+                            End_Object
+                            
+                            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                                Send CollectRelated of ghoWebQry (&aTheRows)  
+                            End_Procedure  // OnManualLoadData
+                            
+                            Procedure OnChangeCurrentRow String sFromRowID String sToRowID
+                                Send FieldsTableSelected sToRowID
+                            End_Procedure  // OnChangeCurrentRow
+                            
+                        End_Object
+        
+                        Object oColumnsList is a cWebList
+                            Property Handle  phTable 0
+                            
+                            Set pbDataAware         to False
+                            Set piColumnIndex       to 0
+                            Set piColumnSpan        to 0
+                            Set pbFillHeight        to True
+                            Set pbColumnSortable    to False
+                            
+                            Object oFieldsCol is a cWebColumn
+                                Set psCaption to "Fields"
+                            End_Object
+                            
+                            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                                Forward Send OnManualLoadData (&aTheRows) (&sCurrentRowID)
+                                Send CollectColumns of ghoWQF (&aTheRows) (phSelectedTable(ghoWebQry))
+                            End_Procedure
+                            
+                        End_Object
+
+                    End_Object
+                    
+                    Object oPrintFields is a cWebPanel
+                        Set peRegion to prCenter
+                        Set piColumnCount to 30
+                        
+                        Object oPrintedFields is a cWebGrid
+                            Set psLabel             to "Printed Fields:"
+                            Set peLabelPosition     to lpTop
+                            Set pbShowLabel         to True
+                            Set piColumnIndex       to 0
+                            Set piColumnSpan        to 0
+                            Set pbFillHeight        to True
+                            Set pbDataAware         to False
+                            Set pbOfflineEditing    to True
+                            Set pbAllowAppendRow    to False
+                            Set pbAllowInsertRow    to False
+                            Set pbAllowDeleteRow    to False
+                            
+                            Object oFieldCol is a cWebColumn
+                                Set psCaption           to "Field name"
+                                Set piWidth             to 120
+                                Set pbServerOnChange    to True
+                                
+                                Procedure OnChange String sNewValue String sOldValue
+                                    String  sField
+                                    wqPrintField tField
+                                    
+                                    WebGet psValue of oFieldData to sField
+                                    
+                                    If (sField <> "") Begin
+                                        Get DeSerializeField of ghoWQF sField to tField
+                                        Move sNewValue to tField.sUserName
+                                        Get SerializeField of ghoWQF tField to sField
+                                        WebSet psValue of oFieldData to sField
+                                    End
+                                    
+                                End_Procedure
+                                
+                            End_Object                                
+                            
+                            Object oSumCol is a cWebColumnCheckbox
+                                Set psCaption           to "Sum"
+                                Set piWidth             to 12
+                                Set pbServerOnChange    to True
+                                
+                                Procedure OnChange String sNewValue String sOldValue
+                                    String  sField
+                                    wqPrintField tField
+                                    
+                                    WebGet psValue of oFieldData to sField
+                                    Get DeSerializeField of ghoWQF sField to tField
+                                    If (tField.iType <> DF_BCD) WebSet psValue to False
+                                End_Procedure
+                                
+                            End_Object                                
+                            
+                            Object oCRCol is a cWebColumnCheckbox
+                                Set psCaption           to "CR"
+                                Set piWidth             to 12
+                            End_Object
+                            
+                            // Hidden columns:
+                            Object oFieldData is a cWebColumn
+                                Set pbRender to False
+                            End_Object
+                            
+                            Procedure OnProcessDataSet tWebRow[] aData Integer eOp Integer iSelectedRowIndex
+                                If ((eOp = C_wqAssembleSave) or (eOp = C_wqAssembleRun)) ;
+                                     Send AssembleQuery3 (&aData) eOp iSelectedRowIndex
+                                Else Send FieldListReturned of ghoWebQry (&aData) eOp iSelectedRowIndex
+                            End_Procedure
+                            
+                            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                                Send LoadPrintFields of ghoWebQry (&aTheRows) (&sCurrentRowID)
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oAddField is a cWebButton
+                            Set piColumnIndex to 3
+                            Set piColumnSpan to 4
+                            Set psCaption to "Add"
+                        
+                            Procedure OnClick
+                                Send AddPrintField True
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oInsertField is a cWebButton
+                            Set piColumnIndex to 7
+                            Set piColumnSpan to 5
+                            Set psCaption to "Insert"
+                        
+                            Procedure OnClick
+                                Send AddPrintField False
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oDeleteField is a cWebButton
+                            Set piColumnIndex to 12
+                            Set piColumnSpan to 5
+                            Set psCaption to "Delete"
+                        
+                            Procedure OnClick
+                                Send DeletePrintField
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oExprnField is a cWebButton
+                            Set piColumnIndex to 17
+                            Set piColumnSpan to 6
+                            Set psCaption to "Expression"
+                        
+                            Procedure OnClick
+                                Send CalcField
+                            End_Procedure
+                            
+                        End_Object
+                        
+//                        Object oAdjustField is a cWebButton
+//                            Set piColumnIndex to 23
+//                            Set piColumnSpan to 7
+//                            Set psCaption to "Adjust Below"
+//                        
+//                            Procedure OnClick
+//                            End_Procedure
+//                            
+//                        End_Object
+                        
+                    End_Object
+
+                End_Object
+                
+            End_Object
+            
+            Object oSelectionPage is a cWebTabPage
+                Set psCaption to "Selection"
+                
+                Object oSelectPanel is a cWebPanel
+                    Set piHeight to 250
+                    
+                    Object oSelectionPanel is a cWebPanel
+                        Set peRegion to prLeft
+                        Set piWidth  to 300
+
+                        Object oSelTablesList is a cWebList
+                            Set pbDataAware         to False
+                            Set piColumnIndex       to 0
+                            Set piColumnSpan        to 0
+                            Set pbFillHeight        to True
+                            Set pbColumnSortable    to False
+                            
+                            Object oSelTables is a cWebColumn
+                                Set psCaption to "Tables"
+                            End_Object
+                            
+                            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                                Send CollectRelated of ghoWebQry (&aTheRows)  
+                            End_Procedure
+                            
+                            Procedure OnChangeCurrentRow String sFromRowID String sToRowID
+                                Send SelTableSelected of ghoWebQry sToRowID
+                            End_Procedure
+                            
+                        End_Object
+        
+                        Object oSelColumnsList is a cWebList
+                            Property Handle  phTable 0
+                            
+                            Set pbDataAware         to False
+                            Set piColumnIndex       to 0
+                            Set piColumnSpan        to 0
+                            Set pbFillHeight        to True
+                            Set pbColumnSortable    to False
+                            
+                            Object oSelColumns is a cWebColumn
+                                Set psCaption to "Fields"
+                            End_Object
+                            
+                            Procedure TableSelected Handle hTab
+                                Set phTable to hTab
+                                Send GridRefresh
+                                WebSet psCurrentRowID to 0
+                            End_Procedure
+                            
+                            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                                Forward Send OnManualLoadData (&aTheRows) (&sCurrentRowID)
+                                Send CollectColumns of ghoWQF (&aTheRows) (phSelectedTable(ghoWebQry))
+                            End_Procedure
+                            
+                       End_Object
+
+                    End_Object
+                    
+                    Object oSelectPanel is a cWebPanel
+                        Set peRegion to prCenter
+                        Set piColumnCount to 30
+                        
+                        Object oSelections is a cWebGrid
+                            Set piColumnIndex       to 0
+                            Set piColumnSpan        to 0
+                            Set pbFillHeight        to True
+                            Set pbDataAware         to False                            
+                            Set psLabel             to "Selections:"
+                            Set peLabelPosition     to lpTop
+                            Set pbShowLabel         to True
+                            Set pbOfflineEditing    to True
+                            Set pbAllowAppendRow    to False
+                            Set pbAllowInsertRow    to False
+                            Set pbAllowDeleteRow    to False
+                            
+                            Object oSelField is a cWebColumn
+                                Set psCaption to "Field name"
+                                Set piWidth   to 60
+                                Set pbEnabled to False
+                            End_Object                                
+                            
+                            Object oSelType is a cWebColumn
+                                Set psCaption to "Type"
+                                Set piWidth   to 15
+                                Set pbEnabled to False
+                            End_Object                                
+                            
+                            Object oSelValue is a cWebColumn
+                                Set psCaption to "Value"
+                                Set piWidth   to 60
+                                Set pbEnabled to False
+                            End_Object
+                            
+                            Object oSelTabCol is a cWebColumn
+                                Set pbRender to False
+                            End_Object
+                            
+                            Object oSelColCol is a cWebColumn
+                                Set pbRender to False
+                            End_Object
+                            
+                            Object oSelDataType is a cWebColumn
+                                Set pbRender to False
+                            End_Object
+                            
+                            Procedure OnProcessDataSet tWebRow[] aData Integer eOp Integer iSelectedRowIndex
+                                If ((eOp = C_wqAssembleRun) or (eOp = C_wqAssembleSave)) ;
+                                     Send AssembleQuery4   of ghoWebQry (&aData) eOp iSelectedRowIndex
+                                Else Send SelsListReturned of ghoWebQry (&aData) eOp iSelectedRowIndex
+                            End_Procedure
+                            
+                            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                                Send LoadSelections (&aTheRows) (sCurrentRowID)
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oSelAddBtn is a cWebButton
+                            Set piColumnIndex to 2
+                            Set piColumnSpan to 4
+                            Set psCaption to "Add"
+                        
+                            Procedure OnClick
+                                Send AddSelField True
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oSelInsertBtn is a cWebButton
+                            Set piColumnIndex to 6
+                            Set piColumnSpan to 5
+                            Set psCaption to "Insert"
+                        
+                            Procedure OnClick
+                                Send AddSelField False
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oSelDeleteBtn is a cWebButton
+                            Set piColumnIndex to 11
+                            Set piColumnSpan to 5
+                            Set psCaption to "Delete"
+                        
+                            Procedure OnClick
+                                Send ProcessDataSet of oSelections C_wqDeleteRow
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oSelExpressionBtn is a cWebButton
+                            Set piColumnIndex to 16
+                            Set piColumnSpan to 6
+                            Set psCaption to "Expression"
+                        
+                            Procedure OnClick
+                                Send EnterSelExpr
+                            End_Procedure
+                            
+                        End_Object
+                        
+                        Object oSelValueBtn is a cWebButton
+                            Set piColumnIndex to 22
+                            Set piColumnSpan to 8
+                            Set psCaption to "Default value"
+                        
+                            Procedure OnClick
+                                Send SelectValue of ghoWebQry
+                            End_Procedure
+                            
+                        End_Object
+                        
+                    End_Object
+                
+                End_Object
+                
+            End_Object
+            
+            Object oOrderingPage is a cWebTabPage
+                Set psCaption to "Ordering"
+                Set piColumnCount to 9
+                Set pbServerOnShow to True
+                
+                // Work-around for the psValue in oOrdering not getting set properly
+                //    see: http://support.dataaccess.com/Forums/showthread.php?51906-Setting-selected-value-in-a-cWebCombo                   
+                Procedure OnShow
+                    Integer  iIndex
+                    
+                    WebGet wpiIndex of ghoWebQry to iIndex
+                    WebSet psValue  of oOrder    to iIndex
+                End_Procedure
+                
+                Object oOrder is a cWebCombo
+                    Set piColumnIndex       to 0
+                    Set piColumnSpan        to 8
+                    Set psLabel             to "Ordering:"
+                    Set peLabelAlign        to alignRight
+                    Set piLabelOffset       to 100
+                    Set pbServerOnChange    to True
+                    Set pbServerOnShow      to True
+                
+                    Procedure OnChange String sNewValue String sOldValue
+                        If (sNewValue <> sOldValue) Send IndexSelected of ghoWebQry sNewValue
+                    End_Procedure  // OnChange
+                    
+                    Procedure OnFill
+                        Integer i j iInds iSegs iFld iFirst
+                        String  sDesc
+                        Handle  hTab
+                        Boolean bRNTab
+                        
+                        WebGet wphMainTable of ghoWebQry to hTab
+                        If not hTab Procedure_Return
+                        
+                        Open hTab
+                        Move 0 to iFirst
+                        
+                        Get_Attribute DF_FILE_LAST_INDEX_NUMBER of hTab to iInds
+                        Get_Attribute DF_FILE_RECNUM_TABLE      of hTab to bRNTab
+                        
+                        For i from 1 to iInds
+                            Get_Attribute DF_INDEX_NUMBER_SEGMENTS of hTab i to iSegs
+                            
+                            Move "" to sDesc
+                        
+                            For j from 1 to iSegs
+                                Get_Attribute DF_INDEX_SEGMENT_FIELD of hTab i j    to iFld
+                                If (j > 1) Move (sDesc + ", ")                      to sDesc
+                                Move (sDesc + NiceFieldName(ghoWQF, hTab, iFld))    to sDesc
+                            Loop
+                            
+                            If (Length(sDesc)) Begin
+                                Send AddComboItem i sDesc
+                                If not iFirst Move i to iFirst
+                            End
+                            
+                        Loop
+                        
+                        If bRNTab Send AddComboItem i "Recnum"
+                        Send AddComboItem -1 "Ad hoc index"
+                        WebSet psValue               to iFirst
+                        WebSet wpiIndex of ghoWebQry to iFirst
+//                        WebSet psValue of oSearchOrd to iFirst
+                    End_Procedure
+                    
+                End_Object
+
+                Object oAdHocButton is a cWebButton
+                    Set piColumnSpan  to 0
+                    Set piColumnIndex to 8
+                    Set piColumnSpan  to 1
+                    Set psCaption     to "Ad hoc"
+                    Set pbEnabled     to False
+                
+                    Procedure OnClick
+                        Send SpecAdHoc
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oSegments is a cWebGrid
+                    Set piColumnIndex       to 2
+                    Set piColumnSpan        to 5
+                    Set pbFillHeight        to True
+                    Set pbDataAware         to False
+                    Set pbOfflineEditing    to True
+                    Set pbAllowAppendRow    to False
+                    Set pbAllowInsertRow    to False
+                    Set pbAllowDeleteRow    to False
+                    
+                    Object oIdxBreakCol is a cWebColumnCheckbox
+                        Set psCaption to "Break"
+                        Set piWidth to 15
+                    End_Object
+                    
+                    Object oIdxDescCol is a cWebColumn
+                        Set psCaption to "Field name"
+                        Set piWidth to 100
+//                        Set pbEnabled to False
+                    End_Object
+                    
+                    Object oIdxTableCol is a cWebColumn
+                        Set pbRender to False
+                    End_Object
+                    
+                    Object oIdxFieldCol is a cWebColumn
+                        Set pbRender to False
+                    End_Object
+                    
+                    Object oIdxUCCol is a cWebColumn
+                        Set pbRender to False
+                    End_Object
+                    
+                    Object oIdxRevCol is a cWebColumn
+                        Set pbRender to False
+                    End_Object
+                    
+                    Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                        Send LoadSegments (&aTheRows) (&sCurrentRowID)
+                    End_Procedure
+                    
+                    Procedure OnProcessDataSet tWebRow[] aData Integer eOp Integer iSelRowIndex
+                        If ((eOp = C_wqAssembleSave) or (eOp = C_wqAssembleRun)) ;
+                             Send AssembleQuery2 of ghoWebQry (&aData) eOp iSelRowIndex
+                        Else If (eOp = C_wqGetIndexInfo) Send IndexDataReceived of ghoWebQry (&aData) eOp iSelRowIndex
+                    End_Procedure
+                    
+                End_Object
+
+//                Object oWebSpacer1 is a cWebSpacer
+//                    Set piHeight to 10
+//                End_Object
+//                
+//                Object oSearchOrd is a cWebCombo
+//                    Set piColumnSpan  to 8
+//                    Set psLabel       to "Search order:"
+//                    Set peLabelAlign  to alignRight
+//                    Set piLabelOffset to 100
+//                    Set pbEnabled     to False
+//                    
+//                    Procedure OnFill
+//                        Integer i j iInds iSegs iFld
+//                        String  sDesc
+//                        Handle  hTab
+//                        Boolean bRNTab
+//                        
+//                        WebGet wphMainTable of ghoWebQry to hTab
+//                        If not hTab Procedure_Return
+//                        
+//                        Open hTab
+//                        
+//                        Get_Attribute DF_FILE_LAST_INDEX_NUMBER of hTab to iInds
+//                        Get_Attribute DF_FILE_RECNUM_TABLE      of hTab to bRNTab
+//                        If bRNTab Send AddComboItem 0 "Recnum"
+//                        
+//                        For i from 1 to iInds
+//                            Get_Attribute DF_INDEX_NUMBER_SEGMENTS of hTab i to iSegs
+//                            Move "" to sDesc
+//                            
+//                            For j from 1 to iSegs
+//                                Get_Attribute DF_INDEX_SEGMENT_FIELD of hTab i j    to iFld
+//                                If (j > 1) Move (sDesc + ", ")                      to sDesc
+//                                Move (sDesc + NiceFieldName(ghoWQF, hTab, iFld))    to sDesc
+//                            Loop
+//                            
+//                            If (Length(sDesc)) Send AddComboItem i sDesc
+//                        Loop
+//                        
+//                    End_Procedure  // OnFill
+//                    
+//                End_Object  // oSearchOrd
+                
+            End_Object
+            
+            Object oTextsPage is a cWebTabPage
+                Set psCaption to "Texts"
+                Set piColumnCount to 10
+                
+                Object oLineBreakNote is a cWebLabel
+                    Set piColumnSpan to 0
+                    Set psCaption to "(Note: To insert line-breaks in the texts, use Shift-Enter)"
+                    Set psTextColor to "blue"
+                    Set peAlign to alignCenter
+                End_Object
+                
+                Object oTextBefore is a cWebEdit
+                    Set piColumnSpan to 0
+                    Set psLabel to "Before report:"
+                    Set peLabelAlign to alignRight
+                    Set piLabelOffset to 90
+                    Set pbFillHeight to True
+                    Set piHeight to 50
+                End_Object
+                
+                Object oTextAfter is a cWebEdit
+                    Set piColumnSpan to 0
+                    Set psLabel to "After report:"
+                    Set peLabelAlign to alignRight
+                    Set piLabelOffset to 90
+                    Set pbFillHeight to True
+                    Set piHeight to 50
+                End_Object
+                
+            End_Object
+            
+            Object oOutputPage is a cWebTabPage
+                Set psCaption to "Output"
+                Set piColumnCount to 20
+
+                Object oFontCombo is a cWebCombo
+                    Set piColumnIndex to 0
+                    Set piColumnSpan to 9
+                    Set psLabel to "Font: "
+                    Set piLabelOffset to 110
+                    Set peLabelAlign to alignRight
+                    
+                    Procedure OnFill
+                        Send AddComboItem "Arial, Helvetica, sans-serif"                         "Arial"
+                        Send AddComboItem "'Arial Black', Gadget, sans-serif"                    "Arial Black"
+                        Send AddComboItem "'Courier New', Courier, monospace"                    "Courier New"
+                        Send AddComboItem "Impact, Charcoal, sans-serif"                         "Impact"
+                        Send AddComboItem "'Lucinda Console', Monaco, monospace"                 "Lucinda Console"
+                        Send AddComboItem "'Lucinda Sans Unicode', 'Lucinda Grande', sans-serif" "Lucinda Sans"
+                        Send AddComboItem "'Palatino Linotype', 'Book Antiqua', Palation, serif" "Palatino Linotype"
+                        Send AddComboItem "Tahoma, Geneva, sans-serif"                           "Tahoma"
+                        Send AddComboItem "'Times New Roman', Times, serif"                      "Times New Roman"
+                        Send AddComboItem "'Trebuchet MS', Helvetica, sans-serif"                "Trebuchet"
+                        Send AddComboItem "Verdana, Geneva, sans-serif"                          "Verdana"
+                        
+                        WebSet psValue to "Ariel, Helvetica, sans-serif"
+                    End_Procedure
+                    
+                End_Object
+
+                Object oFontSizeCombo is a cWebCombo
+                    Set piColumnIndex to 10
+                    Set piColumnSpan to 3
+                    Set pbShowLabel to False
+                    
+                    Procedure OnFill
+                        Send AddComboItem "xx-small" "xx-small"
+                        Send AddComboItem "x-small"  "x-small"
+                        Send AddComboItem "small"    "small"
+                        Send AddComboItem "medium"   "medium"
+                        Send AddComboItem "large"    "large"
+                        Send AddComboItem "x-large"  "x-large"
+                        Send AddComboItem "xx-large" "xx-large"
+                        
+                        WebSet psValue to "medium"
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oIncSelections is a cWebCheckbox
+                    Set piColumnSpan to 0
+                    Set piColumnIndex to 3
+                    Set psCaption to "Include selection criteria in printed report"
+                End_Object
+
+                Object oTotalsOnly is a cWebCheckbox
+                    Set piColumnSpan to 0
+                    Set piColumnIndex to 3
+                    Set psCaption to "Print totals only"
+                End_Object
+                
+                Object oPrintCount is a cWebCheckbox
+                    Set piColumnSpan  to 0
+                    Set piColumnIndex to 3
+                    Set psCaption     to "Print record count"
+                    Set psValue       to True
+                End_Object
+                
+                Object oPrintGenLine is a cWebCheckbox
+                    Set piColumnSpan  to 7
+                    Set piColumnIndex to 3
+                    Set psCaption     to "Print generated date/time"
+                    Set psValue       to True
+                End_Object
+
+                Object oUseSQL is a cWebCheckbox
+                    Set piColumnSpan  to 5
+                    Set piColumnIndex to 10
+                    Set psCaption     to "Use SQL"
+                    Set psValue       to (pbUseSqlDefault(ghoWebQry))
+                End_Object
+                
+                Object oTextColour is a cWebForm
+                    Set piColumnIndex    to 0
+                    Set piColumnSpan     to 6
+                    Set psLabel          to "Text colour:"
+                    Set peLabelAlign     to alignRight
+                    Set pbPromptButton   to True
+                    Set pbServerOnPrompt to True
+                    Set psValue          to "black"
+                    Set piLabelOffset    to 110
+                    Set pbServerOnChange to True
+                    
+                    Procedure OnPrompt
+                        String sVal
+                        
+                        WebGet psValue to sVal
+                        Send ColourPopup of oWqColourPicker ghoWebQry sVal Self
+                    End_Procedure
+                    
+                    Procedure OnChange String sNewValue String sOldValue
+                        WebSet psBackgroundColor of oTextCol to sNewValue
+                    End_Procedure
+                    
+                End_Object
+
+                Object oTextCol is a cWebButton
+                    Set psCaption to " "
+                    Set pbShowBorder to False
+                    Set piColumnIndex to 6
+                    Set piColumnSpan  to 1
+                    Set psBackgroundColor to "black"
+                    
+                    Procedure OnClick
+                        Send OnPrompt of oTextColour
+                    End_Procedure  // OnClick
+                    
+                End_Object
+
+                Object oBGColour is a cWebForm
+                    Set piColumnIndex    to 9
+                    Set piColumnSpan     to 6
+                    Set psLabel          to "Background colour:"
+                    Set peLabelAlign     to alignRight
+                    Set pbPromptButton   to True
+                    Set pbServerOnPrompt to True
+                    Set psValue          to "white"
+                    Set pbServerOnChange to True
+                    
+                    Procedure OnPrompt
+                        String sVal
+                        
+                        WebGet psValue to sVal
+                        Send ColourPopup of oWqColourPicker ghoWebQry sVal Self
+                    End_Procedure
+                    
+                    Procedure OnChange String sNewValue String sOldValue
+                        WebSet psBackgroundColor of oBGCol to sNewValue
+                    End_Procedure
+                    
+                End_Object
+
+                Object oBGCol is a cWebButton
+                    Set psCaption to " "
+                    Set pbShowBorder to True
+                    Set piColumnIndex to 15
+                    Set piColumnSpan  to 1
+                    Set psBackgroundColor to "white"
+                    
+                    Procedure OnClick
+                        Send OnPrompt of oBGColour
+                    End_Procedure
+                    
+                End_Object
+
+                Object oAltRowHighlight is a cWebCheckbox
+                    Set piColumnIndex    to 3
+                    Set piColumnSpan     to 6
+                    Set psCaption        to "Use alternate row highlighting"
+                    Set pbServerOnChange to True
+                    Set psValue          to True
+                    
+                    Procedure OnChange
+                        Boolean bOn
+                        
+                        WebGet psValue to bOn
+                        WebSet pbEnabled of oHighlightColour to bOn
+                    End_Procedure
+                    
+                End_Object
+
+                Object oHighlightColour is a cWebForm
+                    Set piColumnIndex    to 9
+                    Set piColumnSpan     to 6
+                    Set psLabel          to "Highlight colour:"
+                    Set peLabelAlign     to alignRight
+                    Set pbPromptButton   to True
+                    Set pbServerOnPrompt to True
+                    Set psValue          to "#AAFFFF"
+                    Set pbServerOnChange to True
+                    
+                    Procedure OnPrompt
+                        String sVal
+                        
+                        WebGet psValue to sVal
+                        Send ColourPopup of oWqColourPicker ghoWebQry sVal Self
+                    End_Procedure
+                    
+                    Procedure OnChange String sNewValue String sOldValue
+                        WebSet psBackgroundColor of oHLCol to sNewValue
+                    End_Procedure
+                    
+                End_Object
+
+                Object oHLCol is a cWebButton
+                    Set psCaption to " "
+                    Set pbShowBorder to True
+                    Set piColumnIndex to 15
+                    Set piColumnSpan  to 1
+                    Set psBackgroundColor to "#AAFFFF"
+                    
+                    Procedure OnClick
+                        Send OnPrompt of oHighlightColour
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oViewOutput is a cWebRadio
+                    Set piColumnIndex to 3
+                    Set piColumnSpan  to 6
+                    Set psCaption to "View output in browser"
+                    Set psRadioValue to C_wqViewOutput
+                    Set pbServerOnChange to True
+                    Set psGroupName to "Output"
+                    Send SetSelected
+                    
+                    Procedure OnChange String sNewValue String sOldValue
+                        Send ChangeOutput sNewValue
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oDownloadOutput is a cWebRadio
+                    Set piColumnIndex to 9
+                    Set piColumnSpan  to 5
+                    Set psCaption to "Download output to file"
+                    Set psRadioValue to C_wqDownloadOutput
+                    Set psGroupName to "Output"
+                End_Object
+
+                Object oOutputLab is a cWebLabel
+                    Set piColumnIndex to 1
+                    Set piColumnSpan  to 4
+                    Set psCaption to "Output destination: "
+                End_Object
+
+                Object oOutModal is a cWebRadio
+                    Set piColumnIndex to 5
+                    Set piColumnSpan  to 4
+                    Set psCaption to "Pop-up window"
+                    Set psRadioValue to C_wqModalWin
+                    Set psGroupName to "Destination"
+                End_Object
+                
+                Object oOutTab is a cWebRadio
+                    Set piColumnIndex to 9
+                    Set piColumnSpan  to 4
+                    Set psCaption to "New browser tab"
+                    Set psRadioValue to C_wqNewTab
+                    Set psGroupName to "Destination"
+                End_Object
+                
+                Object oOutWin is a cWebRadio
+                    Set piColumnIndex to 13
+                    Set piColumnSpan  to 5
+                    Set psCaption to "New browser window"
+                    Set psRadioValue to C_wqNewWin
+                    Set psGroupName to "Destination"
+                End_Object
+
+                Object oNewWarning is a cWebLabel
+                    Set piColumnIndex to 9
+                    Set piColumnSpan to 0
+                    Set psCaption to "Note: a new browser tab or window may be blocked by your browser settings or popup blocker - you should adjust them accordingly"
+                    Set psTextColor to "blue"
+                End_Object
+                
+                Object oLabFormat is a cWebLabel
+                    Set piColumnIndex to 1
+                    Set piColumnSpan  to 4
+                    Set psCaption to "Download format:"
+                    Set pbRender to False
+                End_Object
+
+                Object oOutHTML is a cWebRadio
+                    Set piColumnIndex to 5
+                    Set piColumnSpan  to 3
+                    Set psCaption to "HTML"
+                    Set psRadioValue to C_wqOutputHtml
+                    Set psGroupName to "Format"
+                    Set pbRender to False
+                    Set pbServerOnChange to True
+                    
+                    Procedure OnChange String sNewValue String sOldValue
+                        Send ChangeFormat sNewValue
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oOutText is a cWebRadio
+                    Set piColumnIndex to 8
+                    Set piColumnSpan  to 3
+                    Set psCaption to "Text"
+                    Set psRadioValue to C_wqOutputText
+                    Set psGroupName to "Format"
+                    Set pbRender to False
+                End_Object
+                
+                Object oOutCSV is a cWebRadio
+                    Set piColumnIndex to 11
+                    Set piColumnSpan  to 3
+                    Set psCaption to "CSV"
+                    Set psRadioValue to C_wqOutputCSV
+                    Set psGroupName to "Format"
+                    Set pbRender to False
+                End_Object
+                
+                Object oOutXML is a cWebRadio
+                    Set piColumnIndex to 14
+                    Set piColumnSpan  to 3
+                    Set psCaption to "XML"
+                    Set psRadioValue to C_wqOutputXML
+                    Set psGroupName to "Format"
+                    Set pbRender to False
+                End_Object
+
+                Object oColHeads is a cWebCheckbox
+                    Set piColumnIndex to 11
+                    Set piColumnSpan to 4
+                    Set psCaption to "Include column headers in CSV"
+                    Set pbRender to False
+                    Set pbEnabled to False
+                End_Object
+
+            End_Object
+
+        End_Object
+
+        Object oRunButton is a cWebButton
+            Set piColumnSpan to 2
+            Set piColumnIndex to 16
+            Set psCaption to "Run"
+            Set pbShowWaitDialog to True
+            Set pbEnabled to False
+            
+            Procedure OnClick
+                Send AssembleQuery C_wqAssembleRun
+            End_Procedure
+            
+        End_Object
+
+        Object oCloseButton is a cWebButton
+            Set piColumnSpan to 2
+            Set piColumnIndex to 18
+            Set psCaption to "Close"
+        
+            Procedure OnClick
+                Send Hide
+            End_Procedure
+            
+        End_Object
+        
+    End_Object
+    
+End_Object

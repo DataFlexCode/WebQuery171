@@ -1,0 +1,79 @@
+Use Windows.pkg
+
+Class cComboFormSture is a ComboForm
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Object oAux_Values is an Array
+        End_Object
+        Set Combo_Sort_State to False
+        Set Allow_Blank_State to False
+        Set Entry_State to False
+    End_Procedure
+
+    Procedure Sort_Items Integer eDirection
+        Error 382 "Sorting items not supported (cComboFormSture)"
+    End_Procedure
+
+    Procedure Set Aux_Value Integer iItm Integer iValue
+        Set Value of (oAux_Values(Self)) iItm to iValue
+    End_Procedure
+    
+    Function Aux_Value Integer iItm Returns Integer
+        Function_Return (Value(oAux_Values(Self),iItm))
+    End_Function
+    
+    // Augmented Combo_Add_Item:
+    Procedure Combo_Add_Item String sValue Integer iAuxValue
+        Integer iAux iItm
+        Forward Send Combo_Add_Item sValue
+        If num_arguments gt 1 Move iAuxValue to iAux
+        Get Combo_Item_Count to iItm
+        Set Aux_Value (iItm-1) to iAux
+    End_Procedure
+
+    // Returns the aux value of the currently selected value:
+    Function Combo_Current_Aux_Value Returns Integer
+        Integer iItm
+        Get Combo_Item_Matching (Value(Self,0)) to iItm
+        Function_Return (Aux_Value(Self,iItm))
+    End_Function
+    
+    // Set the value corresponding to aux value passed in iAuxValue
+    Procedure Set Combo_Current_Aux_Value Integer iAuxValue
+        Integer iItm iMax hObj
+        Move (oAux_Values(Self)) to hObj
+        Get Item_Count of hObj to iMax
+        For iItm from 0 to (iMax-1)
+            If (Value(hObj,iItm)=iAuxValue) Set Value item 0 to (Combo_Value(Self,iItm))
+        Loop
+    End_Procedure
+
+//    Function FindAuxValue Integer iAuxValue Returns Integer
+//        Integer iItem iMax hObj
+//        Move (oAux_Values(Self)) to hObj
+//        Get Item_Count of hObj to iMax
+//        Decrement iMax
+//        For iItem from 0 to iMax
+//            If (Value(hObj,iItem)=iAuxValue) Function_Return iItem
+//        Loop
+//        Function_Return -1
+//    End_Function
+//
+    // Augmented Combo_Delete_Data
+    Procedure Combo_Delete_Data
+        Forward Send Combo_Delete_Data
+        Send Delete_Data of oAux_Values
+    End_Procedure
+    
+    Procedure Combo_Delete_Item Integer iItem
+        Forward Send Combo_Delete_Data iItem
+        Send Delete_Item of oAux_Values iItem
+    End_Procedure
+
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+
+    End_Procedure
+
+End_Class

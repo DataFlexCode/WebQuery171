@@ -1,0 +1,11 @@
+Use ErrorEventHandlerClass.pkg // cErrorEventHandler class and oErrorSilence object
+
+Struct tRestructureError
+    String           sOperation         // While executing this instruction
+    tErrorEvent      stError            // this error occured
+    tTableExplicit stTableDefInitial  //
+End_Struct
+
+Global_Variable tRestructureError _gstTempRestructureError
+Global_Variable Integer oTableStructureFunctions
+

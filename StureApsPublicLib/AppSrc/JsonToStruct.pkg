@@ -1,0 +1,577 @@
+#ERROR 323 "THIS PACKAGE IS OBSOLETE. USE 'GENERATE JSON STRUCT PACKAGES' IN VDFXRAY INSTEAD"
+//
+// What does the package do
+// ------------------------
+//
+// This package (together with the JsonFunctions.pkg package) makes it possible
+// to convert a string containing a JSON object directly into a VDF struct
+// variable.
+//
+//
+// First step of the conversion is a relatively simple one. A function in the
+// JsonFunctions.pkg package converts the string to a generic recursively defined
+// struct much like the tValueTree (defined in cClientWebService.pkg). It differs
+// from the tValueTree in that it also holds relevant meta data about each node
+// in the Json-tree.
+//
+//       String    sJson
+//       tJsonNode stJson // The tJsonNode type is a recursively defined struct (JsonFunctions.pkg)
+//
+//       Move '{"menu":{"id":"file","value":"File","popup":{"menuitem":[{"value":"New","onclick":"CreateNewDoc()"},{"value":"Open","onclick":"OpenDoc()"},{"value":"Close","onclick":"CloseDoc()"}]}}}' to sJson
+//
+//       If (StringToDoc(oJsonFunctions,&sJson,&stJson)) Begin
+//           // (The reason sJson is passed by reference is *not* that its value is changed, never mind)
+//           ... do something with stJson ...
+//       End
+//       Else Begin
+//           Error 666 "The string does not contain a valid JSON object"
+//       End
+//
+//
+// In order to prepare the second step one needs to declare all structs to which
+// we want to able to decode in a special way:
+//
+//       JsonPublish tMyStruct // <- This is what's special (it's not needed if FMAC change)
+//
+//       Struct tMyStruct
+//           Integer iThis
+//           Boolean bThat
+//           tMyOtherStruct stWhatHaveYou
+//       End_Struct
+//
+// where the tMyOtherStruct member will be ignored, if that wasn't defined the
+// same way. That is, the member will be defined of course. But it will be excluded
+// from converting to and from JSON.
+
+// Note that the JsonPublish command and the corresponding Struct
+// definition must appear in immediate succession. JsonPublish could be avoided by FMAC change.
+//
+// END CRAP
+//
+//
+// A class must then be defined that is able to decode to all structs
+//
+//       Class cJsonToStruct is a cObject
+//           Import_Json2Struct_Procedures // Expands procedures for each struct defined with a JsonPublish prelude.
+//       End_Class
+//
+// At this point the cJsonToStruct class will have two procedures defined for each
+// marked struct of this form:
+//
+//       Procedure Struct2Json_XYZ XYZ structValue Byref tJsonNode stJson
+//
+//       Procedure Json2Struct_XYZ XYZ Byref structValue tJsonNode stJson
+//
+// where XYZ is the name of a defined struct and stJson contains the part of the
+// JSON tree meant to be decoded into variable structValue (and vice versa for the pther proc)
+//
+// If the XYZ struct has a member XXX that is a struct itself the corresponding
+// Struct2Json_XXX procedure will be called to decode it.  Therefore the
+// procedures of the cJsonToStruct class constitutes fully automatic and recursive
+// en- and decoding of JSON objects.
+//
+// But it also allows for defining costum decoding strategies at any (struct-)
+// level of the decoding by augmenting selected Struct2Json_XXX procedures. If you
+// know how to read a tJsonNode variable you may branch to different sub-structs
+// based on "what you see" at a given JSON node. Note that in this case you may have
+// to set a side-effect property to reflect the result of the decoding since the
+// struct passed to the procedure (structValue) may not be able to carry the
+// result back to the caller (because of incongruence).
+//
+// In principle there is nothing to hinder us from defining multiple cJsonToStruct
+// classes if we just give them different names. It should be possible to declare
+// a number of tJsonPublish'ed structs, then a cJsonToStruct class, then some more
+// tJsonPublish'ed structs and then another cJsonToStruct2 class asf. It just
+// hasn't been tested or perhaps fully thought through.
+//
+// Package implementation notes
+// ----------------------------
+
+// This package uses H$ in a such a way that no other package should change its value permanently.
+// All other compile time variables are used only temporarily.
+//
+// Of all the commands defined in here only IMPORT_JSON2STRUCT_PROCEDURES is meant
+// to be used outside the package.
+//
+// The current implementation can handle 1 dimensional arrays only.
+//
+//
+// =========================================================================================
+// THE COMMENT BELOW IS NOT TRUE ANYMORE. IT IS JUST LEFT HERE AS A REMINDER THAT WE COULD
+// AVOID THE PROCESS OF MARKING CERTAIN STRUCTS A JSONPUBLISH'ED.
+//
+// In order for this package to work the following modification has to be made to FMAC:
+//
+// The existing Struct command should be replaced by these two commands:
+//
+//           #COMMAND _STRUCT_ATTACK // New command. Does nothing.
+//           #ENDCOMMAND
+//
+//           // note that this command also creates a symbol _struct_XYZ where XYZ is the struct name. This can
+//           // be used with #ifdef to see if a struct is defined
+//           #COMMAND Struct R
+//             #IFDEF __@INSIDE_STRUCT@__
+//               #ERROR DFERR_COMP_ILLEGAL_CODE_PLACEMENT "STRUCT command within a STRUCT. Structs cannot be nested"
+//             #ELSE
+//               #STRU !1
+//               #SREP __@INSIDE_STRUCT@__   |CI1   // lets other commands check that they are inside a struct scope.
+//               _STRUCT_ATTACK !1 // <- This line added compared to FMAC
+//             #ENDIF
+//           #ENDCOMMAND
+// === END OF UNTRUE COMMENT ===============================================================
+
+Use ui
+Use JsonFunctions.pkg
+
+Struct _tStructMember
+    String  sName
+    Integer iType
+    Integer iDimensions
+End_Struct
+
+Struct _tStructDefinition
+    String sName
+    Integer hJson2StructMsg
+    _tStructMember[] aMembers
+End_Struct
+
+Global_Variable _tStructDefinition[] _gaStructDefinitions // This variable is updated when the IMPORT_JSON2STRUCT_PROCEDURES command is executed
+
+Global_Variable Integer oIntrospectionFunctions
+
+// This object has no part in the decoding
+// strategy described in the top of this file.
+// It's for debugging only.
+Object _oIntrospectionFunctions is a cObject
+    Move Self to oIntrospectionFunctions
+
+    Property Integer _piCurrentStructId 0
+
+    Procedure DefineType Integer iStructId String sName
+        Set _piCurrentStructId to iStructId
+        Move (Lowercase(sName)) to _gaStructDefinitions[iStructId].sName
+    End_Procedure
+
+    Procedure AddMember String sName Integer iType Integer iDimensions
+        Integer iStructIndex iMemberIndex
+        Get _piCurrentStructId to iStructIndex
+        Move (SizeOfArray(_gaStructDefinitions[iStructIndex].aMembers)) to iMemberIndex
+        Move (Lowercase(sName)) to _gaStructDefinitions[iStructIndex].aMembers[iMemberIndex].sName
+        Move iType to _gaStructDefinitions[iStructIndex].aMembers[iMemberIndex].iType
+        Move iDimensions to _gaStructDefinitions[iStructIndex].aMembers[iMemberIndex].iDimensions
+    End_Procedure
+
+    Procedure Show // For debugging. Dumps all structs recorded to the screen.
+        Integer iStructMax iMemberMax
+        Integer iStructIndex iMemberIndex
+        Integer iType iDimIndex
+
+        String sName sType
+
+        Move (SizeOfArray(_gaStructDefinitions)-1) to iStructMax
+
+        For iStructIndex from 0 to iStructMax
+            Showln ("Struct "+_gaStructDefinitions[iStructIndex].sName)
+            Move (SizeOfArray(_gaStructDefinitions[iStructIndex].aMembers)-1) to iMemberMax
+            For iMemberIndex from 0 to iMemberMax
+                Move _gaStructDefinitions[iStructIndex].aMembers[iMemberIndex].iType to iType
+                Move _gaStructDefinitions[iType].sName to sType
+
+                For iDimIndex from 1 to _gaStructDefinitions[iStructIndex].aMembers[iMemberIndex].iDimensions
+                    Move (sType+"[]") to sType
+                Loop
+
+                Move _gaStructDefinitions[iStructIndex].aMembers[iMemberIndex].sName to sName
+                Showln ("    "+sType+" "+sName)
+            Loop
+            Showln "End_Struct"
+            Showln ""
+        Loop
+    End_Procedure
+End_Object
+
+Enum_List
+    Define I$STRING
+    Define I$INTEGER
+    Define I$BOOLEAN
+    Define I$NUMBER
+    Define I$DATE
+    Define I$DATETIME //JK
+
+    Define I$FIRST_STRUCT_INDEX
+End_Enum_List
+
+#Replace I$NAME$0 String
+#Replace I$NAME$1 Integer
+#Replace I$NAME$2 Boolean
+#Replace I$NAME$3 Number
+#Replace I$NAME$4 Date
+#Replace I$NAME$5 DateTime //JK
+
+// First add the simple data types we support to the global array (_gaStructDefinitions)
+Send DefineType of oIntrospectionFunctions I$STRING   "string"
+Send DefineType of oIntrospectionFunctions I$INTEGER  "integer"
+Send DefineType of oIntrospectionFunctions I$BOOLEAN  "boolean"
+Send DefineType of oIntrospectionFunctions I$NUMBER   "number"
+Send DefineType of oIntrospectionFunctions I$DATE     "date"
+Send DefineType of oIntrospectionFunctions I$DATETIME "datetime" //JK
+
+Use JsonFunctions.pkg
+
+// ***************************************************************************************************************
+//   This section deals with augmentation of FMAC commands: STRUCT, STRUCT_SCALAR_MEMBER and STRUCT_ARRAY_MEMBER
+// ***************************************************************************************************************
+
+// Now comes a few macros whose purpose is to generate a number of symbols. At a later time, these symbols
+// will be used to generate code for querying the struct definitions at run-time, as well as transforming a
+// JSON documents into Struct-values.
+
+// The following compile time variables are used to track the process:
+//
+//      H$   Increments for each struct definition
+//      M$   Increments for each member of a struct. Starts at 0 for each new struct.
+
+// The following symbols are defined:
+//
+//      Per struct:
+//          I$<s-name>           -> <H$>
+//          I$NAME$<H$>          -> <s-name>
+//
+//      Per member:
+//          I$<H$>$<m-name>      -> <M$>
+//          I$<H$>$NAME$<M$>     -> <m-name>
+//          I$<H$>$TYPE$<M$>     -> <m-type>
+//          I$<H$>$DIMCOUNT$<M$> -> <number of dimensions (0 for scalars)>
+
+#SET H$ (I$FIRST_STRUCT_INDEX -1) // Used to enumerate structs. Points to the struct-ID most recently occupied
+
+
+// We cannot replace the STRUCT command. Therefore FMAC has to be changed so that the STRUCT command will
+// call the _STRUCT_ATTACK which is empty, but which gives us something that we can hook into.
+
+#COMMAND _NEW_STRUCT_ATTACK // For augmenting _STRUCT_ATTACK command
+  // Name-based symbol that replaces to the index value indentifying
+  // the type in the Global array of types (_gaStructDefinitions):
+  #Replace I$!1 |CI!H // From integer to symbol
+
+  // Number-based symbol that replaces to the name of the struct
+  #Replace I$NAME$!h !1 // From symbol to integer
+
+  #PUSH !m
+  #SET M$ -1 // Set member counter to -1 (means that the first member will be number 0)
+  #SREP __@INSIDE_JSON_PUBLISHED_STRUCT@__   |CI1   // lets other commands check that they are inside a function scope.
+#ENDCOMMAND
+
+#Replace _STRUCT_ATTACK _NEW_STRUCT_ATTACK // Put the augmentation in place.
+
+#COMMAND JsonPublish R .
+    _STRUCT_ATTACK !1
+#ENDCOMMAND
+
+#COMMAND NEW_END_STRUCT
+  #IFNDEF __@INSIDE_STRUCT@__
+    #ERROR DFERR_COMP_ILLEGAL_CODE_PLACEMENT "END_STRUCT command without STRUCT"
+  #ELSE
+    #STRE
+    #UNDEF __@INSIDE_STRUCT@__ // Leaving struct declaration
+  #ENDIF
+
+  #IFDEF  __@INSIDE_JSON_PUBLISHED_STRUCT@__
+    #POP M$ // <- Insert
+    #UNDEF __@INSIDE_JSON_PUBLISHED_STRUCT@__     // Leaving function/proc.
+  #ENDIF
+#ENDCOMMAND
+
+#Replace End_Struct NEW_End_Struct
+
+#COMMAND NEW_STRUCT_SCALAR_MEMBER R R // Command to replace existing STRUCT_SCALAR_MEMBER command
+  #PUSH !q
+  #DTYPE Q$ !1        // get the property type in q
+  #IF (!q =-1)
+    #ERROR DFERR_COMP_INVALID_DATATYPE (!1)
+  #ELSE
+    #IF (!q=19)
+      #PUSH !h
+      #STRG H$ !1
+      #STRM Struct |CI!h !2
+      #POP H$
+    #ELSE
+      #STRM SCALAR |CI!q !2
+    #ENDIF
+    #IFDEF  __@INSIDE_JSON_PUBLISHED_STRUCT@__
+      #IFDEF I$!1 // Begin Sture
+        #Replace I$!h$!2           |CI!M  // I$<H$>$<m-name> -> <M$>
+
+        #Replace I$!h$NAME$!m      !2     // I$<H$>$NAME$<M$>     -> <m-name>
+        #Replace I$!h$TYPE$!m      I$!1   // I$<H$>$TYPE$<M$>     -> <m-type>
+        #Replace I$!h$DIMCOUNT$!m  |CI0   // I$<H$>$DIMCOUNT$<M$> -> <number of dimensions (0 for scalars)>
+      #ENDIF // End Sture
+    #ENDIF
+  #ENDIF
+  #POP Q$
+#ENDCOMMAND
+
+// Help command that extracts the name of array from the parameter list and puts it in the $ compile-time variable
+#COMMAND _STRUCT_ARRAY_MEMBER_NAME_HELPER R
+  #IFADIM !1
+    _STRUCT_ARRAY_MEMBER_NAME_HELPER !2 !3 !4 !5 !6 !7 !8 !9
+  #ELSE
+    #SET $$ !1 // The first non dimension set of brackets is the name of the array. Beautiful.
+  #ENDIF
+#ENDCOMMAND
+
+#COMMAND NEW_STRUCT_ARRAY_MEMBER T R R // Command to replace existing STRUCT_ARRAY_MEMBER command
+  #IFDEF  __@INSIDE_JSON_PUBLISHED_STRUCT@__
+    #PUSH !g                                                   // Sture
+    #SPUSH                                                     // Pushes , Sture
+  #ENDIF
+  #DATA
+  ARRAY_DIM_SIZE_HELPER !2 !3 !4 !5 !6 !7 !8 !9
+  STRUCT_ARRAY_TYPE_HELPER !1
+  #SET Q$ 0  // The  ARRAY_DIM_COUNT_HELPER macro relies on that
+  ARRAY_DIM_COUNT_HELPER !2 !3 !4 !5 !6 !7 !8 !9 // sets !q to num of dims
+  #IFDEF  __@INSIDE_JSON_PUBLISHED_STRUCT@__
+    #SET G$ !q                                                 // We'll just break in here and take a copy while it's good,Sture
+  #ENDIF
+  #DPUSH |CI!q //Push the number of dimensions
+  STRUCT_ARRAY_MEMBER_HELPER !2 !3 !4 !5 !6 !7 !8 !9
+  #IFDEF  __@INSIDE_JSON_PUBLISHED_STRUCT@__
+    _STRUCT_ARRAY_MEMBER_NAME_HELPER !2 !3 !4 !5 !6 !7 !8 !9   // Figure out name, Sture
+
+    #IFDEF I$!1                                                // Sture
+      #Replace I$!h$!$           |CI!M  // I$<H$>$<m-name> -> <M$>
+
+      #Replace I$!h$NAME$!m      !$     // I$<H$>$NAME$<M$>     -> <m-name>
+      #Replace I$!h$TYPE$!m      I$!1   // I$<H$>$TYPE$<M$>     -> <m-type>
+      #Replace I$!h$DIMCOUNT$!m  |CI!g  // I$<H$>$DIMCOUNT$<M$> -> <number of dimensions (0 for scalars)>
+    #ENDIF                                                       // Sture
+
+    #SPOP                                                      // Pop $$, Sture
+    #POP G$                                                    // Sture
+  #ENDIF
+#ENDCOMMAND
+
+// Point to new commands:
+//#Replace Struct NEW_STRUCT <--- Can't do that. 'Struct' symbol is holy!
+#Replace STRUCT_SCALAR_MEMBER NEW_STRUCT_SCALAR_MEMBER // Whereas these are not holy at all.
+#Replace STRUCT_ARRAY_MEMBER NEW_STRUCT_ARRAY_MEMBER
+
+// ***************************************************************************************************************
+//
+// ***************************************************************************************************************
+
+#COMMAND _CREATE_JSON2STRUCT_PROCBODY1 // 1:Struct-name 2:Member-name 3:Type 4:Dimensions
+  #IF (!4 > 0) // Array, 1 -dimensional
+
+    #IF (!3 < I$FIRST_STRUCT_INDEX) // Simple types
+    #ELSE // Structs
+      #SPUSH              // Find name
+      #PUSH !m            // of struct
+      #Set M$ !3          // used as this
+      #SET $$ I$NAME$!m   // member
+      #POP M$
+      !$ ___str!m
+      #SPOP
+    #ENDIF
+  #ENDIF
+#ENDCOMMAND
+
+#COMMAND _CREATE_JSON2STRUCT_PROCBODY2 // 1:Struct-name 2:Member-name 3:Type 4:Dimensions
+  #IF (!4 = 0) // Scalar
+    #IF (!3 < I$FIRST_STRUCT_INDEX) // Simple types
+      Get ObjectMemberSimple of oJsonFunctions stJson (Lowercase("!2")) to strValue.!2
+    #ELSE // Structs
+      #SPUSH              // Find name
+      #PUSH !m            // of struct
+      #Set M$ !3          // used as this
+      #SET $$ I$NAME$!m   // member
+      #POP M$
+      Send Json2Struct_!$ (&strValue.!2) (ObjectMember(oJsonFunctions,stJson,Lowercase("!2")))
+      #SPOP
+    #ENDIF
+  #ENDIF
+  #IF (!4 = 1) // Array, 1 -dimensional
+    Get _ObjectMemberIndex of oJsonFunctions stJson (Lowercase("!2")) to ___iJsonMemberIndex
+    If (___iJsonMemberIndex>=0) Begin
+      Move (SizeOfArray(stJson.aChildNodes[___iJsonMemberIndex].aChildNodes)-1) to ___iArrayMax
+      For ___iArrayIndex from 0 to ___iArrayMax
+        #IF (!3 < I$FIRST_STRUCT_INDEX) // Simple types:
+          Get ArrayMemberSimple of oJsonFunctions stJson.aChildNodes[___iJsonMemberIndex] ___iArrayIndex to strValue.!2[___iArrayIndex]
+        #ELSE // Structs:
+          #SPUSH              // Find name
+          #PUSH !m            // of struct
+          #Set M$ !3          // used as this
+          #SET $$ I$NAME$!m   // member
+          #POP M$
+          Send Json2Struct_!$ (&___str!m) stJson.aChildNodes[___iJsonMemberIndex].aChildNodes[___iArrayIndex]
+          #SPOP
+          Move ___str!m to strValue.!2[___iArrayIndex]
+        #ENDIF
+      Loop
+    End
+  #ENDIF
+#ENDCOMMAND
+
+#COMMAND _CREATE_SET_JSON_NODE_TYPE // (Simple)Type
+  #IF (!1 = I$STRING)
+    #SET K$ JNT_STRING
+  #ENDIF
+  #IF (!1 = I$INTEGER)
+    #SET K$ JNT_NUMBER
+  #ENDIF
+  #IF (!1 = I$BOOLEAN)
+    #SET K$ JNT_BOOLEAN
+  #ENDIF
+  #IF (!1 = I$NUMBER)
+    #SET K$ JNT_NUMBER
+  #ENDIF
+  #IF (!1 = I$DATE)
+    #SET K$ JNT_STRING
+  #ENDIF
+  #IF (!1 = I$DATETIME) //JK
+    #SET K$ JNT_STRING  //JK
+  #ENDIF                //JK
+#ENDCOMMAND
+
+#COMMAND _CREATE_STRUCT2JSON_PROCBODY1 // 1:Struct-name 2:Member-name 3:Type 4:Dimensions
+  #PUSH !k
+  _CREATE_SET_JSON_NODE_TYPE !3 // Sets K$ to the Json node-type
+  #IF (!4 = 0) // Scalar
+    #IF (!3 < I$FIRST_STRUCT_INDEX) // Simple types
+      Send AppendChildValue of oJsonFunctions !k (&stJson) (Lowercase("!2")) strValue.!2
+    #ELSE // Structs
+      #SPUSH              // Find name
+      #PUSH !m            // of struct
+      #Set M$ !3          // used as this
+      #SET $$ I$NAME$!m   // member
+      #POP M$
+
+      Send AppendChildValue of oJsonFunctions JNT_OBJECT (&stJson) (Lowercase("!2")) ""
+      Send Struct2Json_!$ strValue.!2 (&stJson.aChildNodes[SizeOfArray(stJson.aChildNodes)-1])
+      #SPOP
+    #ENDIF
+  #ENDIF
+  #IF (!4 = 1) // Array, 1 -dimensional
+    Move (SizeOfArray(strValue.!2)-1) to ___iArrayMax
+
+    If (___iArrayMax>=0) Begin
+        Send AppendChildValue of oJsonFunctions JNT_ARRAY (&stJson) (Lowercase("!2")) ""
+        Move (SizeOfArray(stJson.aChildNodes)-1) to ___iJsonMemberIndex
+
+        For ___iArrayIndex from 0 to ___iArrayMax
+          #IF (!3 < I$FIRST_STRUCT_INDEX) // Simple types:
+            Send AppendChildValue of oJsonFunctions !k (&stJson.aChildNodes[___iJsonMemberIndex]) "" strValue.!2[___iArrayIndex]
+          #ELSE // Structs:
+            Send AppendChildValue of oJsonFunctions JNT_OBJECT (&stJson.aChildNodes[___iJsonMemberIndex]) "" ""
+            #SPUSH              // Find name
+            #PUSH !m            // of struct
+            #Set M$ !3          // used as this
+            #SET $$ I$NAME$!m   // member
+            #POP M$
+            Send Struct2Json_!$ strValue.!2[___iArrayIndex] (&stJson.aChildNodes[___iJsonMemberIndex].aChildNodes[___iArrayIndex])
+            #SPOP
+          #ENDIF
+        Loop
+    End
+  #ENDIF
+  #POP K$
+#ENDCOMMAND
+
+#COMMAND _REGISTER_STRUCT_MEMBER // 1:Struct-name 2:Member-name 3:Type 4:Dimensions
+  Send AddMember of oIntrospectionFunctions "!2" !3 !4
+#ENDCOMMAND
+
+#COMMAND _CREATE_WRITE_PROCBODY1 // 1:Struct-name 2:Member-name 3:Type 4:Dimensions
+
+#ENDCOMMAND
+
+#COMMAND _CREATE_STRUCT_MEMBER_CODE // This command takes a command as 1st parameter
+  // At this point H$ refers to the struct-id and
+  // and M$ is the member-id within that struct.
+
+  #SPUSH
+  #SET $$ I$!h$DIMCOUNT$!m
+
+  #IFCLASS !$ "C"
+    !1 !2 I$!h$NAME$!m I$!h$TYPE$!m I$!h$DIMCOUNT$!m  // !1 is: _REGISTER_STRUCT_MEMBER or _CREATE_JSON2STRUCT_PROCBODY2
+
+    #SET M$ !M // Increment M$ and expand next member
+    _CREATE_STRUCT_MEMBER_CODE !1 !2 // Macro to call, struct name
+  #ENDIF
+  #SPOP
+#ENDCOMMAND
+
+#COMMAND _CREATE_JSON2STRUCT_PROCEDURE // Gets struct name as first parameter
+  #IFDEF MSG_Json2Struct_!1
+  #ELSE
+    Procedure Json2Struct_!1 !1 ByRef strValue tJsonNode stJson
+      Integer ___iArrayIndex ___iArrayMax
+      Integer ___iJsonMemberIndex
+      #PUSH !m
+      #SET M$ 0
+      _CREATE_STRUCT_MEMBER_CODE _CREATE_JSON2STRUCT_PROCBODY1 !1 // Generate local variables
+      #SET M$ 0
+      _CREATE_STRUCT_MEMBER_CODE _CREATE_JSON2STRUCT_PROCBODY2 !1 // Generate instructions
+      #POP M$
+    End_Procedure
+
+    Procedure Struct2Json_!1 !1 strValue tJsonNode ByRef stJson
+      Integer ___iArrayIndex ___iArrayMax
+      Integer ___iJsonMemberIndex
+      #PUSH !m
+      #SET M$ 0
+      _CREATE_STRUCT_MEMBER_CODE _CREATE_STRUCT2JSON_PROCBODY1 !1 // Generate instructions
+      #POP M$
+    End_Procedure
+
+    Procedure Read_!1 !1 ByRef strValue // **** Read and write are not implemented ****
+    End_Procedure
+
+    Procedure Write_!1 !1 strValue
+      #PUSH !m
+      #SET M$ 0
+      _CREATE_STRUCT_MEMBER_CODE _CREATE_WRITE_PROCBODY1 !1 // Generate instructions
+      #POP M$
+    End_Procedure
+
+    Procedure _UpdateIntrospection_!1
+      Send DefineType of oIntrospectionFunctions !h "!1"
+      #PUSH !m
+      #SET M$ 0
+      _CREATE_STRUCT_MEMBER_CODE _REGISTER_STRUCT_MEMBER !1
+      #POP M$
+    End_Procedure
+  #ENDIF
+#ENDCOMMAND
+
+#COMMAND _CREATE_UPDATE_INTROSPECTION_CALL
+    Send _UpdateIntrospection_!1
+#ENDCOMMAND
+
+#COMMAND _DECLARE_JSON2STRUCT_PROCEDURES
+  #SPUSH
+  #SET $$ I$NAME$!h // !$ now holds the struct name
+  #SET $$ I$!$      // !$ now holds the struct identifier
+
+  #IFCLASS !$ "C" // ...whose class we can check against (it is a constant)
+    #SPOP
+    !1 I$NAME$!h // Pass the struct name as parameter
+    #SET H$ !H // Increment
+    _DECLARE_JSON2STRUCT_PROCEDURES !1
+  #ELSE
+    #SPOP
+  #ENDIF
+#ENDCOMMAND
+
+#COMMAND IMPORT_JSON2STRUCT_PROCEDURES .
+  #NOISY 10
+  #PUSH !h
+  #SET H$ 0
+  _DECLARE_JSON2STRUCT_PROCEDURES _CREATE_JSON2STRUCT_PROCEDURE
+  #SET H$ 0
+  Procedure UpdateIntrospectionInfo // For debug
+    _DECLARE_JSON2STRUCT_PROCEDURES _CREATE_UPDATE_INTROSPECTION_CALL
+  End_Procedure
+  #POP H$
+  #NOISY 1
+#ENDCOMMAND

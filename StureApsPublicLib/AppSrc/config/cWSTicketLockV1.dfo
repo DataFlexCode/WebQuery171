@@ -1,0 +1,17 @@
+Object 
+
+    //
+    // Interface:
+    //
+    // Function wsNewTicket tWStTicketLock_New_Req llstrReq Returns tWStTicketLock_New_Resp
+    //
+
+
+    // phoSoapClientHelper
+    //     Setting this property will pop up a view that provides information
+    //     about the Soap (xml) data transfer. This can be useful in debugging.
+    //     If you use this you must make sure you USE the test view at the top
+    //     of your program/view by adding:   Use WebClientHelper.vw // oClientWSHelper
+    //Set phoSoapClientHelper to oClientWSHelper
+
+End_Object

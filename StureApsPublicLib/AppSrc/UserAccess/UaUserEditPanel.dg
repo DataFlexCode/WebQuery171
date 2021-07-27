@@ -1,0 +1,160 @@
+Use Windows.pkg
+Use UserAccess\cUserAccessControl.pkg
+
+Object oUaUserEditPanel is a ModalPanel
+    Set Size to 202 161
+    Set Label to "User"
+    Set Border_Style to Border_Normal
+    Set Locate_Mode to CENTER_ON_PANEL
+    On_Key kEnter Send Close_Panel_OK
+    On_Key kCancel Send Close_Panel
+    On_Key kSave_Record Send Close_Panel_OK
+
+    Object oLoginName is a Form
+        Set Size to 13 122
+        Set Location to 19 20
+        Set Label to "Login name:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+    End_Object
+
+    Object oFullName is a Form
+        Set Size to 13 122
+        Set Location to 43 20
+        Set Label to "Full name:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+    End_Object
+
+    Object oWindowsName is a Form
+        Set Size to 13 122
+        Set Location to 67 20
+        Set Label to "Windows login name:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+    End_Object
+
+    Object oGroupID is a Form
+        Set Size to 13 122
+        Set Location to 91 20
+        Set Label to "Group ID:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Set Enabled_State to False
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+    End_Object
+
+    Object oPassword is a Form
+        Set Size to 13 122
+        Set Location to 115 20
+        Set Label to "Password:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Set Password_State to True
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+    End_Object
+
+    Object oDisabled is a CheckBox
+        Set Size to 10 50
+        Set Location to 139 20
+        Set Label to 'Disabled'
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+            Send UpdateEnabled of oReason
+        End_Procedure
+    End_Object
+
+    Object oReason is a Form
+        Set Size to 13 122
+        Set Location to 164 20
+        Set Label to "Reason for disabling:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        Procedure OnChange
+            Set Enabled_State of oSaveBtn to True
+        End_Procedure
+        Procedure UpdateEnabled
+            Set Enabled_State to (Checked_State(oDisabled))
+        End_Procedure
+    End_Object
+    
+    Property Boolean _pbOk
+    
+    Function ValidatePanel Returns Boolean
+        Boolean bTitleOK
+        Move (Trim(Value(oLoginName))<>"") to bTitleOK
+        If (not(bTitleOK)) Begin
+            Send UserError "Login name must be filled in" "Sorry"
+        End
+        Function_Return bTitleOK
+    End_Function
+    
+    Procedure Close_Panel_OK
+        If (ValidatePanel(Self)) Begin
+            Set _pbOk to True
+            Send Close_Panel
+        End
+    End_Procedure
+    
+    Object oSaveBtn is a Button
+        Set Label    to "Save"
+        Set Location to 184 52
+        Set peAnchors To anBottomRight
+        Procedure OnClick
+            Send Close_Panel_OK
+        End_Procedure
+    End_Object
+
+    Object oCancelBtn is a Button
+        Set Label    to "Cancel"
+        Set Location to 184 107
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+    
+    Function UserAccessUser tUserAccessUser strUser Returns tUserAccessUser
+        Get Value of oLoginName to strUser.sLoginName
+        Get Value of oFullName to strUser.sFullName
+        Get Value of oWindowsName to strUser.sWindowsUserName
+        Get Value of oGroupID to strUser.sGroupID
+        Get Value of oPassword  to strUser.sPassword
+        
+        Get Checked_State of oDisabled to strUser.bDisabled
+        Get Value of oReason to strUser.sDisabledReason
+        Function_Return strUser
+    End_Function
+
+    Function EditUser tUserAccessUser ByRef strUser Returns Boolean
+        Set Value of oLoginName to strUser.sLoginName
+        Set Value of oFullName to strUser.sFullName
+        Set Value of oWindowsName to strUser.sWindowsUserName
+        Set Value of oGroupID to strUser.sGroupID
+        Set Value of oPassword  to strUser.sPassword
+        Set Checked_State of oDisabled to strUser.bDisabled
+        Set Value of oReason to strUser.sDisabledReason
+        Set Enabled_State of oSaveBtn to False
+        Set _pbOk to False
+        Send UpdateEnabled of oReason
+        Send Popup
+        If (_pbOk(Self)) Begin
+            Get UserAccessUser strUser to strUser
+        End
+        Function_Return (_pbOk(Self))
+    End_Function
+
+End_Object

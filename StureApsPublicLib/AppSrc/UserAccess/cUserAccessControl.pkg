@@ -1,0 +1,1384 @@
+//> Function LoginUserId -> Function LoginByUserId
+//> Function _FindUser -> _FindUserRecord
+
+Use TableAccessFunctions.pkg
+Use RecordBufferFunctions.pkg
+Use WindowsInfo.pkg
+Use StringFunctions.pkg
+Use DateFunctions.pkg
+Use FileFunctions.pkg
+Use UserAccess\UaLoginPanel.dg
+Use DataDict.pkg
+Use ErrorEventHandlerClass.pkg
+Use IndexFunctions.pkg
+Use TableQueryFunctions.pkg
+Use AttributeFunctions.pkg
+
+Declare_Datafile uaGroup  // Switches defines on groups basis 
+Declare_Datafile uaUser   // Users admitted to the system 
+Declare_Datafile uaSess   // A record is automatically created every time the program is started
+Declare_Datafile uaLog    // Records are created here to reflect varios activities. Refers to usSess records
+Declare_Datafile uaRole
+Declare_Datafile uaUserRo // 
+Declare_Datafile uaRoleAc
+Declare_Datafile uaUserAc
+
+Struct tUserAccessProperty
+    String sLabel
+    String sStatusHelp    
+    Integer iGroupValueField
+    Integer iGroupFixedField
+    Integer iUserValueField
+    Integer iUserDefaultField
+    Boolean bTableConnected
+End_Struct
+
+Struct tUserAccessRole
+    Number nRoleID
+    String sTitle
+    Boolean bDisabled
+    String sDisabledReason
+    Integer iDisplaySeq
+End_Struct
+
+Struct tUserAccessUser
+    Number nUserID
+    String sLoginName
+    String sFullName
+    String sWindowsUserName 
+    String sGroupID
+    String sPassword
+    Boolean bDisabled
+    String sDisabledReason
+End_Struct
+
+Global_Variable Integer ghoUserAccessObject
+Global_Variable tUserAccessProperty[] _gaUserAccessProperties
+
+Struct tUserAccessPrivilege
+    String  sPrivilegeID
+    String  sPrivilegeLabel
+    Handle[]  ahActivationMessages
+End_Struct
+
+Struct tUserAccessGate // (a gate sits on a number of privileges)
+    String     sGateID
+    String     sGateLabel
+    tUserAccessPrivilege[] aPrivileges
+    Boolean[]  aPrivilegeGranted
+    Boolean bInitialized
+    Handle _hGateHandle
+End_Struct
+
+Global_Variable tUserAccessGate[] _gaGates
+
+Class cUaGate is a cObject
+
+    Function _NextIndex Returns Integer
+        Integer iIndex
+        tUserAccessGate strEmptyGate
+        Move False to strEmptyGate.bInitialized
+        Move Self to strEmptyGate._hGateHandle
+        Move (SizeOfArray(_gaGates)) to iIndex
+        Move strEmptyGate to _gaGates[iIndex]
+        Function_Return iIndex
+    End_Function
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer _piGlobalArrayIndex (_NextIndex(Self))
+    End_Procedure
+
+    Procedure Set psGateID String sValue
+        Move sValue to _gaGates[_piGlobalArrayIndex(Self)].sGateID
+    End_Procedure
+
+    Function psGateID Returns String
+        Function_Return _gaGates[_piGlobalArrayIndex(Self)].sGateID
+    End_Function
+
+    Procedure Set psGateLabel String sValue
+        Move sValue to _gaGates[_piGlobalArrayIndex(Self)].sGateLabel
+    End_Procedure
+
+    Function psGateLabel Returns String
+        Function_Return _gaGates[_piGlobalArrayIndex(Self)].sGateLabel
+    End_Function
+
+    Procedure ManagePrivilege String sPrivID String sPrivLabel
+        Integer iGateIndex iPrivIndex
+        Get _piGlobalArrayIndex to iGateIndex
+        Move (SizeOfArray(_gaGates[iGateIndex].aPrivileges)) to iPrivIndex
+        Move sPrivID to _gaGates[iGateIndex].aPrivileges[iPrivIndex].sPrivilegeID
+        Move sPrivLabel to _gaGates[iGateIndex].aPrivileges[iPrivIndex].sPrivilegeLabel
+    End_Procedure
+
+    Procedure AttachActivationMethodToPrivilege Integer hActivationMethod
+        Integer iGateIndex iPrivIndex iMethodIndex
+
+        Get _piGlobalArrayIndex to iGateIndex
+        Move (SizeOfArray(_gaGates[iGateIndex].aPrivileges)-1) to iPrivIndex
+        Move (SizeOfArray(_gaGates[iGateIndex].aPrivileges[iPrivIndex].ahActivationMessages)) to iMethodIndex
+        Move hActivationMethod to _gaGates[iGateIndex].aPrivileges[iPrivIndex].ahActivationMessages[iMethodIndex]
+    End_Procedure
+
+    Procedure _ClearGateCache
+        Integer iGateIndex iSize
+        Boolean[] aEmpty
+        Get _piGlobalArrayIndex to iGateIndex
+        Move (SizeOfArray(_gaGates[iGateIndex].aPrivileges)) to iSize
+        Move (ResizeArray(aEmpty,iSize)) to aEmpty
+        Move aEmpty to _gaGates[iGateIndex].aPrivilegeGranted
+        Move False to _gaGates[iGateIndex].bInitialized
+    End_Procedure
+
+            Function _PrivilegeIndex String sPrivilegeID Returns Integer
+                Integer iGateIndex iMax iItem
+                tUserAccessPrivilege[] aPrivileges
+                Get _piGlobalArrayIndex to iGateIndex
+                Move _gaGates[iGateIndex].aPrivileges to aPrivileges
+                Move (SizeOfArray(aPrivileges)-1) to iMax
+                For iItem from 0 to iMax
+                    If (Lowercase(aPrivileges[iItem].sPrivilegeID)=Lowercase(sPrivilegeID)) Begin
+                        Function_Return iItem
+                    End
+                Loop
+//                Error 701 ("Unknown privilege: "+sPrivilegeID)
+                Function_Return -1
+            End_Function
+
+    Procedure _InitializePrivileges
+        Integer iGateIndex iRoleMax iRoleIndex iPrivilegeIndex
+        String sGateID
+        Number nUserID nRoleID
+        Number[] aRoles
+
+        tTableQuery strQ
+
+        Send _ClearGateCache
+        Get _piGlobalArrayIndex to iGateIndex
+        Move _gaGates[iGateIndex].sGateID to sGateID
+
+        // Get roles for current user:
+        Get CurrentUserID of ghoUserAccessObject to nUserID
+        Get NewQuery of oTQ uaUserRo.File_Number to strQ
+        Send AddFilter of oTQ (&strQ) File_Field uaUserRo.UserID tqEQ nUserID
+        While (FindRecord(oTQ,&strQ))
+            Move uaUserRo.RoleID to aRoles[SizeOfArray(aRoles)]
+        Loop
+        
+        // Go through all privileges covered by these roles:
+        Move (SizeOfArray(aRoles)-1) to iRoleMax
+        For iRoleIndex from 0 to iRoleMax // for each role
+            Move aRoles[iRoleIndex] to nRoleID
+            
+            Get NewQuery of oTQ uaRoleAc.File_Number to strQ
+            Send AddFilter of oTQ (&strQ) File_Field uaRoleAc.RoleID tqEQ nRoleID
+            Send AddFilter of oTQ (&strQ) File_Field uaRoleAc.GateID tqEQ sGateID
+            While (FindRecord(oTQ,&strQ)) // for all privileges on that role
+                Get _PrivilegeIndex uaRoleAc.PrivilegeID to iPrivilegeIndex
+                If (iPrivilegeIndex>=0) Begin
+                    Move True to _gaGates[iGateIndex].aPrivilegeGranted[iPrivilegeIndex] // Grant privilege
+                End
+            Loop
+        Loop
+           
+        // Finally check privileges that are granted or cancelled directly on the user:
+        Get NewQuery of oTQ uaUserAc.File_Number to strQ
+        Send AddFilter of oTQ (&strQ) File_Field uaUserAc.UserID tqEQ nUserID
+        Send AddFilter of oTQ (&strQ) File_Field uaUserAc.GateID tqEQ sGateID
+        While (FindRecord(oTQ,&strQ))
+            Get _PrivilegeIndex uaUserAc.PrivilegeID to iPrivilegeIndex
+            If (iPrivilegeIndex>=0) Begin
+                If (uaUserAc.Revoke>0) Begin
+                    Move False to _gaGates[iGateIndex].aPrivilegeGranted[iPrivilegeIndex] // Revoke privilege
+                End
+                Else Begin
+                    Move True to _gaGates[iGateIndex].aPrivilegeGranted[iPrivilegeIndex] // Grant privilege
+                End
+            End
+        Loop
+        Move True to _gaGates[iGateIndex].bInitialized
+    End_Procedure
+    
+    Function PrivilegeGranted String sPrivilegeID Returns Boolean
+        Integer iPrivIndex iGateIndex
+        Boolean bGrandAll
+        Get pbGrantAllPrivileges of ghoUserAccessObject to bGrandAll
+        If (bGrandAll) Begin
+            Function_Return True
+        End
+        Get _PrivilegeIndex sPrivilegeID to iPrivIndex
+        If (iPrivIndex>=0) Begin
+            Get _piGlobalArrayIndex to iGateIndex
+            If (not(_gaGates[iGateIndex].bInitialized)) Begin
+                Send _InitializePrivileges
+            End
+            Function_Return _gaGates[iGateIndex].aPrivilegeGranted[iPrivIndex]
+        End
+        Function_Return False
+    End_Function
+End_Class
+
+Object oUaUserSetupGate is a cUaGate
+    Set psGateID    to "UA"
+    Set psGateLabel to "User Access"
+    //Send ManagePrivilege "open"    "View setup"
+    Send ManagePrivilege "edit"    "Manage user setup"
+    Send ManagePrivilege "viewlog" "View log entries"
+End_Object
+
+Class _cUAErrorEventHandler is a cErrorEventHandler
+    Procedure OnError Integer iError String sErrorText Integer iErrorLine
+        Boolean bErrorLog
+        Get pbLogErrors to bErrorLog
+        If (bErrorLog) Begin
+            Send LogError sErrorText iError iErrorLine
+        End
+        Send Forward_Error_Report
+    End_Procedure
+End_Class
+
+Object oRole_TableUpdater is a cObject
+    Function RoleFindByRoleName String sRoleName Returns Number
+        Number nRoleID
+        tTableQuery strQ
+        Get NewQuery of oTQ uaRole.File_Number to strQ
+        Send AddFilter of oTQ (&strQ) File_Field uaRole.RoleName tqEQ sRoleName
+        Send SetLimit of oTQ (&strQ) 1
+        Move 0 to nRoleID
+        While (FindRecord(oTQ,&strQ))
+            Move uaRole.RoleID to nRoleID
+        Loop
+        Function_Return nRoleID
+    End_Function
+    Function RoleActive Returns tUserAccessRole
+        tUserAccessRole strRole
+        Move uaRole.RoleID to strRole.nRoleID
+        Move (Rtrim(uaRole.RoleName)) to strRole.sTitle
+        Move uaRole.Disabled to strRole.bDisabled
+        Move (Rtrim(uaRole.DisabledReason)) to strRole.sDisabledReason
+        Move uaRole.UserDisplaySeq to strRole.iDisplaySeq
+        Function_Return strRole
+    End_Function
+    Function RoleFindById Number nRoleID Returns Boolean
+        Clear uaRole
+        Move nRoleID to uaRole.RoleID
+        Find eq uaRole by Index.1
+        Function_Return (Found)
+    End_Function
+    Function RoleSave tUserAccessRole strRole Returns Number
+        Boolean bFound
+        Number nRoleID
+        If (strRole.sTitle<>"") Begin
+            Get RoleFindByRoleName strRole.sTitle to nRoleID
+            If (nRoleID=0 or nRoleID=strRole.nRoleID) Begin
+                Lock
+                    If (strRole.nRoleID=0) Begin
+                        Clear uaRole
+                        Get _NewSessionId of ghoUserAccessObject to uaRole.RoleID
+                    End
+                    Else Begin
+                        Get RoleFindById strRole.nRoleID to bFound
+                        If (not(bFound)) Begin
+                            Clear uaRole
+                            Error 234 "Role has been deleted"
+                        End
+                    End
+                    Move strRole.sTitle to uaRole.RoleName
+                    Move strRole.bDisabled to uaRole.Disabled
+                    Move strRole.sDisabledReason to uaRole.DisabledReason
+                    Move strRole.iDisplaySeq to uaRole.UserDisplaySeq
+                    SaveRecord uaRole
+                Unlock
+                Function_Return uaRole.RoleID
+            End
+            Else Begin
+                Error 233 "Role name already in use"
+            End
+        End
+        Else Begin
+            Error 232 "Can't save role with no name"
+        End
+        Function_Return 0
+    End_Function
+End_Object
+
+Object oUser_TableUpdater is a cObject
+    Function UserFindByUserName String sLoginName Returns Number
+        Clear uaUser
+        Move sLoginName to uaUser.LoginName
+        Find eq uaUser by Index.2
+        Function_Return uaUser.UserID
+    End_Function
+    Function UserActive Returns tUserAccessUser
+        tUserAccessUser strUser
+        Move uaUser.UserID to strUser.nUserID
+        Move (Rtrim(uaUser.LoginName)) to strUser.sLoginName
+        Move (Rtrim(uaUser.Name)) to strUser.sFullName
+        Move (Rtrim(uaUser.WindowsUserName)) to strUser.sWindowsUserName
+        Move (Rtrim(uaUser.GroupID)) to strUser.sGroupID
+        Move (Rtrim(uaUser.Password)) to strUser.sPassword
+        Move uaUser.Disabled to strUser.bDisabled
+        Move (Rtrim(uaUser.DisabledReason)) to strUser.sDisabledReason
+        Function_Return strUser
+    End_Function
+    Function UserFindById Number nUserID Returns Boolean
+        Clear uaUser
+        Move nUserID to uaUser.UserID
+        Find eq uaUser by Index.1
+        Function_Return (Found)
+    End_Function
+    Function UserSave tUserAccessUser strUser Returns Number
+        Boolean bFound
+        Number nUserID
+        If (strUser.sLoginName<>"") Begin
+            Get UserFindByUserName strUser.sLoginName to nUserID
+            If (nUserID=0 or nUserID=strUser.nUserID) Begin
+                Lock
+                    If (strUser.nUserID=0) Begin
+                        Clear uaUser
+                        Get _NewUserId of ghoUserAccessObject to uaUser.UserID
+                    End
+                    Else Begin
+                        Get UserFindById strUser.nUserID to bFound
+                        If (not(bFound)) Begin
+                            Clear uaUser
+                            Error 234 "User has been deleted"
+                        End
+                    End
+                    Move strUser.sLoginName to uaUser.LoginName
+                    Move strUser.bDisabled to uaUser.Disabled
+                    Move strUser.sDisabledReason to uaUser.DisabledReason
+                    Move strUser.sFullName to uaUser.Name
+                    Move strUser.sWindowsUserName to uaUser.WindowsUserName
+                    Move strUser.sGroupID to uaUser.GroupID
+                    Move strUser.sPassword to uaUser.Password
+                    SaveRecord uaUser
+                Unlock
+                Function_Return uaUser.UserID
+            End
+            Else Begin
+                Error 233 "User login-name already in use"
+            End
+        End
+        Else Begin
+            Error 232 "Can't save user with no login name"
+        End
+        Function_Return 0
+    End_Function
+End_Object
+
+Object oUserRole_TableUpdater is a cObject
+    Function FindByID Number nRoleID Number nUserID Returns Boolean
+        Clear uaUserRo
+        Move nRoleID to uaUserRo.RoleID
+        Move nUserID to uaUserRo.UserID
+        Find eq uaUserRo by Index.1
+        Function_Return (Found)
+    End_Function
+End_Object
+
+Object oUserRoleAc_TableUpdater is a cObject
+    Function FindByID Number nRoleID String sGateID String sPrivilegeID Returns Boolean
+        Clear uaRoleAc
+        Move nRoleID to uaRoleAc.RoleID
+        Move sGateID to uaRoleAc.GateID
+        Move sPrivilegeID to uaRoleAc.PrivilegeID
+        Find eq uaRoleAc by Index.1
+        Function_Return (Found)
+    End_Function
+End_Object
+
+Object oUserAccess_TableUpdater is a cObject
+    Function FindByID Number nUserID String sGateID String sPrivilegeID Returns Boolean
+        Clear uaUserAc
+        Move nUserID to uaUserAc.UserID
+        Move sGateID to uaUserAc.GateID
+        Move sPrivilegeID to uaUserAc.PrivilegeID
+        Find eq uaUserAc by Index.1
+        Function_Return (Found)
+    End_Function
+End_Object
+
+// Only one object of class cUserAccessControl may be instantiated within a project. One good place
+// to do this would be in the project src file. When instantiated the object will open the tables
+// mentioned just below.
+Class cUserAccessControl is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        Property Boolean pbValidateUserState     False // False => No user validation. Users are created automatically based on Windows Login Name.
+        Property Boolean pbValidatePasswordState True  // Should user access be password protected? (Ignored if pbValidateUserState is false)
+        Property Boolean pbAllowRetainUser       False // Allow the user to click "Retain login name" for easier login procedure
+
+        Property Boolean pbLogErrors             False // Should errors be logged?          DFE
+        Property Boolean pbLogSessions           True  // Should logins be logged?          SES
+        Property Boolean pbLogTransactions       False // Should transactions be logged?    TRA
+        Property Boolean pbLogViewAccess         True  // Should access to views be logged? VAC
+        Property Boolean pbLogTableAccess        False // Should table access be logged?    TAC
+
+        Property Boolean pbForceRestartOnNewUser True // ???
+
+        Property Boolean pbGrantAllPrivileges False
+
+
+        // Names of tabels to be found on disk
+        Property String  psGroupTableName        "uaGroup"  // uaGroup.File_Number
+        Property String  psUserTableName         "uaUser"   // uaUser.File_Number
+        Property String  psSessTableName         "uaSess"   // uaSess.File_Number
+        Property String  psLogTableName          "uaLog"    // uaLog.File_Number
+        Property String  psRoleTableName         "uaRole"   // uaRole.File_Number
+        Property String  psUserRoTableName       "uaUserRo" // uaUserRo.File_Number
+        Property String  psUserAcTableName       "uaUserAc" // uaUserAc.File_Number
+        Property String  psRoleAcTableName       "uaRoleAc" // uaRoleAc.File_Number
+
+        Property Boolean _pbGroupTableOpen       False
+        Property Boolean _pbUserTableOpen        False
+        Property Boolean _pbSessTableOpen        False
+        Property Boolean _pbLogTableOpen         False
+        Property Boolean _pbUserRoTableOpen      False
+        Property Boolean _pbUserAcTableOpen      False
+        Property Boolean _pbRoleTableOpen        False
+        Property Boolean _pbRoleAcTableOpen      False
+
+        Property Number  _pnUserId               0 // zero means that we are currently not logged in
+        Property Number  _pnSessionId            0
+//        Property Number  _pnGroupRecnum          0
+        Property RowID   _priGroupRowID          (NullRowID())
+
+        Property Date    _pdAppDate
+        Property String  _psAppTime
+
+        Object oErrorHandler is a _cUAErrorEventHandler
+            Send Activate
+        End_Object
+    End_Procedure
+
+    Procedure Gate_DeInitialize
+        Broadcast Recursive Send _ClearGateCache of Desktop
+    End_Procedure
+
+    Function Gate_GatesArray Returns tUserAccessGate[]
+        Function_Return _gaGates
+    End_Function
+    
+    Function Gate_ActivationMethodGranted Integer hActivationMethod Returns Boolean
+        // May be speeded up by extracting all activation methods to an array like this:
+        // Struct blabla
+        //     Handle hActivationMethod
+        //     String sGateID
+        //     String sPriviligeID
+        //     Boolean bEvaluated
+        //     Boolean bGranted
+        // End_Struct
+        Boolean bDefaultReturnValue
+        Integer iGateIndex iGateMax iPrivIndex iPrivMax iMethodIndex iMethodMax
+        Handle hoGate
+        String sPrivilegeID
+        
+        Move True to bDefaultReturnValue
+        
+        Move (SizeOfArray(_gaGates)-1) to iGateMax
+        For iGateIndex from 0 to iGateMax
+            Move (SizeOfArray(_gaGates[iGateIndex].aPrivileges)-1) to iPrivMax
+            For iPrivIndex from 0 to iPrivMax
+                Move (SizeOfArray(_gaGates[iGateIndex].aPrivileges[iPrivIndex].ahActivationMessages)-1) to iMethodMax
+                For iMethodIndex from 0 to iMethodMax
+                    If (hActivationMethod=_gaGates[iGateIndex].aPrivileges[iPrivIndex].ahActivationMessages[iMethodIndex]) Begin
+                        Move _gaGates[iGateIndex].aPrivileges[iPrivIndex].sPrivilegeID to sPrivilegeID
+                        Move _gaGates[iGateIndex]._hGateHandle to hoGate
+                        If (PrivilegeGranted(hoGate,sPrivilegeID)) Begin
+                            Function_Return True
+                        End
+                        Else Begin
+                            Move False to bDefaultReturnValue
+                        End
+                    End
+                Loop
+            Loop
+        Loop
+        Function_Return bDefaultReturnValue
+    End_Function
+    
+    Procedure _InitializeObject
+        Boolean bFileFound
+        Date dCompileDate
+        String sAppPath sCompileTime
+        tFileData stFileData
+        
+        Move (ToOem(SysConf(SYSCONF_RUNTIME_NAME))) to sAppPath
+        Get ReadFileData of oFileFunctions sAppPath (&stFileData) to bFileFound
+        If (bFileFound) Begin
+            Send DecomposeDateTimeString of oDateFunctions stFileData.dtLastWrite (&dCompileDate) (&sCompileTime)
+            Set _pdAppDate to dCompileDate
+            Set _psAppTime to sCompileTime
+        End
+        Else Begin // Failed to locate project exe file:
+            Set _pdAppDate to (Date(0))
+            Set _psAppTime to "00:00:00"
+        End
+    End_Procedure
+                    // A unique session id is derived from the system time. We just have to 
+                    // hope that two sessions do not initiate within the same millisecond.
+                    Function _NewSessionId Returns Number
+                        Number nValue
+                        tSystemTimeMS stTime
+                        Move (Integer(SystemDate(oDateFunctions))) to nValue
+                        Get SystemTimeMilliSeconds of oDateFunctions to stTime
+                        Move (nValue*24+stTime.iHour*60+stTime.iMinute*60+stTime.iSecond*1000+stTime.iMilliSeconds) to nValue
+                        Function_Return nValue
+                    End_Function
+
+                    Function _NewUserId Returns Number // A user ID assigned to a new user is also derived from the system time. Same hope.
+                        Function_Return (_NewSessionId(Self)) //
+                    End_Function
+
+            Procedure _CreateNewSessRecord
+                // The reason we did not put lock/unlock around this block of code is that we do not want to
+                // bear the responsability for application freeze on start up. Because we are creating a new
+                // record we can get away with it in an unlocked state.
+                Clear uaSess
+                Get _NewSessionId to uaSess.SessionId
+                Set _pnSessionId to uaSess.SessionId
+                Get SystemDate of oDateFunctions to uaSess.StartDate
+                Get SystemTimeStringMS of oDateFunctions to uaSess.StartTime
+                Get Module_Name to uaSess.ApplicationName
+                Get _pdAppDate to uaSess.ApplicationDate
+                Get _psAppTime to uaSess.ApplicationTime
+                Get NetworkUserName of oWindowsInfo to uaSess.WinUserName
+                SaveRecord uaSess
+            End_Procedure
+            
+            Procedure _EndSession
+                Lock
+                    Clear uaSess
+                    Get _pnSessionId to uaSess.SessionId
+                    Find eq uaSess by Index.1
+                    Get SystemDate of oDateFunctions to uaSess.EndDate
+                    Get SystemTimeStringMS of oDateFunctions to uaSess.EndTime
+                    SaveRecord uaSess
+                Unlock
+            End_Procedure
+            
+            Procedure _PrepareNewLogRecord
+                Clear uaLog
+                Get _pnSessionId to uaLog.SessionId
+                Get _pnUserId to uaLog.UserID
+                Get SystemDate of oDateFunctions to uaLog.EventDate
+                Get SystemTimeStringMS of oDateFunctions to uaLog.EventTime
+            End_Procedure
+            
+            Procedure _RefindSessionRecord
+                If (_pnSessionId(Self)<>uaSess.SessionId) Begin
+                    Clear uaSess
+                    Get _pnSessionId to uaSess.SessionId
+                    Find eq uaSess by Index.1
+                    If (not(Found)) Begin
+                        Error 233 "Session record lost. Program will terminate"
+                        Send _EndSession
+                        Abort
+                    End
+                End
+            End_Procedure
+
+            Procedure _RefindUserRecord
+                Number nUserID
+                Get _pnUserId to nUserID
+                If (nUserID=0) Begin
+                    Clear uaUser
+                End
+                Else If (nUserID<>uaUser.UserID) Begin
+                    Clear uaUser
+                    Move nUserID to uaUser.UserID
+                    Find eq uaUser by Index.1
+                    If (not(Found)) Begin
+                        Error 234 "User record lost. Program will terminate"
+                        Send _EndSession
+                        Abort
+                    End
+                    Send OnUserFound
+                End
+            End_Procedure
+            
+            Procedure _RefindGroupRecord
+                RowID riGroup
+                Get _priGroupRowID to riGroup
+//              If (_pnGroupRecnum(Self)<>uaGroup.Recnum) Begin
+                If (not(IsSameRowID(riGroup,GetRowID(uaGroup.File_Number)))) Begin
+                    Clear uaGroup
+//                  If (_pnGroupRecnum(Self)<>0) Begin
+                    If (not(IsNullRowID(riGroup))) Begin
+                        If (FindByRowID(uaGroup.File_Number,riGroup)) Begin
+                            // Hurray, we do nothing!
+                        End
+                        Else Begin
+                            Error 233 "Group record lost. Program will terminate"
+                            Abort
+                        End
+                    End
+//                        Get _pnGroupRecnum to uaGroup.Recnum
+//                        Find eq uaGroup by Recnum
+//                        If (not(Found)) Begin
+//                            Error 233 "Group record lost. Program will terminate"
+//                            Abort
+//                        End
+//                    End
+                End
+            End_Procedure
+
+            Procedure _RefindRecords
+                Send _RefindGroupRecord
+                Send _RefindSessionRecord
+                Send _RefindUserRecord
+            End_Procedure
+    
+    Procedure Log String sSource String sText
+        Lock
+            Send _PrepareNewLogRecord
+            Move sSource to uaLog.EventSource
+            Move sText to uaLog.EventText
+            SaveRecord uaLog
+        Unlock
+    End_Procedure
+    
+    Procedure LogError String sErrorText Integer iErrorNo Integer iErrorLine
+        Lock
+            Send _PrepareNewLogRecord
+            Move "ERR" to uaLog.EventSource // DataFlex Error
+            Move sErrorText to uaLog.EventText
+            Move iErrorNo to uaLog.ErrorNumber
+            Move iErrorLine to uaLog.ErrorLine
+            SaveRecord uaLog
+        Unlock
+    End_Procedure
+    
+    Procedure LogTableAccess Integer iTable String sCrudLetter String sOrig  // sVrudLetter must be C, D or U (Create, Delete or Update)
+        Integer iPrimKey
+        String sRowID sIndexValue
+        
+        If (pbLogTableAccess(Self)) Begin
+            Get PrimaryKey of oIndexFunctions iTable to iPrimKey
+            If (iPrimKey) Begin
+                Get IndexValue of oIndexFunctions iTable iPrimKey "-" to sIndexValue
+            End
+            Lock 
+                Send _PrepareNewLogRecord
+                Move "TAC" to uaLog.EventSource // Table ACcess
+                Move iTable to uaLog.TAC_Table
+                Move (SerializeRowID(GetRowID(iTable))) to sRowID
+                Move (sRowID+"|"+sIndexValue+"|"+sCrudLetter+"|"+sOrig) to uaLog.EventText
+                SaveRecord uaLog
+            Unlock
+        End
+    End_Procedure
+
+    Function ExtractTACinfoFromLog String sInput String ByRef sRowID String ByRef sIndexValue String ByRef sCrudLetter String ByRef sOrigin Returns Boolean
+        String[] aValues
+        Send SplitString of oStringFunctions (Rtrim(sInput)) "|" False False (&aValues)
+        If (SizeOfArray(aValues)=4) Begin
+            Move aValues[0] to sRowID
+            Move aValues[1] to sIndexValue
+            Move aValues[2] to sCrudLetter
+            Move (Rtrim(aValues[3])) to sOrigin
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Procedure CloseTables
+        If (_pbGroupTableOpen(Self)) Begin
+            Close uaGroup
+            Set _pbGroupTableOpen to False
+        End
+        If (_pbUserTableOpen(Self)) Begin
+            Close uaUser
+            Set _pbUserTableOpen to False
+        End
+        If (_pbSessTableOpen(Self)) Begin
+            Close uaSess
+            Set _pbSessTableOpen to False
+        End
+        If (_pbLogTableOpen(Self)) Begin
+            Close uaLog
+            Set _pbLogTableOpen to False
+        End
+        If (_pbRoleTableOpen(Self)) Begin
+            Close uaRole
+            Set _pbRoleTableOpen to False
+        End
+        If (_pbUserRoTableOpen(Self)) Begin
+            Close uaUserRo
+            Set _pbUserRoTableOpen to False
+        End
+        If (_pbUserAcTableOpen(Self)) Begin
+            Close uaUserAc
+            Set _pbUserAcTableOpen to False
+        End
+        If (_pbRoleAcTableOpen(Self)) Begin
+            Close uaRoleAc
+            Set _pbRoleAcTableOpen to False
+        End
+    End_Procedure
+    
+        Function _IsTableEntryAvailable Integer iTable String sRoot Returns Boolean
+            Boolean bOpen bIsAvailable
+            String sValue
+            
+            Get_Attribute DF_FILE_OPENED of iTable to bOpen
+            Get_Attribute DF_FILE_ROOT_NAME of iTable to sValue
+            
+            Get TableRootNameStripDriver of oAttributeFunctions sValue to sValue
+            
+            If (bOpen) Begin
+                Move (Uppercase(sRoot)=Uppercase(sValue)) to bIsAvailable
+            End
+            Else Begin
+                Move (Uppercase(sRoot)=Uppercase(sValue) or sValue="") to bIsAvailable
+            End
+            Function_Return bIsAvailable
+        End_Function
+        
+        Function OpenTableX Integer iTable String sRoot Returns Boolean
+            Boolean bOpen
+            String sValue
+            Get_Attribute DF_FILE_ROOT_NAME of iTable to sValue
+            Get OpenTableAs of oTableAccessFunctions sValue iTable DF_SHARE 0 to bOpen
+            Function_Return bOpen
+        End_Function
+    
+    Function OpenTables Returns Boolean
+        //
+        // Open uaGroup
+        // Open uaUser
+        // Open uaSess
+        // Open uaLog
+        // Open uaRole
+        // Open uaRoleAc
+        // Open uaUserRo
+        // Open uaUserAc
+        // Function_Return True
+
+        Boolean bOpen
+        Send CloseTables
+        Set _pbGroupTableOpen  to False
+        Set _pbLogTableOpen    to False
+        Set _pbRoleTableOpen   to False
+        Set _pbRoleAcTableOpen to False
+        Set _pbSessTableOpen   to False
+        Set _pbUserAcTableOpen to False
+        Set _pbUserRoTableOpen to False
+        Set _pbUserTableOpen   to False
+
+        If (_IsTableEntryAvailable(Self,uaGroup.File_Number,psGroupTableName(Self))) Begin
+            Get OpenTableX uaGroup.File_Number (psGroupTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbGroupTableOpen to bOpen
+        End
+        If (_IsTableEntryAvailable(Self,uaUser.File_Number,psUserTableName(Self))) Begin
+            Get OpenTableX uaUser.File_Number (psUserTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbUserTableOpen to bOpen
+        End
+        If (_IsTableEntryAvailable(Self,uaSess.File_Number,psSessTableName(Self))) Begin
+            Get OpenTableX uaSess.File_Number (psSessTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbSessTableOpen to bOpen
+        End
+        If (_IsTableEntryAvailable(Self,uaLog.File_Number,psLogTableName(Self))) Begin
+            Get OpenTableX uaLog.File_Number (psLogTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbLogTableOpen to bOpen
+        End
+        If (_IsTableEntryAvailable(Self,uaRole.File_Number,psRoleTableName(Self))) Begin
+            Get OpenTableX uaRole.File_Number (psRoleTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbRoleTableOpen to bOpen
+        End
+        If (_IsTableEntryAvailable(Self,uaRoleAc.File_Number,psRoleAcTableName(Self))) Begin
+            Get OpenTableX uaRoleAc.File_Number (psRoleAcTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbRoleAcTableOpen to bOpen
+        End
+        If (_IsTableEntryAvailable(Self,uaUserRo.File_Number,psUserRoTableName(Self))) Begin
+            Get OpenTableX uaUserRo.File_Number (psUserRoTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbUserRoTableOpen to bOpen
+        End
+        If (_IsTableEntryAvailable(Self,uaUserAc.File_Number,psUserAcTableName(Self))) Begin
+            Get OpenTableX uaUserAc.File_Number (psUserAcTableName(Self)) DF_SHARE 0 to bOpen
+            Set _pbUserAcTableOpen to bOpen
+        End
+
+        Function_Return (_pbUserRoTableOpen(Self) and _pbUserAcTableOpen(Self) and _pbRoleTableOpen(Self) and _pbRoleAcTableOpen(Self) ;
+                          and _pbGroupTableOpen(Self) and _pbUserTableOpen(Self) and _pbSessTableOpen(Self) and _pbLogTableOpen(Self))
+    End_Function
+        
+    Procedure OnUserFound //> Called after uaUser record has been found (or not found)
+    End_Procedure
+
+        // Finds a user record based on UserId (iTypeOfValue=1), LoginName
+        // (iTypeOfValue=2) or Windows user name (iTypeOfValue=3)
+        Function _FindUserRecord String sValue Integer iTypeOfValue Returns Boolean
+            Boolean bFound
+            Clear uaUser
+            Move (False) to bFound
+            If (iTypeOfValue=1) Begin // Find by UserId
+                Move sValue to uaUser.UserID
+                Find eq uaUser by Index.1
+                Move (Found) to bFound
+            End
+            Else If (iTypeOfValue=2) Begin // Find by LoginName
+                Move (Uppercase(sValue)) to uaUser.LoginName
+                Find ge uaUser by Index.2
+                [Found] indicate Found as (Uppercase(uaUser.LoginName)=Uppercase(sValue))
+                Move (Found) to bFound
+            End
+            Else If (iTypeOfValue=3) Begin // Find by WindowsUserName
+                Move sValue to uaUser.WindowsUserName
+                Find ge uaUser by Index.3
+                [Found] indicate Found as (Uppercase(uaUser.WindowsUserName)=Uppercase(sValue))
+                Move (Found) to bFound
+            End
+            If (not(bFound)) Begin
+                Clear uaUser
+            End
+            Send OnUserFound
+            Function_Return bFound
+        End_Function
+
+        // Finds the uaUser record that has the current windows user name
+        // stamped on it (in the uaUser.WindowsUserName column)
+        Function _FindUserCurrentWindowsUserName Returns Boolean
+            Function_Return (_FindUserRecord(Self,NetworkUserName(oWindowsInfo),3))
+        End_Function
+    
+    Function UserPassword Returns String
+        String sPassword
+        Function_Return (Trim(uaUser.Password)) 
+        Get Encrypt of oStringFunctions uaUser.Password 37 30 to sPassword
+        Function_Return sPassword
+    End_Function
+    
+    Procedure Set UserPassword String sValue
+//        Get Encrypt of oStringFunctions sValue 37 30 to uaUser.Password
+        Move sValue to uaUser.Password
+    End_Procedure
+    
+    Function CurrentUserID Returns Number
+        Function_Return (_pnUserId(Self))
+    End_Function
+    
+            Function _ValidatePassword String sPassword Boolean bValidate Returns Boolean
+                If (bValidate) Begin
+                    If (pbValidatePasswordState(Self)) Begin
+                        Function_Return (sPassword=UserPassword(Self)) 
+                    End
+                End
+                Function_Return True
+            End_Function
+
+    Function LoginByUserId String sUserId String sPassword Boolean bValidatePassword Returns Boolean
+        Boolean bLoginSuccess
+
+        Move False to bLoginSuccess
+        Set _pnUserId to 0
+//        Set _pnGroupRecnum to 0
+        Set _priGroupRowID to (NullRowID())
+
+        If (_FindUserRecord(Self,sUserId,2)) Begin // Find User by login name
+            If (_ValidatePassword(Self,sPassword,bValidatePassword)) Begin
+                If (uaUser.Disabled=0) Begin
+
+                    Clear uaGroup
+                    Move uaUser.GroupID to uaGroup.GroupID
+                    Find eq uaGroup by Index.1
+
+                    Set _pnUserId to uaUser.UserID
+//                    Set _pnGroupRecnum to uaGroup.Recnum
+                    Set _priGroupRowID to (GetRowID(uaGroup.File_Number))
+
+                    If (pbLogSessions(Self)) Begin
+                        Send Log "SES" ("Login: "+Trim(uaUser.LoginName))
+                    End
+
+                    Reread uaUser
+                        Move (uaUser.LoginCount+1) to uaUser.LoginCount
+                        Get SystemDate of oDateFunctions to uaUser.LastLogin
+                        SaveRecord uaUser
+                    Unlock
+
+                    Send _RefindSessionRecord
+                    If (uaSess.FirstUserId=0) Begin
+                        Reread uaSess
+                            Move uaUser.UserID to uaSess.FirstUserId
+                            SaveRecord uaSess
+                        Unlock
+                    End
+                    Else If (uaSess.MultiUserSess=0) Begin
+                        Reread uaSess
+                            Move 1 to uaSess.MultiUserSess
+                            SaveRecord uaSess
+                        Unlock
+                    End
+
+                    Move True to bLoginSuccess
+                End
+                Else Begin
+                    If (pbLogSessions(Self)) Begin
+                        Send Log "SES" ("Attempt to login on deactivated user ("+Trim(uaUser.LoginName)+")")
+                    End
+                End
+            End
+        End
+        Function_Return bLoginSuccess
+    End_Function
+    
+    Procedure Logout
+        If (_pnSessionId(Self)<>"") Begin
+            If (pbLogSessions(Self)) Begin
+                Send Log "SES" "Logout"
+            End
+            Set _pnSessionId to ""
+            Set _pnUserId to 0
+        End
+    End_Procedure
+    
+    
+    // This procedure may called as part of closing the program.
+    Procedure EndSession
+        Send _EndSession
+        If (pbLogSessions(Self)) Begin
+            Send Log "SES" "End session"
+        End
+    End_Procedure
+    
+            Function ValidateLoginPanel tUaLoginPopup ByRef stLogin Returns Boolean
+                Function_Return True
+            End_Function
+
+            Function _CallLoginPanel tUaLoginPopup ByRef stLogin Returns Boolean
+                Boolean bGrantAllPrivileges bAccept
+                Move Self to stLogin._hValidateObj
+                Move GET_ValidateLoginPanel to stLogin._hValidateMsg
+                Get pbGrantAllPrivileges to bGrantAllPrivileges
+                Get PopupAccept of oUaLoginPanel (&stLogin) (&bGrantAllPrivileges) to bAccept
+                Set pbGrantAllPrivileges to bGrantAllPrivileges
+                Function_Return bAccept
+            End_Function
+            
+            Procedure _PrimeLoginParameters tUaLoginPopup ByRef stLogin
+                String sSystemName
+                Get pbAllowRetainUser to stLogin.bAllowRetain
+                Move (not(pbValidatePasswordState(Self))) to stLogin.bShadePassword
+                Get psProgram of ghoApplication to sSystemName
+                Move (sSystemName*"login") to stLogin.sLoginCaption
+            End_Procedure
+
+
+    Function Login Returns Boolean // Returns true if
+        Boolean bFound
+        Number nUserId
+        String sUserId sPassword
+        tUaLoginPopup stLogin
+
+        If (pbValidateUserState(Self)) Begin
+            Send _PrimeLoginParameters (&stLogin)
+
+            If (_FindUserCurrentWindowsUserName(Self)) Begin
+                Move (Trim(uaUser.LoginName)) to stLogin.sUser
+            End
+
+            If (_CallLoginPanel(Self,&stLogin)) Begin
+                Function_Return (LoginByUserId(Self,stLogin.sUser,stLogin.sPassword,True))
+            End
+
+        End
+        Else Begin // No user validation, => We log in using the Windows user id
+            If (not(_FindUserCurrentWindowsUserName(Self))) Begin
+                Lock
+                    Get _NewUserId to nUserId
+                    Clear uaUser
+                    Move nUserId to uaUser.UserID
+                    Get NetworkUserName of oWindowsInfo to uaUser.LoginName
+                    Get NetworkUserName of oWindowsInfo to uaUser.WindowsUserName
+                    Get NetworkUserName of oWindowsInfo to uaUser.Name
+                    Move 1 to uaUser.AutoCreated
+                    Set UserPassword to ""
+                    SaveRecord uaUser
+                Unlock
+            End
+            // At this point the uaUser buffer will be active with a record
+            // that has NetworkUserName (the current Windows login name) as
+            // WindowsUserName:
+            Function_Return (LoginByUserId(Self,uaUser.UserID,"",False))
+        End
+        Function_Return False
+    End_Function // Login
+               
+    Procedure DefineUserPropertyValue Integer iPropertyId String sTableColumnName String sLabel String sStatusHelp
+        String sValue sCr
+        tUserAccessProperty stProp
+        
+        Get FieldNameToNumber of oTableAccessFunctions uaGroup.File_Number sTableColumnName        to stProp.iGroupValueField
+        Get FieldNameToNumber of oTableAccessFunctions uaGroup.File_Number (sTableColumnName+"_S") to stProp.iGroupFixedField
+        Get FieldNameToNumber of oTableAccessFunctions uaUser.File_Number sTableColumnName         to stProp.iUserValueField
+        Get FieldNameToNumber of oTableAccessFunctions uaUser.File_Number (sTableColumnName+"_S")  to stProp.iUserDefaultField
+        Move sLabel to stProp.sLabel
+        Move sStatusHelp to stProp.sStatusHelp
+        
+        Move (stProp.iGroupValueField<>-1 and stProp.iGroupFixedField<>-1 and stProp.iUserValueField<>-11 and stProp.iUserDefaultField<>-1) to stProp.bTableConnected
+        
+        If (not(stProp.bTableConnected)) Begin
+            Move (Character(10)) to sCr
+            Move ("Under registreringen af parameter "+Trim(sTableColumnName)+" blev et eller flere felter ikke fundet:") to sValue
+            Move (sValue+sCr+"F›lgende felter mangler:") to sValue
+            If (stProp.iGroupValueField=-1) Begin
+                Move (sValue+sCr+"uaGroup."+sTableColumnName) to sValue
+            End
+            If (stProp.iGroupFixedField=-1) Begin
+                Move (sValue+sCr+"uaGroup."+sTableColumnName+"_S") to sValue
+            End
+            If (stProp.iUserValueField=-1) Begin
+                Move (sValue+sCr+"uaUser."+sTableColumnName) to sValue
+            End
+            If (stProp.iUserDefaultField=-1) Begin
+                Move (sValue+sCr+"uaUser."+sTableColumnName+"_S") to sValue
+            End
+            Send Info_Box sValue "Fejl ved registrering af bruger-v‘rdier"
+        End
+ 
+        Move stProp to _gaUserAccessProperties[iPropertyId]
+    End_Procedure
+    
+    Function PropertyGroupFixed Integer iProp Returns Boolean
+        Integer iValue
+        Get_Field_Value uaGroup.File_Number _gaUserAccessProperties[iProp].iGroupFixedField to iValue
+        Function_Return (iValue<>0)
+    End_Function
+    
+    Procedure Set PropertyGroupFixed Integer iProp Boolean bState
+        Set_Field_Value uaGroup.File_Number _gaUserAccessProperties[iProp].iGroupFixedField to (If(bState,1,0))
+    End_Procedure
+    
+    Function PropertyUseDefault Integer iProp Returns Boolean
+        Integer iValue
+        Get_Field_Value uaUser.File_Number _gaUserAccessProperties[iProp].iUserDefaultField to iValue
+        Function_Return (iValue<>0)
+    End_Function
+    
+    Procedure Set PropertyUseDefault Integer iProp Boolean bState
+        Set_Field_Value uaUser.File_Number _gaUserAccessProperties[iProp].iUserDefaultField to (If(bState,1,0))
+    End_Procedure
+    
+    Function GroupPropertyValue Integer iProperty Returns String
+        String sValue
+        Get_Field_Value uaGroup.File_Number _gaUserAccessProperties[iProperty].iGroupValueField to sValue
+        Function_Return sValue
+    End_Function
+    
+    Procedure Set GroupPropertyValue Integer iProperty String sValue
+        Set_Field_Value uaGroup.File_Number _gaUserAccessProperties[iProperty].iGroupValueField to sValue
+    End_Procedure
+    
+    // "Direct" refers to the fact that the function (and the "set procedure" below) get and set their values
+    // directly in the uaUser record buffer. since it does not take into account the use-this and use-that switches.
+    Function UserPropertyValueDirect Integer iProperty Returns String
+        String sValue
+        Get_Field_Value uaUser.File_Number _gaUserAccessProperties[iProperty].iUserValueField to sValue
+        Function_Return sValue
+    End_Function
+    
+    Procedure Set UserPropertyValueDirect Integer iProperty String sValue
+        Set_Field_Value uaUser.File_Number _gaUserAccessProperties[iProperty].iUserValueField to sValue
+    End_Procedure
+    
+            Function _BooleanFieldValue Integer iTable Integer iColumn Returns Boolean
+                Number nValue
+                Get_Field_Value iTable iColumn to nValue
+                Function_Return (nValue<>0)
+            End_Function
+            
+            Function _StringFieldValue Integer iTable Integer iColumn Returns String
+                String sRval
+                Get_Field_Value iTable iColumn to sRval
+                Function_Return sRval
+            End_Function
+
+    Function UserPropertyValue Integer iProperty Returns String
+        tUserAccessProperty stProp
+
+        Move _gaUserAccessProperties[iProperty] to stProp
+        If (_BooleanFieldValue(Self,uaGroup.File_Number,stProp.iGroupFixedField) or _BooleanFieldValue(Self,uaUser.File_Number,stProp.iUserDefaultField)) Begin // Value must be taken from group
+            // Take from group values
+            Function_Return (_StringFieldValue(Self,uaGroup.File_Number,stProp.iGroupValueField))
+        End
+        Else Begin
+            // Take from user values
+            Function_Return (_StringFieldValue(Self,uaUser.File_Number,stProp.iUserValueField))
+        End
+    End_Function
+
+    Function Session_FirstUserName Returns String
+        Clear uaUser
+        If (uaSess.FirstUserId=0) Begin
+            Function_Return "no user"
+        End
+        Move uaSess.FirstUserId to uaUser.UserID
+        Find eq uaUser by Index.1
+        If (Found) Begin
+            Function_Return (Trim(uaUser.LoginName))
+        End
+        Function_Return "not found"
+    End_Function
+
+    Function LogSettingsAsString Returns String
+        String sValue
+        Move "SES: #, ERR: #, TRA: #, VAC: #, TAC: #" to sValue
+        Move (Replace("#",sValue,If(pbLogSessions(Self),"Y","N"))) to sValue
+        Move (Replace("#",sValue,If(pbLogErrors(Self),"Y","N"))) to sValue
+        Move (Replace("#",sValue,If(pbLogTransactions(Self),"Y","N"))) to sValue
+        Move (Replace("#",sValue,If(pbLogViewAccess(Self),"Y","N"))) to sValue
+        Move (Replace("#",sValue,If(pbLogTableAccess(Self),"Y","N"))) to sValue
+        Function_Return sValue
+    End_Function
+
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+        Move Self to ghoUserAccessObject
+        Set _pnSessionId to (_NewSessionId(Self))
+        If (OpenTables(Self)) Begin
+            Send _InitializeObject // Application compile time etc.
+            Send _CreateNewSessRecord
+            If (pbLogSessions(Self)) Begin // Executes when an object of this class is created which equals the time the program is started
+                Send Log "SES" ("New: "+SysConf(SYSCONF_RUNTIME_NAME))
+            End
+            If (not(pbValidateUserState(Self))) Begin // If user should not be validated
+                If (not(Login(Self))) Begin
+                    Send Info_Box "Error initialising application"
+                End
+            End
+        End
+        Else Begin
+            Send Info_Box "User Access tables could not be opened!\nThe program will now terminate"
+            Abort
+        End
+    End_Procedure
+End_Class // cUserAccessControl
+
+Register_Function ValidateGroupId Integer iColumn String sValue Returns Boolean
+
+Class cUaUserDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaUser.File_Number
+
+        Set Key_Field_State Field uaUser.UserID to True
+        Set Field_Option Field uaUser.UserID DD_NOENTER to True
+        Set Field_Option Field uaUser.LoginName DD_REQUIRED to True
+        Set Field_Validate_msg Field uaUser.GroupID to get_ValidateGroupId
+        Set Field_Option Field uaUser.LoginCount DD_DISPLAYONLY to True
+        Set Field_Option Field uaUser.LastLogin DD_DISPLAYONLY to True
+        Set Field_Option Field uaUser.AutoCreated DD_DISPLAYONLY to True
+        Set Field_Option Field uaUser.CreatedDate DD_DISPLAYONLY to True
+        Set Field_Option Field uaUser.C_S DD_DISPLAYONLY to True
+
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+
+    Function ValidateGroupId Integer iColumn String sValue Returns Boolean
+        If (sValue<>"") Begin
+            Clear uaGroup
+            Move sValue to uaGroup.GroupID
+            Find eq uaGroup by Index.1
+            If (not(Found)) Begin
+                Error 323 "Invalid group id (press F4 to select)"
+                Function_Return 1
+            End
+            Else Begin
+                Set Field_Changed_Value iColumn to uaGroup.GroupID
+            End
+        End
+    End_Function
+
+    Procedure Relate_Main_File
+        Forward Send Relate_Main_File
+        Clear uaGroup
+        Move uaUser.GroupID to uaGroup.GroupID
+        Find eq uaGroup by Index.1
+    End_Procedure
+
+    Procedure Field_Defaults
+        Set Field_Changed_Value Field uaUser.UserID to (_NewUserId(ghoUserAccessObject))
+        Set Field_Changed_Value Field uaUser.CreatedDate to (SystemDate(oDateFunctions))
+
+        Forward Send Field_Defaults
+    End_Procedure
+    
+    Function Field_Current_Value Integer iField Returns String
+        Integer iPasswordField
+        String sValue
+        Forward Get Field_Current_Value iField to sValue
+        Get FieldNumberMirror of oTableAccessFunctions Field uaUser.Password to iPasswordField
+        If (iField=iPasswordField) Begin
+//            Get Encrypt of oStringFunctions sValue 37 30 to sValue
+        End
+        Function_Return (Rtrim(sValue))
+    End_Function
+    
+    Procedure Set Field_Current_Value Integer iField String sValue
+        Integer iPasswordField
+        Get FieldNumberMirror of oTableAccessFunctions Field uaUser.Password to iPasswordField
+        If (iField=iPasswordField) Begin
+//            Get Encrypt of oStringFunctions sValue 37 30 to sValue
+        End
+        Forward Set Field_Current_Value iField to sValue
+    End_Procedure
+
+End_Class 
+      
+Class cUaGroupDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaGroup.File_Number
+        Set Cascade_Delete_State to False
+        Set Field_Option Field uaGroup.GroupID DD_AUTOFIND to True
+        Set Field_Option Field uaGroup.GroupID DD_REQUIRED to True
+        Set Key_Field_State Field uaGroup.GroupID to True
+        Set Field_Option Field uaGroup.Name DD_REQUIRED to True
+        Set Field_Option Field uaGroup.C_S DD_DISPLAYONLY to True
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+End_Class 
+
+Class cUaSessDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaSess.File_Number
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+End_Class 
+
+Class cUaLogDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaLog.File_Number
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+End_Class 
+
+Class cUaRoleDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaRole.File_Number
+        Set Key_Field_State Field uaRole.RoleID to True
+        Set Field_Option Field uaRole.RoleID DD_NOENTER to True
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+End_Class
+
+Class cUaUserRoDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaUserRo.File_Number
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+End_Class
+
+Class cUaRoleAcDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaRoleAc.File_Number
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+End_Class
+
+Class cUaUserAcDataDictionary is a DataDictionary
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Main_file to uaUserAc.File_Number
+        Set Foreign_Field_Options  DD_KEYFIELD   to DD_AUTOFIND    DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_INDEXFIELD to DD_NOPUT       DD_FINDREQ
+        Set Foreign_Field_Options  DD_DEFAULT    to DD_DISPLAYONLY
+    End_Procedure
+End_Class
+    
+
+#IFNDEF Is$WebApp // If Windows application
+    Use win\ObjectInfo.pkg
+    
+    Class cUAView_Mixin is a Mixin
+        Procedure Define_cUAView_Mixin
+            Property Handle phGateObject
+            Property String psActivatePrivilege
+            Property String psEditPrivilege
+        End_Procedure
+
+            Function UA_PrivilegeGranted String sPrivilege Returns Boolean
+                Handle hGateObject
+                If (sPrivilege<>"") Begin
+                    Get phGateObject to hGateObject
+                    If (hGateObject<>0) Begin
+                        Function_Return (PrivilegeGranted(hGateObject,sPrivilege))
+                    End
+                End
+                Function_Return True
+            End_Function
+
+        Function UA_AllowActivate Returns Boolean
+            Function_Return (UA_PrivilegeGranted(Self,psActivatePrivilege(Self)))
+        End_Function
+
+        Function UA_AllowEdit Returns Boolean
+            Function_Return (UA_PrivilegeGranted(Self,psEditPrivilege(Self)))
+        End_Function
+
+        Procedure Popup
+            String sLabel
+            Get Label to sLabel
+            If (UA_AllowActivate(Self)) Begin
+                If (pbLogViewAccess(ghoUserAccessObject)) Begin
+                    Send Log of ghoUserAccessObject "VAC" ("View open: '"+sLabel+"'")
+                End
+                Forward Send Popup
+            End
+            Else Begin
+                If (pbLogViewAccess(ghoUserAccessObject)) Begin
+                    Send Log of ghoUserAccessObject "VAC" ("View open blocked:'"+sLabel+"'")
+                End
+                Send Info_Box ("You are not allowed to open '"+Label(Self)+"'") "Access violation"
+            End
+        End_Procedure
+        Procedure Close_Panel
+            String sLabel
+            If (pbLogViewAccess(ghoUserAccessObject)) Begin
+                Get Label to sLabel
+                Send Log of ghoUserAccessObject "VAC" ("View close: '"+sLabel+"'")
+            End
+            Forward Send Close_Panel
+        End_Procedure
+    End_Class
+    
+    Class cUAdbView is a dbView
+        Procedure Construct_Object
+            Forward Send Construct_Object
+            Send Define_cUAView_Mixin
+        End_Procedure
+        Import_Class_Protocol cUAView_Mixin
+    End_Class
+    
+    Class cUAReportView is a ReportView
+        Procedure Construct_Object
+            Forward Send Construct_Object
+            Send Define_cUAView_Mixin
+        End_Procedure
+        Import_Class_Protocol cUAView_Mixin
+    End_Class
+#ENDIF

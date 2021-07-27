@@ -1,0 +1,49 @@
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use cRegistry.pkg
+
+Global_Variable Integer oAppEnvFunctions
+
+Object _oAppEnvFunctions is a cObject
+    Move Self to oAppEnvFunctions
+    Function IsOS64bit Returns Boolean
+    End_Function
+    // Function IsUACon is taken directly from Vincent Oorsprongs blog http://support.dataaccess.com/forums/blog.php?b=78
+    Function IsUACon Returns Boolean
+        Handle hoRegistry
+        String sKey
+        Boolean bKeyExists bKeyOpened bValueExists bUACOn
+        DWord dwValue
+        
+        Move False to bUACOn
+        
+        If (SysConf (SYSCONF_OS_MAJOR_REV) >= 6 and SysConf (SYSCONF_OS_MINOR_REV) >= 0) Begin    
+            Get Create U_cRegistry to hoRegistry
+            Set pfAccessRights of hoRegistry to KEY_READ
+            Set phRootKey of hoRegistry to HKEY_LOCAL_MACHINE
+            
+            Move "SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" to sKey
+            
+            Get KeyExists of hoRegistry sKey to bKeyExists
+            If (bKeyExists) Begin
+                Get OpenKey of hoRegistry sKey to bKeyOpened
+                If (bKeyOpened) Begin
+                    Get ValueExists of hoRegistry "EnableLUA" to bValueExists
+                    If (bValueExists) Begin
+                        Get ReadDword of hoRegistry "EnableLUA" to dwValue
+                        Move (dwValue = 1) to bUACOn
+                    End
+                    Send CloseKey of hoRegistry
+                End
+            End            
+            Send Destroy of hoRegistry
+        End
+        
+        Function_Return bUACOn
+    End_Function
+    Function IsStudioLicense Returns Boolean
+    End_Function
+    Function IsSourceCodePresent String sSourceFile Returns Boolean
+    End_Function
+End_Object
+
+//Send Info_Box (If(IsUACon(oAppEnvFunctions),"Yes","No")) "Is UAC on?"

@@ -1,0 +1,1689 @@
+// An object of the cFreeTextIndex class can read text articles and enable
+// free text search across all such articles.
+//
+// This information is passed about each article to the SaveArticle method of
+// the object:
+//
+//         1. Article text
+//         2. Article ID. An integer ID must be passed to uniquely
+//            identify articles in search result sets.
+//         3. Date and time of article. If no date is passed
+//            system time is assumed. Search result sets may be
+//            ordered by this.
+//         4. Popularity index (0-999999). Search result sets may
+//            be ordered by this.
+//
+// An object of the cFreeTextIndex class must be connected to a set of tables that
+// are used for storing FTS information. An object declaration could look like this:
+//
+//        Object oKnowledgeBaseIndex is a cFreeTextIndex
+//            Set psName to "KnowledgeBase articles"
+//            Set piArticlesTable       to DkbArtic.File_Number
+//            Set piWordsTable          to DkbWord.File_Number
+//            Set piArticleWordsTable   to DkbArWrd.File_Number
+//            Set piArticlePhrasesTable to DkbPhras.File_Number
+//            Set piSearchesTable       to dkbfind.File_Number
+//            If (not(ValidateTables(Self))) Begin
+//                Error 231 "Help me out!"
+//            End
+//        End_Object
+//
+// Or if you want to make a class of it:
+//
+//        Class cKnowledgeBaseIndex is a cFreeTextIndex
+//            Procedure Construct_Object
+//                Forward Send Construct_Object
+//                Set psName to "KnowledgeBase articles"
+//                Set piArticlesTable       to DkbArtic.File_Number
+//                Set piWordsTable          to DkbWord.File_Number
+//                Set piArticleWordsTable   to DkbArWrd.File_Number
+//                Set piArticlePhrasesTable to DkbPhras.File_Number
+//                Set piSearchesTable       to dkbfind.File_Number
+//                If (not(ValidateTables(Self))) Begin
+//                    Error 231 "Help me out!"
+//                End
+//            End_Procedure
+//        End_Class
+//
+// These 5 tables must be opened before the class or object can compile
+// and run.
+//
+//
+// Interface for adding and removing article from the index:
+// ---------------------------------------------------------
+//
+//    To add an article to the index:
+//
+//        Procedure SaveArticle Integer iArticleID String sText Date dDate String sTime Integer iHits
+//
+//                iArticleId    Number uniquely identifying the article
+//                sText         The text of the article
+//                dDate/sTime   Article origin time stamp. The format of the sTime parameter should be
+//                              like this: "hh:mm:ss"
+//                iHits         Some measure of article quality (0-999999). Search result sets may be
+//                              ordered by this.
+//
+//    If SaveArticle is passed the value of an existing article id, the new value will overwrite the old
+//    one. This is how you update an article already in the index.
+//
+//    To remove an article from the index:
+//
+//        Procedure DeleteArticle integer iArticle
+//
+//                iArticleId is the number of article to be deleted from the index. Not much else to say
+//                about that.
+//
+//
+// Interface for searching the articles:
+// -------------------------------------
+//
+//    Use function SearchAndSave to search the articles for value specified in the stInput parameter. The
+//    function returns an integer uniquely identifying the search performed.
+//
+//        Function SearchAndSave tFtiInput stInput Returns Integer
+//
+//                The stInput parameter has the following members:
+//
+//                    String  sSearchString
+//                    Integer iOperation // FTI_NEW FTI_REFINE FTI_ADD FTI_EXCLUDE
+//                    Integer iUserId
+//                    Date    dDateMin
+//                    Date    dDateMax
+//                    Integer iSortOrder // FTI_ARTID FTI_DATE FTI_HIT
+//                    Integer iMaxSeconds
+//                    Boolean bForceDateAndPop
+//                    Integer iRefinementOfId
+//
+// Interface for browsing a results set:
+//
+//
+//    Procedure ReadStatusRecord Integer iSearchId tFtiStatus ByRef stStatus
+//
+//
+//
+//    Procedure ReadResult Integer iSearchId tFtiArticle[] ByRef aArticles tFtiStatus ByRef stStatus
+//
+//
+//
+//    Procedure ReadResultRange Integer iSearchId Integer iFirstArticleIndex Integer iArticleCount tFtiArticle[] ByRef aArticles tFtiStatus ByRef stStatus tFtiPageStatus ByRef stPageStatus
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+Use VdfBase.pkg
+
+Use DateFunctions.pkg // Define oDateFunctions object
+Use StringFunctions.pkg // Define oStringFunctions object
+Use FileFunctions.pkg // Define oFileFunctions object
+Use TableAccessFunctions.pkg
+Use cDocumentAttacher.pkg
+
+//Define FTS_WORDCHARACTERS_DANISH  for "ABCDEFGHIJKLMNOPQRSTUVWXYZ’¶Ž™šµÖàéí·ÔÞãêëabcdefghijklmnopqrstuvwxyz‘›†„”ƒ ‚¡¢£ì…Š•–—"
+//Define FTS_WORDCHARACTERS_ENGLISH for "ABCDEFGHIJKLMNOPQRSTUVWXYZµÖàéí·ÔÞãëabcdefghijklmnopqrstuvwxyz ‚¡¢£ì…Š•—¤"
+
+
+Define FTS_WORDCHARACTERS_DANISH  for "ABCDEFGHIJKLMNOPQRSTUVWXYZ’ŽØ™šµÖàéí¶Ò×âê·ÔÞãëabcdefghijklmnopqrstuvwxyz‘›†„‹”˜ ‚¡¢£ìƒˆŒ“–…Š•—"
+Define FTS_WORDCHARACTERS_ENGLISH for "ABCDEFGHIJKLMNOPQRSTUVWXYZµÖàéí¶Ò×âê·ÔÞãëabcdefghijklmnopqrstuvwxyz ‚¡¢£ìƒˆŒ“–…Š•—¤"
+
+    Struct tFtiWord
+        String sWord
+        Integer iWordId
+        Integer iFreq
+    End_Struct
+
+    Struct tFtiPhrase
+        tFtiWord[] aWords
+    End_Struct
+
+    Struct tFtiSearchItem
+        Boolean bNegative
+        tFtiWord[] aWords // If there's one element it's a word. If there's more it's a phrase.
+    End_Struct
+
+    Struct tFtiArticle
+        Integer  iId
+        DateTime dtUpdated
+        Integer  iPopularity
+    End_Struct
+
+Enum_List // Search modes. Obs: Do not change the order! Values are stored in DB!
+    Define FTISM_NEW
+    Define FTISM_REFINE
+    Define FTISM_ADD
+    Define FTISM_EXCLUDE
+End_Enum_List
+
+Enum_List // Sort order
+    Define FTISO_ARTID //
+    Define FTISO_DATE  //
+    Define FTISO_HIT   //
+    Define FTISO_TFIDF // Term Frequency-Inverse Document Frequency (http://en.wikipedia.org/wiki/TFIDF) No implementado!
+End_Enum_List
+
+Struct tFtiInput
+    String  sSearchString
+    Integer iOperation // FTI_NEW FTI_REFINE FTI_ADD FTI_EXCLUDE
+    Integer iUserId
+    Date    dDateMin
+    Date    dDateMax
+    Integer iSortOrder // FTI_ARTID FTI_DATE FTI_HIT
+    Integer iMaxSeconds
+    Boolean bForceDateAndPop
+    Integer iRefinementOfId
+End_Struct
+
+Struct tFtiStatus
+    Integer iError
+    String  sErrorText
+    Integer iExecTimeMs // Execution time in milliseconds
+    Integer iResultCount
+    tFtiInput stInput
+End_Struct
+
+Struct tFtiPageStatus
+    Integer iFirstIndex
+    Integer iLastIndex
+    Boolean bPreviousBtn
+    Boolean bNextBtn
+End_Struct
+
+// This global array makes it possible for the oFreeTextIndexControlCenter.pkg to easily locate the "FTI" objects of the application.
+Global_Variable Integer[] aFTIObjects
+
+Class _cFreeTextResultAttacher is a cDocumentAttacher
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer piSearchId
+    End_Procedure                                            
+    
+    Function CurrentRecordRootName Returns String
+        Integer iSearchId
+        Get piSearchId to iSearchId
+        Function_Return (IntegerToStringRzf(oStringFunctions,iSearchId,8))
+    End_Function
+
+    Function CurrentRecordOriginalFileName Returns String
+        Function_Return (CurrentRecordRootName(Self)+".res")
+    End_Function
+    
+    Function SearchFileName Integer iSearchId Returns String
+        Set piSearchId to iSearchId
+        Function_Return (CurrentRecordAbsoluteFileName(Self))
+    End_Function
+End_Class
+
+Class cFreeTextIndex is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        //> Must be a valid subfolder name. A subfolder is automatically created to
+        //> contain the result files generated by this object.
+        Property String _psName (Name(Self)) 
+        //> The value of this property determines whether the FreeTextIndexControlCenter 
+        //> will allow you to rebuild the Index or not (default is not).
+        Property Boolean pbCanRebuild False 
+                                                           
+        // **** Splitting articles into words *******************************************
+        //> Set this property to the string of letters that are considered to be 
+        //> legal in your langauge (or rather the language of the articles, you're 
+        //> going to index). Use the set psWordCharacters call (without the "_" prefix)
+        Property String _psWordCharacters FTS_WORDCHARACTERS_ENGLISH
+        Property String _psNotWordCharacters // (calculated automatically I presume)
+
+        //> If paragraphs can be trusted to not include CR/LF characters you may
+        //> Set this Property to DFTRUE. This will prevent finding phrases that
+        //> starts in one paragraph and ends in the next (and therefore technically
+        //> are not phrases). If however, like in newsgroup articles, paragraphs
+        //> are divided into a number of CR/LF delimited lines, it should be set to
+        //> False (the default value).
+        Property Boolean pbCrLfCanBeTrusted False
+
+        Send BuildNotWordCharacters // (aha, there it came)
+
+        // **** Accessing FTI tables ****************************************************
+        Property Integer piArticlesTable       0
+        Property Integer piWordsTable          0
+        Property Integer piArticleWordsTable   0
+        Property Integer piArticlePhrasesTable 0
+        Property Integer piSearchesTable       0
+
+        Property Boolean pbTablesReadyState    False
+        // These two properties are set automatically when tables are opened:
+        Property Integer _piArticleIdWidth 0 // NUMERIC 6.0
+        Property Integer _piPhraseLength   0 // Minimum 6, maximum 14
+        // **** Indexing articles *******************************************************
+        Property Number  _pnNextAvailableWordId
+        Property Boolean _pbUpdating       False
+        // **** Searching articles ******************************************************
+        Object oResultAttacher is a _cFreeTextResultAttacher
+            Set psHomeFolderRelative to (_psName(Self))
+        End_Object
+    End_Procedure
+
+    Procedure End_Construct_Object
+        Integer iIndex
+        Forward Send End_Construct_Object
+        Move (SizeOfArray(aFTIObjects)) to iIndex
+        Move Self to aFTIObjects[iIndex]
+    End_Procedure
+
+    Procedure Set psName String sValue
+        Set _psName to sValue
+        Set psHomeFolderRelative of oResultAttacher to sValue
+    End_Procedure
+
+    Function psName Returns String
+        Function_Return (_psName(Self))
+    End_Function
+
+// **** Splitting articles into words *******************************************
+
+            Procedure BuildNotWordCharacters
+                Integer iAscii
+                String sCharacters sDelimiters
+                Move "" to sDelimiters
+                Get _psWordCharacters to sCharacters
+                Move (sCharacters+"0123456789") to sCharacters
+                For iAscii from 33 to 255
+                    If not (sCharacters contains Character(iAscii)) Move (sDelimiters+Character(iAscii)) to sDelimiters
+                Loop
+                Set _psNotWordCharacters to sDelimiters
+            End_Procedure
+             
+    Procedure Set psWordCharacters String sValue
+        Set _psWordCharacters to sValue
+        Send BuildNotWordCharacters
+    End_Procedure
+
+    //> If you want to fundamentally change the way words are being derived
+    //> from articles, the SplitText procedure is the one you want to change.
+    
+        Enum_List // Private
+            Define FTI_NOT_IN_ITEM // These are just constants used internally by the DoAddText
+            Define FTI_WORD        // procedure for values of internal state variable liState:
+            Define FTI_NUMBER
+            Define FTI_DELIMITER
+            Define FTI_BELOW32
+        End_Enum_List
+
+    Procedure SplitText String sText tFtiWord[] ByRef aWords
+        Integer iLen iPos iWord iState bBelow32CountsAsWord
+        String sChar sWord sLetter sNumbers sDelimiters
+    
+        Move (Trim(sText)) to sText
+        Move (Length(sText)) to iLen
+        Move "" to sWord
+        Move FTI_NOT_IN_ITEM to iState
+        Move (SizeOfArray(aWords)) to iWord
+        Get _psWordCharacters to sLetter
+        Get _psNotWordCharacters to sDelimiters
+        Get pbCrLfCanBeTrusted to bBelow32CountsAsWord
+        Move "0123456789" to sNumbers
+    
+        Move (sLetter+sNumbers) to sLetter
+        Move "" to sNumbers
+    
+        For iPos from 1 to iLen
+            Move (Mid(sText,1,iPos)) to sChar
+            If (sLetter contains sChar) Begin
+                If (iState=FTI_WORD) Move (sWord+sChar) to sWord
+                Else Begin
+                    If (iState=FTI_NUMBER or iState=FTI_DELIMITER or iState=FTI_BELOW32) Begin
+                        If (iState<>FTI_BELOW32 or bBelow32CountsAsWord) Begin
+                            Move sWord to aWords[iWord].sWord
+                            Increment iWord
+                        End
+                    End
+                    Move FTI_WORD to iState
+                    Move sChar to sWord
+                End
+            End
+            Else If (sNumbers contains sChar) Begin
+                If (iState=FTI_NUMBER) Move (sWord+sChar) to sWord
+                Else Begin
+                    If (iState=FTI_WORD or iState=FTI_DELIMITER or iState=FTI_BELOW32) Begin
+                        If (iState<>FTI_BELOW32 or bBelow32CountsAsWord) Begin
+                            Move sWord to aWords[iWord].sWord
+                            Increment iWord
+                        End
+                    End
+                    Move FTI_NUMBER to iState
+                    Move sChar to sWord
+                End
+            End
+            Else If (sChar=" ") Begin
+                If (sWord<>"") Begin
+                    Move sWord to aWords[iWord].sWord
+                    Increment iWord
+                End
+                Move FTI_NOT_IN_ITEM to iState
+                Move "" to sWord
+            End
+            Else If (sDelimiters contains sChar) Begin
+                If (iState=FTI_DELIMITER) Move (sWord+sChar) to sWord
+                Else Begin
+                    If (iState=FTI_WORD or iState=FTI_NUMBER or iState=FTI_BELOW32) Begin
+                        If (iState<>FTI_BELOW32 or bBelow32CountsAsWord) Begin
+                            Move sWord to aWords[iWord].sWord
+                            Increment iWord
+                        End
+                    End
+                    Move FTI_DELIMITER to iState
+                    Move sChar to sWord
+                End
+            End
+            Else If (ascii(sChar)<32) Begin
+                If (sWord<>"") Begin
+                    Move sWord to aWords[iWord].sWord
+                    Increment iWord
+                End
+                Move FTI_BELOW32 to iState
+                Move "" to sWord
+            End
+        Loop
+        If (sWord<>"") Move sWord to aWords[iWord].sWord
+    End_Procedure
+
+// **** Accessing FTI tables ****************************************************
+
+            Function AssignedTablesArray Returns Integer[]
+                Integer[] aRval
+                Get piArticlesTable to aRval[0]
+                Get piWordsTable to aRval[1] 
+                Get piArticleWordsTable to aRval[2]
+                Get piArticlePhrasesTable to aRval[3]
+                Get piSearchesTable to aRval[4]
+                Function_Return aRval
+            End_Function
+
+            Function IsTableAccessible String sTableName Integer iTable Integer iField String sFieldName Returns Boolean
+                Boolean bOpen bRval
+                String sName
+                Move False to bRval
+                If iTable Begin
+                    Get_Attribute DF_FILE_OPENED of iTable to bOpen
+                    If bOpen Begin
+                        Get_Attribute DF_FIELD_NAME of iTable iField to sName
+                        If (Lowercase(sName)=Lowercase(sFieldName)) Move True to bRval // Comfirm that field X is named correctly
+                        Else Error 303 (sTableName*"not recognized")
+                    End
+                    Else Error 302 (sTableName*"not open")
+                End
+                Else Error 301 (sTableName*"not set")
+                Function_Return bRval
+            End_Function
+
+        Procedure ValidateAssignedTables
+            Integer iTable iLen
+            Boolean bOpen bRval
+            // This is not a very good test that the tables assigned are the correct format. A simple switch
+            // of three of the tables (the ones with forst field "article_id") will not be caught.
+            Get IsTableAccessible "Words table" (piWordsTable(Self)) 1 "word_id" to bRval
+            If bRval Get IsTableAccessible "Article words table" (piArticleWordsTable(Self)) 1 "article_id" to bRval
+            If bRval Get IsTableAccessible "Article phrases table" (piArticlePhrasesTable(Self)) 1 "article_id" to bRval
+            If bRval Get IsTableAccessible "Articles table" (piArticlesTable(Self)) 1 "article_id" to bRval
+            If bRval Get IsTableAccessible "Searches table" (piSearchesTable(Self)) 1 "search_id" to bRval
+            
+            If bRval Begin // OK, all tables are open. Now we extract some essential information
+                Get_Attribute DF_FIELD_LENGTH of (piArticlesTable(Self)) 1 to iLen // xxArticl.Article_Id
+                Set _piArticleIdWidth to iLen
+                Get_Attribute DF_FILE_NUMBER_FIELDS of (piArticlePhrasesTable(Self)) to iLen
+                Set _piPhraseLength to (iLen-1)
+            End
+            Set pbTablesReadyState to bRval
+        End_Procedure
+        
+        Function ValidateTables Returns Boolean
+            Send ValidateAssignedTables
+            Function_Return (pbTablesReadyState(Self))
+        End_Function
+        
+        Procedure SharedAccess
+            Integer iIndex iMax
+            Integer[] aTables
+            Get AssignedTablesArray to aTables
+            Move (SizeOfArray(aTables)-1) to iMax
+            For iIndex from 0 to iMax
+                Close aTables[iIndex]
+                Open aTables[iIndex]
+            Loop
+        End_Procedure
+        
+        Function ExclusiveAccess Returns Boolean
+            Integer iIndex iMax
+            Integer[] aTables
+            Boolean bSuccess
+            Get AssignedTablesArray to aTables
+            Move (SizeOfArray(aTables)-1) to iMax
+            Move True to bSuccess
+            For iIndex from 0 to iMax
+                If bSuccess Begin
+                    Close aTables[iIndex]
+                    Get OpenTable of oTableAccessFunctions aTables[iIndex] DF_EXCLUSIVE 0 to bSuccess
+                End
+            Loop
+            If not bSuccess Send SharedAccess
+            Function_Return bSuccess
+        End_Function
+
+        Procedure DeleteAllData
+            Integer iIndex iMax
+            Integer[] aTables
+            Get AssignedTablesArray to aTables
+            Move (SizeOfArray(aTables)-1) to iMax
+            For iIndex from 0 to iMax
+                ZeroFile aTables[iIndex]
+            Loop
+        End_Procedure
+        
+        Procedure SetIndexState Integer iState // iState must be DF_INDEX_TYPE_BATCH or DF_INDEX_TYPE_ONLINE
+            Integer iTable
+            If (iState=DF_INDEX_TYPE_BATCH or iState=DF_INDEX_TYPE_ONLINE) Begin
+            
+                Get piArticleWordsTable to iTable
+                Structure_Start iTable
+                    Set_Attribute DF_INDEX_TYPE of iTable 1 to iState
+                    Set_Attribute DF_INDEX_TYPE of iTable 2 to iState
+                Structure_End iTable DF_STRUCTEND_OPT_NONE "."
+                Get piArticleWordsTable to iTable
+                Close iTable
+                Open iTable
+                
+                Get piArticlePhrasesTable to iTable
+                Structure_Start iTable
+                    Set_Attribute DF_INDEX_TYPE of iTable 1 to iState
+                    Set_Attribute DF_INDEX_TYPE of iTable 2 to iState
+                Structure_End iTable DF_STRUCTEND_OPT_NONE "."
+                Get piArticlePhrasesTable to iTable
+                Close iTable
+                Open iTable
+            End
+        End_Procedure
+        
+    Function IndexOnlineArtWord Returns Boolean
+        Integer iTable iState
+        Get piArticleWordsTable to iTable
+        Get_Attribute DF_INDEX_TYPE of iTable 1 to iState
+        Function_Return (iState=DF_INDEX_TYPE_ONLINE)
+    End_Function
+    
+    Function IndexOnlineArtPhrase Returns Boolean
+        Integer iTable iState
+        Get piArticleWordsTable to iTable
+        Get_Attribute DF_INDEX_TYPE of iTable 1 to iState
+        Function_Return (iState=DF_INDEX_TYPE_ONLINE)
+    End_Function
+    
+    // **** Indexing articles *******************************************************
+    // Use these two messages to begin/end an update of the search
+    // database
+    Procedure DoBeginUpdate // Private
+        Integer iWord iTable
+        Boolean bFound
+        Number nValue
+        Set _pbUpdating to True
+        Get piWordsTable to iTable
+    
+        Clear iTable                                       // clear FTWORD
+        Set_Field_Value iTable 1 to 999999                 // move 999999 to FTWORD.WORD_ID
+        Vfind iTable 1 LT                                  // find lt FTWORD by index.1 // Find last
+        Move (Found) to bFound
+        Get_Field_Value iTable 1 to nValue
+        If bFound Set _pnNextAvailableWordId to (nValue+1) // if (found) set _pnNextAvailableWordId to (FTWORD.WORD_ID+1)
+        Else Set _pnNextAvailableWordId to 1               // else set _pnNextAvailableWordId to 1
+    End_Procedure
+    
+    Procedure DoEndUpdate // Private
+        Set _pbUpdating to False
+    End_Procedure
+    
+        // These two messages decrements/increments the occurance count of a word.
+        Procedure DoDecrementWord Integer iWordID // Private
+            Integer iTable iFreq
+            Get piWordsTable to iTable
+            Clear iTable                              // clear FTWORD
+            Set_Field_Value iTable 1 to iWordID       // move iWordID to FTWORD.WORD_ID
+            Vfind iTable 1 EQ                         // find eq FTWORD by index.1
+            If (Found) Begin                          // if (found) begin
+                Get_Field_Value iTable 3 to iFreq
+                Set_Field_Value iTable 3 to (iFreq-1) //   move (FTWORD.FREQUENCY-1) to FTWORD.FREQUENCY
+                SaveRecord iTable                     //   saverecord FTWORD
+            End                                       // end
+        End_Procedure
+        
+        Function DoIncrementWord String sWord Returns Number // Private
+            Integer iTable iFreq iWordID
+            Get piWordsTable to iTable
+            Clear iTable                                   // clear FTWORD
+            Set_Field_Value iTable 2 to sWord              // move sWord to FTWORD.WORD
+            Vfind iTable 2 EQ                              // find eq FTWORD by index.2
+            If not (Found) Begin                           // if not (found) begin
+                Get _pnNextAvailableWordId to iWordID      //
+                Set_Field_Value iTable 1 to iWordID        //   get _pnNextAvailableWordId to FTWORD.WORD_ID
+                Set _pnNextAvailableWordId to (iWordID+1)  //   set _pnNextAvailableWordId to (FTWORD.WORD_ID+1)
+            End                                            // end
+            Get_Field_Value iTable 3 to iFreq              // move (FTWORD.FREQUENCY+1) to FTWORD.FREQUENCY
+            Set_Field_Value iTable 3 to (iFreq+1)          //
+            SaveRecord iTable                              // saverecord FTWORD
+            Get_Field_Value iTable 1 to iWordID            //
+            Function_Return iWordID                        // function_return FTWORD.WORD_ID
+        End_Function
+    
+    // Public interface
+    Procedure DeleteArticle Integer iArticleId
+        Integer iWordCount iTable
+        Boolean bFound
+        integer iTest
+        Move 0 to iWordCount
+    
+        Lock
+            // First delete article
+            Get piArticlesTable to iTable
+    
+            Clear iTable
+            Set_Field_Value iTable 1 to iArticleId
+            Vfind iTable 1 EQ // find eq FTArticl by index.1
+            [Found] Delete iTable
+    
+            // Then delete all phrases:
+            Get piArticlePhrasesTable to iTable
+            Clear iTable
+            Set_Field_Value iTable 1 to iArticleId
+            Repeat
+                Vfind iTable 1 GT
+                Move (Found) to bFound
+                If bFound Begin
+                    Get_Field_Value iTable 1 to iTest // Article_Id
+                    Move (iTest=iArticleId) to bFound
+                End
+                If bFound Begin
+                    Get_Field_Value iTable 2 to iTest // Word_Id
+                    Send DoDecrementWord iTest //FTArtPhr.WORD_ID
+                    Increment iWordCount
+                    Delete iTable
+                End
+            Until (not(bFound))
+    
+            // And finally, all the words:
+            Get piArticleWordsTable to iTable
+            Clear iTable
+            Set_Field_Value iTable 1 to iArticleId
+            Repeat
+                Vfind iTable 1 GT
+                Move (Found) to bFound
+                If bFound Begin
+                    Get_Field_Value iTable 1 to iTest // Article_Id
+                    Move (iTest=iArticleId) to bFound
+                End
+                If bFound Delete iTable
+            Until (not(bFound))
+        Unlock
+    End_Procedure
+
+                Function WordCompare tFtiWord stWord1 tFtiWord stWord2 Returns Integer 
+                    If (stWord1.iWordId>stWord2.iWordId) Function_Return (GT)
+                    If (stWord1.iWordId<stWord2.iWordId) Function_Return (LT)
+                    Function_Return (EQ)
+                End_Function
+
+            Function ArticleWordsRemoveDublettes tFtiWord[] aWords Returns tFtiWord[] 
+                Integer iMax iIndex iResultIndex iPrevWordId
+                tFtiWord[] aRval
+                
+                Move (SortArray(aWords,Self,GET_WordCompare)) to aWords
+                Move (SizeOfArray(aWords)-1) to iMax
+                Move 0 to iResultIndex
+                Move -1 to iPrevWordId
+                
+                For iIndex from 0 to iMax
+                    If (aWords[iIndex].iWordId<>iPrevWordId) Begin
+                        Move aWords[iIndex] to aRval[iResultIndex]
+                        Increment iResultIndex
+                        Move aWords[iIndex].iWordId to iPrevWordId
+                    End
+                Loop
+                Function_Return aRval
+            End_Function
+        
+        Procedure UpdateArticleWords Integer iArticleId tFtiWord[] aWords
+            Integer iTable iMax iIndex
+            Get piArticleWordsTable to iTable
+            Get ArticleWordsRemoveDublettes aWords to aWords
+            Move (SizeOfArray(aWords)-1) to iMax
+            For iIndex from 0 to iMax
+                Clear iTable // clear FTArtWrd
+                Set_Field_Value iTable 1 to iArticleID // move iArticleID to FTArtWrd.ARTICLE_ID
+                Set_Field_Value iTable 2 to aWords[iIndex].iWordId // FTArtWrd.WORD_ID
+                SaveRecord iTable // saverecord FTArtWrd
+            Loop
+        End_Procedure
+        
+                Function PhraseCompare tFtiPhrase stPhrase1 tFtiPhrase stPhrase2 Returns Integer 
+                    Integer iIndex iMax iMax1 iMax2
+                    Move (SizeOfArray(stPhrase1.aWords)-1) to iMax1
+                    Move (SizeOfArray(stPhrase2.aWords)-1) to iMax2
+                    Move (iMax1 min iMax2) to iMax
+                    
+                    For iIndex from 0 to iMax
+                        If (stPhrase1.aWords[iIndex].iWordId>stPhrase2.aWords[iIndex].iWordId) Function_Return (GT)
+                        If (stPhrase1.aWords[iIndex].iWordId<stPhrase2.aWords[iIndex].iWordId) Function_Return (LT)
+                    Loop
+    
+                    If (iMax1>iMax2) Function_Return (GT)
+                    If (iMax1<iMax2) Function_Return (LT)
+                    Function_Return (EQ)
+                End_Function
+                
+            Function ArticlePhrasesRemoveDublettes tFtiPhrase[] aPhrases Returns tFtiPhrase[]
+                Integer iMax iIndex iResultIndex iPrevWordId
+                tFtiPhrase[] aRval
+                tFtiPhrase stPrevPhrase
+                
+                Move (SortArray(aPhrases,Self,GET_PhraseCompare)) to aPhrases
+                Move (SizeOfArray(aPhrases)-1) to iMax
+                Move 0 to iResultIndex
+                
+                For iIndex from 0 to iMax
+                    If (PhraseCompare(Self,aPhrases[iIndex],stPrevPhrase)<>EQ) Begin
+                        Move aPhrases[iIndex].aWords to aRval[iResultIndex].aWords
+                        Increment iResultIndex
+                        Move aPhrases[iIndex] to stPrevPhrase
+                    End
+                Loop
+                Function_Return aRval
+            End_Function
+            
+        Procedure UpdateArticlePhrases Integer iArticleId tFtiPhrase[] aPhrases
+            Integer iTable iMax iIndex
+            Get piArticlePhrasesTable to iTable
+            Get ArticlePhrasesRemoveDublettes aPhrases to aPhrases
+            Move (SizeOfArray(aPhrases)-1) to iMax
+            For iIndex from 0 to iMax
+                Clear iTable // clear FTArtWrd
+                Set_Field_Value iTable 1 to iArticleID // move iArticleID to FTArtPhr.ARTICLE_ID
+                Send PrimePhraseBuffer aPhrases[iIndex].aWords
+                SaveRecord iTable // saverecord FTArtPhr
+            Loop
+        End_Procedure
+
+    //> Public interface
+    Procedure SaveArticle Integer iArticleID String sText Date dDate String sTime Integer iHits
+        Integer iMax iIndex iType iPhraseLength iArticlFile
+        Boolean bAlreadyUpdating
+        tFtiWord[] aWords
+        tFtiPhrase[] aPhrases
+
+        Send DeleteArticle iArticleID
+
+        Send SplitText sText (&aWords)
+        Move (SizeOfArray(aWords)-1) to iMax
+        
+        If (Integer(dDate)=0) Begin
+            Get SystemDate of oDateFunctions to dDate
+            Get SystemTimeString of oDateFunctions to sTime
+        End
+
+        Lock
+            Get _pbUpdating to bAlreadyUpdating
+            If (not(bAlreadyUpdating)) Send DoBeginUpdate // Send DoBeginUpdate automatically if not part of a bigger update
+    
+            If (iArticleID<=0) Error 843 "Article ID must be positive"
+            // First we assign word ID's to the words in the article
+            For iIndex from 0 to iMax
+                Get DoIncrementWord aWords[iIndex].sWord to aWords[iIndex].iWordId
+            Loop
+
+            Send UpdateArticleWords iArticleID aWords
+
+            Get _piPhraseLength to iPhraseLength
+    
+            For iIndex from 0 to iMax
+                If (iIndex<>iMax) Begin // We don't need the last word of the article to be saved as a phrase by itself (cleverly figured by Dan Walsh)
+                    Move (CopyArray(aWords,iIndex,iIndex+iPhraseLength-1)) to aPhrases[iIndex].aWords
+                End
+            Loop
+            Send UpdateArticlePhrases iArticleID aPhrases
+    
+            // Finally save the article:
+            Get piArticlesTable to iArticlFile
+            Clear iArticlFile
+            Set_Field_Value iArticlFile 1 to iArticleID    // ARTICLE_ID
+            Set_Field_Value iArticlFile 2 to dDate         // DATE
+            Set_Field_Value iArticlFile 3 to sTime         // TIME
+            Set_Field_Value iArticlFile 4 to iHits         // HIT_COUNT
+            //Set_Field_Value iArticlFile 6 to (SystemDate(oDateFunctions))  // INDEXED_DATE
+            //Set_Field_Value iArticlFile 7 to (SystemTime(oDateFunctions))  // INDEXED_TIME
+            SaveRecord iArticlFile
+    
+            If (not(bAlreadyUpdating)) Send DoEndUpdate
+        Unlock
+    End_Procedure
+    
+#IFNDEF IS$WEBAPP
+    Procedure AddAllArticles
+    End_Procedure
+
+    Procedure RebuildFtiIndex // Not to be called from within an webapplication
+        If (ExclusiveAccess(Self)) Begin
+            Send DeleteAllData // Remove all FTI data
+            Send SetIndexState DF_INDEX_TYPE_BATCH // Switch indices to batch (meaning they will not get updated)
+            Send DoBeginUpdate // Initiate "next available word id" mechanism to not trigger all the time.
+            
+            Send AddAllArticles // Call procedure meant to load all articles back in.
+            
+            Send DoEndUpdate // Let go of "next available word id" mechanism
+            Send SetIndexState DF_INDEX_TYPE_ONLINE // Switch indices back on-line
+            Send SharedAccess
+        End
+        Else Send Info_Box "Exclusive table access could not be obtained" (psName(Self))
+    End_Procedure
+#ENDIF
+
+    Function ArticleTitle Integer iArticleId Returns String // To be augmented be descending class
+        Function_Return ("Article "+String(iArticleId))
+    End_Function
+    
+    Procedure ArticleDisplay Integer iArticle
+    End_Procedure
+    
+    Function ArticleRecordsCount Returns Integer
+        Integer iTable iRval
+        Get piArticlesTable to iTable
+        Get_Attribute DF_FILE_RECORDS_USED of iTable to iRval
+        Function_Return iRval
+    End_Function
+    
+    Function PhraseRecordsCount Returns Integer
+        Integer iTable iRval
+        Get piArticlePhrasesTable to iTable
+        Get_Attribute DF_FILE_RECORDS_USED of iTable to iRval
+        Function_Return iRval
+    End_Function
+
+// **** Searching articles ******************************************************
+            Enum_List
+                Define FTIE_NO_ERROR          // No error
+                Define FTIE_MISSING_VALUE     // No search value was specified
+                Define FTIE_NO_POSITIVE       // No positive search values
+                Define FTIE_SEARCH_TIMEOUT    // Time limit violated
+                Define FTIE_NO_ITEMS_FOUND    // No articles found
+            End_Enum_List
+            
+            Function ErrorText Integer iError Returns String // To be replaced by dictionary object
+                If (iError=FTIE_NO_ERROR) Function_Return ""
+                If (iError=FTIE_MISSING_VALUE) Function_Return "No search value was specified"
+                If (iError=FTIE_NO_POSITIVE) Function_Return "No positive search values"
+                If (iError=FTIE_SEARCH_TIMEOUT) Function_Return "Time limit violated"
+                If (iError=FTIE_NO_ITEMS_FOUND) Function_Return "No articles found"
+                Function_Return "Unknown error"
+            End_Function
+            
+            Function SplitSearchItems tFtiSearchItem stValue Returns tFtiSearchItem
+                Integer iMax iIndex
+                tFtiWord[] aWords
+                tFtiSearchItem stRval
+
+                Move (SizeOfArray(stValue.aWords)-1) to iMax
+                For iIndex from 0 to iMax
+                    Send SplitText stValue.aWords[iIndex].sWord (&aWords)
+                Loop
+                Move aWords to stRval.aWords
+                Move stValue.bNegative to stRval.bNegative
+                
+                Function_Return stRval
+            End_Function
+            
+                Procedure AddWordData tFtiWord ByRef stWord
+                    Integer iTable
+                    Get piWordsTable to iTable
+                    Clear iTable                                // clear FTWord
+                    Set_Field_Value iTable 2 to stWord.sWord    // FTWord.Word
+                    Vfind iTable 2 eq                           // find eq FTWord by index.2
+                    If (Found) Begin
+                        Get_Field_Value iTable 1 to stWord.iWordId  // Word_Id
+                        Get_Field_Value iTable 3 to stWord.iFreq    // Frequency
+                    End
+                    Else Begin
+                        Move -1 to stWord.iWordId
+                        Move 0 to stWord.iFreq
+                    End
+                End_Procedure
+
+            Procedure AddIdsAndFrequencies tFtiWord[] ByRef aWords
+                Integer iMax iIndex
+                Move (SizeOfArray(aWords)-1) to iMax
+                For iIndex from 0 to iMax
+                    Send AddWordData (&aWords[iIndex])
+                Loop
+            End_Procedure
+
+                    Function SearchItemCompareValue tFtiSearchItem stVal Returns Integer
+                        Integer iReduction iMinFreq iMax iIndex iRval
+                        Move (SizeOfArray(stVal.aWords)) to iMax
+                        Move (iMax*iMax) to iReduction // If it's a phrase we reduce the frequency by a (somewhat arbitrary) factor. The number of words in the phrase squared.
+                        Decrement iMax
+                        Move stVal.aWords[0].iFreq to iMinFreq
+                        For iIndex from 1 to iMax
+                            If (stVal.aWords[iIndex].iFreq<iMinFreq) Move stVal.aWords[iIndex].iFreq to iMinFreq
+                        Loop
+                        Move (iMinFreq/Number(iReduction)) to iRval
+                        If (stVal.bNegative) Move (2147483647-iRval) to iRval // Put negative search values at the back favouring the ones the "exterminates" the most articles.
+                        Function_Return iRval
+                    End_Function
+            
+            Function CompareSearchItems tFtiSearchItem stVal1 tFtiSearchItem stVal2 Returns Integer
+                Integer iVal1 iVal2
+                Get SearchItemCompareValue stVal1 to iVal1
+                Get SearchItemCompareValue stVal2 to iVal2
+                If (iVal1>iVal2) Function_Return (GT)
+                If (iVal1<iVal2) Function_Return (LT)
+                Function_Return (EQ)
+            End_Function
+           
+    Function SearchStringToSequence String sSearchValue Returns tFtiSearchItem[]
+        tFtiSearchItem[] aSequence aRval
+        tFtiSearchItem stTestItem
+        Boolean bInPhrase bNegative
+        Integer iMax iIndex iSearchItem iSearchItemMax
+        String sItem
+        String[] aItems
+        tFtiWord[] aWords
+        Send SplitString of oStringFunctions sSearchValue " " True False (&aItems)
+        Move (SizeOfArray(aItems)-1) to iMax
+        Move False to bInPhrase
+        Move 0 to iSearchItem
+        For iIndex from 0 to iMax
+            Move aItems[iIndex] to sItem
+            // First we sort out the negative/positive thing:
+            If not bInPhrase Begin
+                If (Left(sItem,1)="-") Begin
+                    Move True to bNegative
+                    Move (Remove(sItem,1,1)) to sItem // Note: sItem may be empty after this
+                End
+                Else If (Left(sItem,1)="+") Begin
+                    Move False to bNegative
+                    Move (Remove(sItem,1,1)) to sItem // Note: sItem may be empty after this
+                End
+                Else Move False to bNegative
+            End
+
+            If (sItem<>"") Begin
+                If bInPhrase Begin
+                    Move (Right(sItem,1)<>'"') to bInPhrase
+                    If not bInPhrase Move (rRemove(oStringFunctions,sItem,1)) to sItem
+                    Move sItem to aWords[SizeOfArray(aWords)].sWord
+                    If not bInPhrase Begin
+                        Move aWords to aSequence[iSearchItem].aWords
+                        Move bNegative to aSequence[iSearchItem].bNegative
+                        Move (ResizeArray(aWords,0)) to aWords
+                        Increment iSearchItem
+                    End
+                End
+                Else Begin
+                    If (Left(sItem,1)='"') Begin // If phrase start
+                        Move (Remove(sItem,1,1)) to sItem
+                        Move (Right(sItem,1)<>'"') to bInPhrase // If the phrase is terminated immediately.
+                        If not bInPhrase Move (rRemove(oStringFunctions,sItem,1)) to sItem
+                        Move sItem to aWords[0].sWord
+                        If not bInPhrase Begin // If the phrase is terminated immediately.
+                            Move aWords to aSequence[iSearchItem].aWords
+                            Move bNegative to aSequence[iSearchItem].bNegative
+                            Increment iSearchItem
+                            Move (ResizeArray(aWords,0)) to aWords
+                        End
+                        Move "" to sItem
+                    End
+                    Else Begin
+                        Move bNegative to aSequence[iSearchItem].bNegative
+                        Move sItem to aSequence[iSearchItem].aWords[0].sWord
+                        Increment iSearchItem
+                    End
+                End
+            End
+        Loop
+        
+        // Handle the eventuality of an un-terminated phrase
+        If bInPhrase Begin
+            Move aWords to aSequence[iSearchItem].aWords
+            Move bNegative to aSequence[iSearchItem].bNegative
+        End
+        
+        // At this point we need to "expand" our items according to the rules defined in the SplitText procedure.
+        Move 0 to iIndex
+        Move (SizeOfArray(aSequence)-1) to iSearchItemMax
+        For iSearchItem from 0 to iSearchItemMax
+            Get SplitSearchItems aSequence[iSearchItem] to stTestItem
+            If (SizeOfArray(stTestItem.aWords)>0) Begin // If there where any empty items, this is where they are removed.
+                Move stTestItem to aRval[iIndex]
+                Increment iIndex
+            End
+        Loop
+        
+        // Add word ids and frequencies
+        Move (SizeOfArray(aRval)-1) to iMax
+        For iIndex from 0 to iMax
+            Send AddIdsAndFrequencies (&aRval[iIndex].aWords)
+        Loop
+
+        // Finally, sort the array in an optimized search sequence
+        Move (SortArray(aRval,Self,get_CompareSearchItems)) to aRval
+        
+        Function_Return aRval
+    End_Function
+
+                // Arrays aArticles1 and aArticles2 *must* be sorted (according to id) prior to calling function LogicalAndArticleSets
+                // iOpCode=0: Logical AND, 1:Logical OR, 2: In Set1 but NOT in Set2
+                Function LogicalOperationArticleSets Integer iOpCode tFtiArticle[] aArticles1 tFtiArticle[] aArticles2 Returns tFtiArticle[]
+                    Integer iMax1 iMax2 iIndex1 iIndex2 iResultItem
+                    tFtiArticle[] aResult
+                    Move 0 to iIndex1
+                    Move 0 to iIndex2
+                    Move 0 to iResultItem
+                    Move (SizeOfArray(aArticles1)) to iMax1
+                    Move (SizeOfArray(aArticles2)) to iMax2
+                    
+                    While (iIndex1<iMax1 or iIndex2<iMax2)
+                        If (iIndex1<iMax1 and iIndex2<iMax2 and aArticles1[iIndex1].iId=aArticles2[iIndex2].iId) Begin // It occurs in both
+                            If (iOpCode<>2) Begin
+                                Move aArticles1[iIndex1] to aResult[iResultItem]
+                                Increment iResultItem
+                            End
+                            Increment iIndex1
+                            Increment iIndex2
+                        End
+                        Else If (iIndex2=iMax2 or (iIndex1<iMax1 and aArticles1[iIndex1].iId<aArticles2[iIndex2].iId)) Begin // It's only in array 1.
+                            If (iOpCode<>0) Begin
+                                Move aArticles1[iIndex1] to aResult[iResultItem]
+                                Increment iResultItem
+                            End
+                            Increment iIndex1
+                        End
+                        Else Begin // It's only in array 2.
+                            If (iOpCode=1) Begin
+                                Move aArticles2[iIndex2] to aResult[iResultItem]
+                                Increment iResultItem
+                            End
+                            Increment iIndex2
+                        End
+                    Loop
+                    
+                    Function_Return aResult
+                End_Function
+
+                Procedure PrimePhraseBuffer tFtiWord[] aWords
+                    Integer iTable iMax iWord iPhraseLen
+                    Get piArticlePhrasesTable to iTable
+                    Get _piPhraseLength to iPhraseLen
+                    Move (SizeOfArray(aWords)-1) to iMax
+                    Move (iMax min (iPhraseLen-1)) to iMax // Don't seed any more fields than is there
+                    for iWord from 0 to iMax
+                        Set_Field_Value iTable (2+iWord) to aWords[iWord].iWordId
+                    Loop
+                End_Procedure
+                
+                Function ValidatePhraseBuffer tFtiWord[] aWords Returns Boolean
+                    Integer iTable iMax iWord iPhraseLen iWordId
+                    Get piArticlePhrasesTable to iTable
+                    Get _piPhraseLength to iPhraseLen
+                    Move (SizeOfArray(aWords)-1) to iMax
+                    Move (iMax min (iPhraseLen-1)) to iMax // Don't seed any more fields than is there
+                    For iWord from 0 to iMax
+                        Get_Field_Value iTable (2+iWord) to iWordId
+                        If (aWords[iWord].iWordId<>iWordId) Function_Return False
+                    Loop
+                    Function_Return True
+                End_Function
+
+                        Function ArticleCompareId tFtiArticle stVal1 tFtiArticle stVal2 Returns Integer
+                            If (stVal1.iId>stVal2.iId) Function_Return (GT)
+                            If (stval1.iId<stval2.iId) Function_Return (LT)
+                            Function_Return (EQ)
+                        End_Function
+                        Function ArticleCompareHit tFtiArticle stVal1 tFtiArticle stVal2 Returns Integer // OBS! Higher value first (reverse sort order)
+                            If (stVal1.iPopularity<stVal2.iPopularity) Function_Return (GT)
+                            If (stval1.iPopularity>stval2.iPopularity) Function_Return (LT)
+                            Function_Return (EQ)
+                        End_Function
+                        Function ArticleCompareDate tFtiArticle stVal1 tFtiArticle stVal2 Returns Integer // OBS! Higher value first (reverse sort order)
+                            If (stVal1.dtUpdated<stVal2.dtUpdated) Function_Return (GT)
+                            If (stval1.dtUpdated>stval2.dtUpdated) Function_Return (LT)
+                            Function_Return (EQ)
+                        End_Function
+
+                Function SortAndRemoveDublettes tFtiArticle[] aArticles Returns tFtiArticle[]
+                    Integer iMax iIndex iIndex2 iPrevArtId
+                    tFtiArticle[] aRval
+                    Move (SortArray(aArticles,Self,GET_ArticleCompareId)) to aArticles
+                    Move (SizeOfArray(aArticles)-1) to iMax
+                    Move -1 to iPrevArtId
+                    Move 0 to iIndex2
+                    For iIndex from 0 to iMax
+                        If (aArticles[iIndex].iId<>iPrevArtId) Begin
+                            Move aArticles[iIndex] to aRval[iIndex2]
+                            Increment iIndex2
+                            Move aArticles[iIndex].iId to iPrevArtId
+                        End
+                    Loop
+                    Function_Return aRval
+                End_Function
+            
+    Function CustomValidate Integer iArticleId Returns Boolean
+        Function_Return True
+    End_Function
+            
+                Function FindGtArtWordIndex2 Integer iWordId Returns Boolean
+                    Integer iTable iArticleId iFoundWordId
+                    Boolean bFound
+                    Get piArticleWordsTable to iTable
+                    Repeat
+                        Vfind iTable 2 GT
+                        Move (Found) to bFound
+                        If bFound Begin
+                            Get_Field_Value iTable 2 to iFoundWordId
+                            Move (iFoundWordId=iWordId) to bFound
+                            If bFound Begin
+                                Get_Field_Value iTable 1 to iArticleId
+                                If (CustomValidate(Self,iArticleId)) Function_Return True
+                            End
+                        End
+                    Until (not(bFound))
+                    Function_Return False
+                End_Function
+                
+            Procedure ExecuteSearchItem tFtiSearchItem stSearchItem tFtiArticle[] ByRef aArticles tFtiStatus ByRef stStatus
+                Boolean bPhraseSearch bSequentialSearch bFound bNegative bNotAnd
+                Integer iEstimHits iResultItem iTable
+                Integer iMaxWord iMaxArticle iArticle
+                Integer iArticleId iWordId
+                tFtiArticle[] aResult
+                tFtiArticle[] aTemp
+
+                Get SearchItemCompareValue stSearchItem to iEstimHits
+                Move (SizeOfArray(stSearchItem.aWords)>1) to bPhraseSearch
+                
+                Move (SizeOfArray(aArticles)=0) to bNotAnd
+                If (stSearchItem.bNegative and bNotAnd) Begin
+                    If (stStatus.iError=0) Move FTIE_NO_POSITIVE to stStatus.iError
+                End
+                Else Begin
+                    Move bNotAnd to bSequentialSearch
+                    If not bSequentialSearch Begin
+                        // The next few lines are trying to determine whether we should make a new sequential dive into the article tables
+                        // or if we should perform a number of separate finds to determine if this or that condition is met of each and every 
+                        // one of the articles currently in the result set.
+                        //
+                        // As can be seen, the code currently uses a factor of 20 (10) to make this decision. One could however design a test 
+                        // to be run on the system once in a while to determine the optimum setting instead of these arbitrary constants.
+                        If bPhraseSearch Begin
+                            Move (iEstimHits<(SizeOfArray(aArticles)*20)) to bSequentialSearch
+                        End
+                        Else Begin
+                            Move (iEstimHits<(SizeOfArray(aArticles)*10)) to bSequentialSearch
+                        End
+                    End
+                    
+                    Move 0 to iResultItem
+                    Move (SizeOfArray(aArticles)-1) to iMaxArticle
+                    
+                    Move stSearchItem.bNegative to bNegative
+                    
+                    If bSequentialSearch Begin
+                        // In this branch we make a sequential table scan and collects
+                        If bPhraseSearch Begin
+
+                            // In this event we can't scan the phrases table and get all the articles in numerical order. Furthermore
+                            // we risk having the same article turn up more than once. Therefore the aTemp array is introduced.
+                            
+                            Move (ResizeArray(aTemp,0)) to aTemp
+                            Get piArticlePhrasesTable to iTable
+                            Clear iTable
+                            Send PrimePhraseBuffer stSearchItem.aWords 
+                            Vfind iTable 2 GT // {word-id}*, article-id
+                            Move (Found) to bFound
+                            If bFound Get ValidatePhraseBuffer stSearchItem.aWords to bFound
+                            
+                            While bFound
+                                Get_Field_Value iTable 1 to iArticleId
+                                If (CustomValidate(Self,iArticleId)) Begin
+                                    Move iArticleId to aTemp[iResultItem].iId
+                                    Increment iResultItem
+                                End
+                                Vfind iTable 2 GT // {word-id}*, article-id
+                                Move (Found) to bFound
+                                If bFound Get ValidatePhraseBuffer stSearchItem.aWords to bFound
+                            Loop
+                            
+                            // A "short phrase" may occur more than once (since it may be the most significant part of a number of longer phrases). Therefore we must remove dublettes.
+                            Get SortAndRemoveDublettes aTemp to aTemp
+                            
+                            If bNotAnd Begin // If we're not and'ing with a previous result set
+                                Move aTemp to aResult
+                            End
+                            Else Begin
+                                If bNegative Begin
+                                    Get LogicalOperationArticleSets 2 aArticles aTemp to aResult // In aArticles but not in aTemp
+                                End
+                                Else Begin
+                                    Get LogicalOperationArticleSets 0 aArticles aTemp to aResult // In aArticles and also in aTemp
+                                End
+                            End
+                                
+                        End
+                        Else Begin
+                            Move 0 to iArticle
+                            Move stSearchItem.aWords[0].iWordId to iWordId
+
+                            Get piArticleWordsTable to iTable
+                            Clear iTable
+                            Set_Field_Value iTable 2 to iWordId  // ftartwrd.word_id
+                            
+                            Get FindGtArtWordIndex2 iWordId to bFound
+                            
+                        //  Vfind iTable 2 GT                                   // find gt ftartwrd by index.2
+                        //  Move (Found) to bFound
+                        //  If bFound Begin
+                        //      Get_Field_Value iTable 2 to iWordId
+                        //      Move (iWordId=stSearchItem.aWords[0].iWordId) to bFound
+                        //  End
+
+                            While ((iArticle<=iMaxArticle) or bFound)
+                                If bFound Get_Field_Value iTable 1 to iArticleId
+                                
+                                If (bFound and (iArticle<=iMaxArticle and iArticleId=aArticles[iArticle].iId)) Begin // Value occurs in both
+                                    If not bNegative Begin
+                                        Move aArticles[iArticle] to aResult[iResultItem]
+                                        Increment iResultItem
+                                    End
+                                    Increment iArticle
+                                    
+                                    Get FindGtArtWordIndex2 iWordId to bFound
+                                    
+                                //  Vfind iTable 2 GT                                   // find gt ftartwrd by index.2
+                                //  Move (Found) to bFound
+                                //  If bFound Begin
+                                //      Get_Field_Value iTable 2 to iWordId
+                                //      Move (iWordId=stSearchItem.aWords[0].iWordId) to bFound
+                                //  End
+                                End
+                                Else If (not(bFound) or (iArticle<=iMaxArticle and aArticles[iArticle].iId<iArticleId)) Begin // Value only in aArticles array
+                                    If bNegative Begin // It's not found in the table. Therefore we accept it as part of the result.
+                                        Move aArticles[iArticle] to aResult[iResultItem]
+                                        Increment iResultItem
+                                    End
+                                    Increment iArticle
+                                End
+                                Else Begin // Value only in table
+                                    If bNotAnd Begin // If we're not and'ing with a previous result set
+                                        Get_Field_Value iTable 1 to aResult[iResultItem].iId
+                                        Increment iResultItem
+                                    End
+                                    Get FindGtArtWordIndex2 iWordId to bFound
+                                //  Vfind iTable 2 GT                                   // find gt ftartwrd by index.2
+                                //  Move (Found) to bFound
+                                //  If bFound Begin
+                                //      Get_Field_Value iTable 2 to iWordId
+                                //      Move (iWordId=stSearchItem.aWords[0].iWordId) to bFound
+                                //  End                                    
+                                End
+                            Loop
+                        End
+                    End
+                    Else Begin
+                        // In this branch we test each article of the current set (aArticles) to see if it fulfills our current SearchItem
+                        If bPhraseSearch Begin // Not sequential, phrases
+                            Get piArticlePhrasesTable to iTable
+                            Move (SizeOfArray(stSearchItem.aWords)) to iMaxWord
+                            For iArticle from 0 to iMaxArticle
+                                Clear iTable
+                                Set_Field_Value iTable 1 to aArticles[iArticle].iId
+                                Send PrimePhraseBuffer stSearchItem.aWords
+                                Vfind iTable 1 GE
+                                Move (Found) to bFound
+                                
+                                If bFound Begin
+                                    Get_Field_Value iTable 1 to iArticleId // Article_Id
+                                    Move (iArticleId=aArticles[iArticle].iId) to bFound
+                                    If bFound Get ValidatePhraseBuffer stSearchItem.aWords to bFound
+                                    If bFound Get CustomValidate iArticleId to bFound
+                                End
+
+                                If ((not(bNegative) and bFound) or (bNegative and not(bFound))) Begin
+                                    Move aArticles[iArticle] to aResult[iResultItem]
+                                    Increment iResultItem
+                                End
+                            Loop
+                        End
+                        Else Begin // Not sequential, words
+                            Get piArticleWordsTable to iTable
+                            Move stSearchItem.aWords[0].iWordId to iWordId
+                            For iArticle from 0 to iMaxArticle
+                                Clear iTable
+                                Set_Field_Value iTable 1 to aArticles[iArticle].iId // ftartwrd.article_id
+                                Set_Field_Value iTable 2 to iWordId  // ftartwrd.word_id
+                                Vfind iTable 1 EQ                                           // find eq ftartwrd by index.1
+                                Move (Found) to bFound
+
+                                If bFound Get CustomValidate aArticles[iArticle].iId to bFound
+
+                                If ((not(bNegative) and bFound) or (bNegative and not(bFound))) Begin
+                                    Move aArticles[iArticle] to aResult[iResultItem]
+                                    Increment iResultItem
+                                End
+                            Loop
+                        End
+                    
+                    End
+                    Move aResult to aArticles
+                End
+            End_Procedure
+            
+    // If the aArticles array is not empty when ExecuteSearch is called then the search will be a refinement of what's in the set.
+    Procedure ExecuteSearch tFtiSearchItem[] aSequence tFtiArticle[] ByRef aArticles tFtiStatus ByRef stStatus
+        Integer iMax iIndex
+        Boolean bEmpty
+        Move (SizeOfArray(aSequence)-1) to iMax
+        Move 0 to iIndex
+        
+        Move False to bEmpty
+        For iIndex from 0 to iMax
+            If (not(bEmpty)) Send ExecuteSearchItem aSequence[iIndex] (&aArticles) (&stStatus)
+            Move (SizeOfArray(aArticles)=0) to bEmpty
+        Loop
+        
+        If (stStatus.iError=0 and bEmpty) Move FTIE_NO_ITEMS_FOUND to stStatus.iError
+    End_Procedure
+    
+            Function ExcludeArticles tFtiSearchItem[] aSequence tFtiArticle[] aArticles tFtiStatus ByRef stStatus Returns tFtiArticle[]
+                // This function excludes all articles from the array that fulfills the array of search items.
+                Integer iArticleIndex iArticleMax
+                Integer iSearchItemIndex iSearchItemMax
+                Integer iResultIndex
+                tFtiArticle[] aRval aOneArticle
+                tFtiStatus stStatusDummy
+                
+                Move 0 to iResultIndex
+                
+                Move (SizeOfArray(aArticles)-1) to iArticleMax
+                Move (SizeOfArray(aSequence)-1) to iSearchItemMax
+                For iArticleIndex from 0 to iArticleMax
+                    Move aArticles[iArticleIndex] to aOneArticle[0]
+                    Send ExecuteSearch aSequence (&aOneArticle) (&stStatusDummy)
+                    If (SizeOfArray(aOneArticle)=0) Begin // If the article was approved it means that it actually survives
+                        Move aArticles[iArticleIndex] to aRval[iResultIndex]
+                        Increment iResultIndex
+                    End
+                Loop
+                Function_Return aRval
+            End_Function
+
+        Procedure AttachDateAndPopularity tFtiArticle[] ByRef aArticles tFtiStatus ByRef stStatus
+            Integer iMax iIndex iTable
+            Date dUpdatedDate
+            String sUpdatedTime
+            Get piArticlesTable to iTable
+            Move (SizeOfArray(aArticles)-1) to iMax
+            For iIndex from 0 to iMax
+                Clear iTable
+                Set_Field_Value iTable 1 to aArticles[iIndex].iId
+                Vfind iTable 1 EQ
+                If (Found) Begin
+                    Get_Field_Value iTable 2 to dUpdatedDate
+                    Get_Field_Value iTable 3 to sUpdatedTime
+                    Get ComposeDateTimeString of oDateFunctions dUpdatedDate sUpdatedTime to aArticles[iIndex].dtUpdated
+                    Get_Field_Value iTable 4 to aArticles[iIndex].iPopularity
+                End
+            Loop
+        End_Procedure
+        
+        Function ArticlesFilterByDate tFtiArticle[] aArticles Date dLow Date dHigh Returns tFtiArticle[]
+            Integer iMax iIndex iResultItem
+            DateTime dtLow dtHigh
+            tFtiArticle[] aRval
+            If (Integer(dHigh)=0) Move LargestPossibleDate to dHigh
+            Move dLow to dtLow
+            Get ComposeDateTimeString of oDateFunctions dHigh "23:59:59" to dtHigh // Make sure we get all articles of the end date included
+            
+            Move (SizeOfArray(aArticles)-1) to iMax
+            Move 0 to iResultItem
+            For iIndex from 0 to iMax
+                If (aArticles[iIndex].dtUpdated>=dtLow and aArticles[iIndex].dtUpdated<=dtHigh) Begin
+                    Move aArticles[iIndex] to aRval[iResultItem]
+                    Increment iResultItem
+                End
+            Loop
+            Function_Return aRval
+        End_Function
+
+    Function Search tFtiInput stInput tFtiArticle[] ByRef aArticles Returns tFtiStatus
+        Integer iTable iExcludeStrategy
+        String sSearchValue
+        tFtiStatus stStatus
+        tFtiSearchItem[] aSequence
+        tSystemTimeMS stStart stStop
+        tFtiArticle[] aTemp
+
+        Move (trim(stInput.sSearchString)) to sSearchValue
+
+        If (sSearchValue="") Begin
+            Move FTIE_MISSING_VALUE to stStatus.iError
+        End
+        Else Begin
+
+            If ((stInput.iOperation=FTISM_REFINE or stInput.iOperation=FTISM_EXCLUDE) and SizeOfArray(aArticles)=0) Begin
+                // If 'Refine' or 'Exclude' and aArticles is empty, de declare an error and abort.
+                Move FTIE_NO_ITEMS_FOUND to stStatus.iError
+            End
+            Else Begin
+                
+                // If aArticles is not empty we need to make sure that it is sorted by article id since all operations
+                // taking place in here makes that assumption (and if it *is* empty, it won't take long to sort it ;-)
+                Move (SortArray(aArticles,Self,GET_ArticleCompareId)) to aArticles
+
+                Get SearchStringToSequence sSearchValue to aSequence
+
+                If (stInput.iOperation=FTISM_NEW) Move (ResizeArray(aArticles,0)) to aArticles
+
+                If (stInput.iOperation=FTISM_EXCLUDE) Begin
+                    // We have to decide whether we should:
+                    // 
+                    //    1. Perform the normal search sequence (by calling ExecuteSearch). In this case
+                    //       we store the current result set temporarily in aTemp, call the ExecuteSearch
+                    //       and then to a logical operation on the two resulting sets.
+                    //
+                    // or 2. Call the ExcludeArticles function that goes though the articles of the current
+                    //       result set one by one, and decides whether it survives the operation.
+                    //   
+                    // If the search sequence contains no positive items the answer is easy. In that case
+                    // we cannot perform the normal ExecuteSearch call and therefore we have to opt for 2.
+                    // 
+                    // If this is not the case we decide (rather arbitrarily) to use strategy 1 if the 
+                    // current result set is larger than 1000, otherwise 2.
+                    
+                    If (aSequence[0].bNegative) Move 2 to iExcludeStrategy
+                    Else begin
+                        If (SizeOfArray(aArticles)>1000) Move 1 to iExcludeStrategy
+                        Else Move 2 to iExcludeStrategy
+                    End
+
+                    If (iExcludeStrategy=1) Begin
+                        Move aArticles to aTemp
+                        Move (ResizeArray(aArticles,0)) to aArticles
+                    End
+                End
+
+                If (stInput.iOperation=FTISM_ADD) Begin
+                    Move aArticles to aTemp
+                    Move (ResizeArray(aArticles,0)) to aArticles
+                End
+
+                Get SystemTimeMilliSeconds of oDateFunctions to stStart
+                If (stInput.iOperation<>FTISM_EXCLUDE or iExcludeStrategy=1) Begin
+                    Send ExecuteSearch aSequence (&aArticles) (&stStatus)
+                End
+                Else Begin
+                    Get ExcludeArticles aSequence aArticles (&stStatus) to aArticles
+                End
+                Get SystemTimeMilliSeconds of oDateFunctions to stStop
+                Get SystemTimeMilliSecondsElapsed of oDateFunctions stStart stStop to stStatus.iExecTimeMs
+
+                If (stInput.iOperation=FTISM_EXCLUDE and iExcludeStrategy=1) Begin
+                    If (stStatus.iError=FTIE_NO_ITEMS_FOUND) Move 0 to stStatus.iError
+                    Get LogicalOperationArticleSets 2 aTemp aArticles to aArticles // 2: in set 1 but not in set 2
+                End
+
+                If (stInput.iOperation=FTISM_ADD) Begin
+                    If (stStatus.iError=FTIE_NO_ITEMS_FOUND) Move 0 to stStatus.iError
+                    Get LogicalOperationArticleSets 1 aArticles aTemp to aArticles // 1: or
+                End
+
+                If (stStatus.iError=0) Begin
+                    // At this point we know that the result set is ordered by article id
+
+                    If (stInput.iSortOrder<>0) Begin // If sort order is 0 we don't need to sort
+                        Send AttachDateAndPopularity (&aArticles) (&stStatus)
+                        If (stInput.iSortOrder=1) Move (SortArray(aArticles,Self,GET_ArticleCompareDate)) to aArticles
+                        If (stInput.iSortOrder=2) Move (SortArray(aArticles,Self,GET_ArticleCompareHit)) to aArticles
+                    End
+
+                    If (Integer(stInput.dDateMin) or Integer(stInput.dDateMax) or stInput.bForceDateAndPop<>False) Begin
+                        If (stInput.iSortOrder=0) Send AttachDateAndPopularity (&aArticles) (&stStatus) // Aha, we have to do this anyway
+                        Get ArticlesFilterByDate aArticles stInput.dDateMin stInput.dDateMax to aArticles
+                    End
+                End
+            End
+        End
+        Move (SizeOfArray(aArticles)) to stStatus.iResultCount
+        Move stInput to stStatus.stInput
+        Get ErrorText stStatus.iError to stStatus.sErrorText
+        Function_Return stStatus
+    End_Function
+
+        Procedure OnSaveStatusRecord
+            // Fill in the extra information you need to specify a search
+        End_Procedure
+
+    Function SaveStatusRecord tFtiStatus stStatus Returns Integer
+        Integer iTable iSearchId
+        Get piSearchesTable to iTable
+        Lock
+            Clear iTable
+            Vfind iTable 1 LT // Find last record
+            If (Found) Get_Field_Value iTable 1 to iSearchId
+            Else Move 0 to iSearchId
+            Increment iSearchId
+            Clear iTable
+            Set_Field_Value iTable  1 to iSearchId
+            Set_Field_Value iTable  2 to stStatus.stInput.iOperation
+            Set_Field_Value iTable  3 to stStatus.stInput.iUserId
+            Set_Field_Value iTable  4 to stStatus.stInput.sSearchString
+            Set_Field_Value iTable  5 to (SystemDate(oDateFunctions))
+            Set_Field_Value iTable  6 to (SystemTimeString(oDateFunctions))
+            Set_Field_Value iTable  7 to stStatus.iResultCount //  (SizeOfArray(aArticles))
+            Set_Field_Value iTable  8 to stStatus.iExecTimeMs
+            Set_Field_Value iTable  9 to "" // SearchName
+            Set_Field_Value iTable 10 to stStatus.stInput.dDateMin
+            Set_Field_Value iTable 11 to stStatus.stInput.dDateMax
+            Set_Field_Value iTable 12 to stStatus.stInput.iSortOrder 
+            Set_Field_Value iTable 13 to stStatus.stInput.iRefinementOfId
+            Send OnSaveStatusRecord
+            SaveRecord iTable
+        Unlock
+        Function_Return iSearchId
+    End_Function
+    
+    //> This method searches the articles for the search value specified in the stInput
+    //> parameter. A unique ID identifying the search is returned. 
+    Function SearchAndSave tFtiInput stInput Returns Integer
+        Integer iSearchId
+        tFtiStatus stStatus
+        tFtiArticle[] aArticles
+        Get Search stInput (&aArticles) to stStatus
+        Get SaveStatusRecord stStatus to iSearchId
+        Send WriteResultFile iSearchId aArticles stStatus
+        Function_Return iSearchId
+    End_Function
+    
+// **** Result interface ********************************************************
+    
+        //  Procedure WriteInput Integer iChannel tFtiInput stInput
+        //      Writeln channel iChannel stInput.bForceDateAndPop
+        //      Writeln stInput.dDateMax
+        //      Writeln stInput.dDateMin
+        //      Writeln stInput.iMaxSeconds
+        //      Writeln stInput.iOperation
+        //      Writeln stInput.iSortOrder
+        //      Writeln stInput.iRefinementOfId
+        //  End_Procedure
+        //
+        //  Procedure WriteStatus Integer iChannel tFtiStatus stStatus 
+        //      Writeln channel iChannel stStatus.iError
+        //      Writeln stStatus.iExecTimeMs
+        //      Writeln stStatus.iResultCount
+        //      Writeln stStatus.sErrorText
+        //      Send WriteInput iChannel stStatus.stInput
+        //  End_Procedure
+    
+    // Precondition: Active search record buffer
+    Procedure WriteResultFile Integer iSearchId tFtiArticle[] aArticles tFtiStatus stStatus
+        Integer iIndex iMax iChannel
+        String sFile
+        Get SearchFileName of oResultAttacher iSearchId to sFile
+        If (sFile<>"") Begin
+            Get DirectOutput of oFileFunctions sFile to iChannel
+            If (iChannel>=0) Begin
+                //Send WriteStatus iChannel stStatus
+
+                Move (SizeOfArray(aArticles)-1) to iMax
+                Writeln channel iChannel iMax
+                For iIndex from 0 to iMax
+                    Writeln aArticles[iIndex].dtUpdated
+                    Writeln aArticles[iIndex].iId
+                    Writeln aArticles[iIndex].iPopularity
+                Loop
+                
+                Send CloseOutput of oFileFunctions iChannel
+            End
+        End
+        Else Error 302 ("Error calculating absolute file name of result set ("+psName(Self)+")")
+    End_Procedure
+
+       //   Procedure ReadInput Integer iChannel tFtiInput ByRef stInput
+       //       Readln channel iChannel stInput.bForceDateAndPop
+       //       Readln stInput.dDateMax
+       //       Readln stInput.dDateMin
+       //       Readln stInput.iMaxSeconds
+       //       Readln stInput.iOperation
+       //       Readln stInput.iSortOrder
+       //       Readln stInput.iRefinementOfId
+       //   End_Procedure
+       //
+       //   Procedure ReadStatus Integer iChannel tFtiStatus ByRef stStatus 
+       //       Readln channel iChannel stStatus.iError
+       //       Readln stStatus.iExecTimeMs
+       //       Readln stStatus.iResultCount
+       //       Readln stStatus.sErrorText
+       //       Send ReadInput iChannel (&stStatus.stInput)
+       //   End_Procedure
+       
+    Procedure ReadStatusRecord Integer iSearchId tFtiStatus ByRef stStatus
+        Integer iTable
+        
+        Get piSearchesTable to iTable
+        
+        Set_Field_Value iTable  1 to iSearchId
+        Vfind iTable 1 EQ
+        
+        Get_Field_Value iTable  2 to stStatus.stInput.iOperation
+        Get_Field_Value iTable  4 to stStatus.stInput.sSearchString
+        Get_Field_Value iTable  5 to (SystemDate(oDateFunctions))
+        Get_Field_Value iTable  6 to (SystemTimeString(oDateFunctions))
+        Get_Field_Value iTable  7 to stStatus.iResultCount //  (SizeOfArray(aArticles))
+        Get_Field_Value iTable  8 to stStatus.iExecTimeMs
+        //Get_Field_Value iTable  9 to "" // SearchName
+        Get_Field_Value iTable 10 to stStatus.stInput.dDateMin
+        Get_Field_Value iTable 11 to stStatus.stInput.dDateMax
+        Get_Field_Value iTable 12 to stStatus.stInput.iSortOrder 
+        Get_Field_Value iTable 13 to stStatus.stInput.iRefinementOfId
+    End_Procedure
+    
+    Procedure ReadResult Integer iSearchId tFtiArticle[] ByRef aArticles tFtiStatus ByRef stStatus
+        Integer iIndex iMax iChannel
+        String sFile
+        
+        Send ReadStatusRecord iSearchId (&stStatus)
+        
+        Get SearchFileName of oResultAttacher iSearchId to sFile
+        Move (ResizeArray(aArticles,0)) to aArticles
+        If (sFile<>"") Begin
+            Get DirectInput of oFileFunctions sFile to iChannel
+            If (iChannel>=0) Begin
+                //Send ReadStatus iChannel (&stStatus)
+                Readln channel iChannel iMax
+                For iIndex from 0 to iMax
+                    Readln aArticles[iIndex].dtUpdated
+                    Readln aArticles[iIndex].iId
+                    Readln aArticles[iIndex].iPopularity
+                Loop
+                Send CloseInput of oFileFunctions iChannel
+            End
+        End
+        Else Error 303 ("Error calculating absolute file name of result set ("+psName(Self)+")")
+    End_Procedure                                                                            
+    
+    Procedure ReadResultRange Integer iSearchId Integer iFirstArticleIndex Integer iArticleCount ;
+                                        tFtiArticle[] ByRef aArticles ;
+                                        tFtiStatus ByRef stStatus ;
+                                        tFtiPageStatus ByRef stPageStatus
+        Integer iIndex iMax iChannel
+        String sFile sWaste
+        
+        Move False to stPageStatus.bNextBtn
+        Move False to stPageStatus.bPreviousBtn
+        Move 0 to stPageStatus.iFirstIndex
+        Move 0 to stPageStatus.iLastIndex
+
+        Send ReadStatusRecord iSearchId (&stStatus)
+        
+        Get SearchFileName of oResultAttacher iSearchId to sFile
+        Move (ResizeArray(aArticles,0)) to aArticles
+        If (sFile<>"") Begin
+            Get DirectInput of oFileFunctions sFile to iChannel
+            If (iChannel>=0) Begin
+                //Send Read iChannel (&stStatus)
+                Readln channel iChannel iMax
+                
+                For iIndex from 0 to (iFirstArticleIndex-1) // Skip these
+                    If (iMax>=0) Begin
+                        Readln sWaste
+                        Readln sWaste
+                        Readln sWaste
+                        Decrement iMax
+                    End
+                Loop
+                
+                For iIndex from 0 to (iArticleCount-1) // Read these
+                    If (iMax>=0) Begin
+                        Readln aArticles[iIndex].dtUpdated
+                        Readln aArticles[iIndex].iId
+                        Readln aArticles[iIndex].iPopularity
+                        Decrement iMax
+                    End
+                Loop
+                Send CloseInput of oFileFunctions iChannel
+                Move iFirstArticleIndex to stPageStatus.iFirstIndex
+                Move (iFirstArticleIndex+SizeOfArray(aArticles)-1) to stPageStatus.iLastIndex
+                Move (iFirstArticleIndex<>0) to stPageStatus.bPreviousBtn
+                Move (iMax>0) to stPageStatus.bNextBtn
+            End
+        End
+        Else Error 304 ("Error calculating absolute file name of result set ("+psName(Self)+")")
+    End_Procedure
+
+    // RegisterSystemFilesWithDD is the easy way to make sure a DD allows updating
+    // of index information during main table update. 
+    Procedure RegisterSystemFilesWithDD Integer hDD
+        Set Add_System_File of hDD to (piArticlesTable(Self)) DD_Lock_On_All
+        Set Add_System_File of hDD to (piWordsTable(Self)) DD_Lock_On_All
+        Set Add_System_File of hDD to (piArticleWordsTable(Self)) DD_Lock_On_All
+        Set Add_System_File of hDD to (piArticlePhrasesTable(Self)) DD_Lock_On_All
+        Set Add_System_File of hDD to (piSearchesTable(Self)) DD_Lock_On_All
+    End_Procedure
+    
+    Procedure IntelligentSearchValue String ByRef sSearchValue Integer ByRef iCaretPos Integer iDirection
+        
+    End_Procedure
+    
+    
+End_Class // cFreeTextIndex

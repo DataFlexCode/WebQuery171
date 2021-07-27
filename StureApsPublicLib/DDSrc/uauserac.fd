@@ -1,0 +1,7 @@
+#REPLACE FILE1018 uauserac
+#REPLACE uauserac.Recnum |FN1018,0
+#REPLACE uauserac.UserID |FN1018,1
+#REPLACE uauserac.GateID |FS1018,2
+#REPLACE uauserac.PrivilegeID |FS1018,3
+#REPLACE uauserac.Revoke |FN1018,4
+#REPLACE uauserac.C_S |FS1018,5

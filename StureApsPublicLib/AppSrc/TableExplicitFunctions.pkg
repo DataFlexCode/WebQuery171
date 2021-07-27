@@ -1,0 +1,126 @@
+Use AttributeFunctions.pkg
+Use StackFunctions.pkg // Define oStackFunctions object
+Use StringFunctions.pkg // Define oStringFunctions object
+Use TableAccessFunctions.pkg
+
+Object oTableExplicitFunctions is a cObject
+    Function TrimTableDefinitionToEmbedded tTableExplicit ByRef strTable Returns Boolean
+        Boolean bSucces
+        Integer iColumnMax iColumnIndex
+        String sColumnName
+        String[] aCheckDublettes
+        
+        Move True to bSucces
+        
+        Move (SizeOfArray(strTable.aFields)-1) to iColumnMax
+        For iColumnIndex from 1 to iColumnMax
+            
+            // Embedded driver does not support DateTime type columns. We convert to ASCII: YYYY-MM-DD HH:MM:SS.nnn
+            If (strTable.aFields[iColumnIndex].iType=DF_DATETIME) Begin
+                Move DF_ASCII to strTable.aFields[iColumnIndex].iType
+                Move 23 to strTable.aFields[iColumnIndex].iLen
+            End
+            
+            Move strTable.aFields[iColumnIndex].sName to sColumnName
+#IF (FMAC_VERSION<17)
+            // Embedded driver does not handle column names longer than 15
+            If (Length(sColumnName)>15) Begin
+                Move (Left(sColumnName,15)) to strTable.aFields[iColumnIndex].sName
+            End
+#ELSE
+            If (Length(sColumnName)>32) Begin
+                Move (Left(sColumnName,32)) to strTable.aFields[iColumnIndex].sName
+            End
+#ENDIF
+            If (not(StringAddToSet(oStackFunctions,&aCheckDublettes,strTable.aFields[iColumnIndex].sName))) Begin
+                Move False to bSucces
+            End
+        Loop
+        
+        If (strTable.bSystemFile) Begin
+            Move 1 to strTable.nMaxRecords
+        End
+        Else If (strTable.nMaxRecords>C_MaxNumberOfRecordsInEmbeddedTable) Begin
+            Move C_MaxNumberOfRecordsInEmbeddedTable to strTable.nMaxRecords
+        End
+        
+        Move "DATAFLEX" to strTable.sDriver
+        
+        Function_Return bSucces
+    End_Function
+    
+    Function TrimTableDefinitionToDriver tTableExplicit ByRef strTable Returns Boolean
+        Boolean bSucces
+        Integer iDriver
+        Get DriverDllToId of oTableDriverFunctions strTable.sDriver to iDriver
+        If (iDriver=TD_DRIVER_DATAFLEX) Get TrimTableDefinitionToEmbedded (&strTable) to bSucces
+        Function_Return bSucces
+    End_Function
+
+    Function ExplicitTabelToStringArray tTableExplicit strTable Returns String[]
+        tTableFieldExplicit strField
+        tTableIndexExplicit strIndex
+        Integer iField iFieldMax
+        Integer iIndex iIndexMax
+        Integer iSegment iSegmentMax
+        String sValue sFieldName
+        String[] aValues
+        Send StringPush of oStackFunctions ("Table definition for "+strTable.sDriver+" table, file handle: "+String(strTable.iFileListEntry)) (&aValues)
+        Send StringPush of oStackFunctions ("Root name: "+strTable.sRootName) (&aValues)
+        Send StringPush of oStackFunctions ("Logical name: "+strTable.sLogicalName) (&aValues)
+        Send StringPush of oStackFunctions ("Display name: "+strTable.sDisplayName) (&aValues)
+        Send StringPush of oStackFunctions ("Physical name: "+strTable.sPhysicalName) (&aValues)
+        Send StringPush of oStackFunctions ("SystemFile: "+String(strTable.bSystemFile)) (&aValues)
+        Send StringPush of oStackFunctions ("MaxRecords: "+String(strTable.nMaxRecords)) (&aValues)
+        Send StringPush of oStackFunctions ("RecordsUsed: "+String(strTable.nRecordsUsed)) (&aValues)
+        Send StringPush of oStackFunctions ("RecordLength: "+String(strTable.iRecordLength)) (&aValues)
+        Send StringPush of oStackFunctions ("RecordLengthUsed: "+String(strTable.iRecordLengthUsed)) (&aValues)
+        Send StringPush of oStackFunctions ("LockType: "+String(strTable.iLockType)) (&aValues)
+        Send StringPush of oStackFunctions ("IntegrityCheck: "+String(strTable.iIntegrityCheck)) (&aValues)
+        Send StringPush of oStackFunctions "" (&aValues)
+        Send StringPush of oStackFunctions "Columns: " (&aValues)
+        
+        Move (SizeOfArray(strTable.aFields)-1) to iFieldMax
+        For iField from 1 to iFieldMax
+            Move strTable.aFields[iField] to strField
+            Move (String(iField)+": "+pad(strField.sName,15)+" "+FieldTypeText(oTableAccessFunctions,strField.iType,1)+" ") to sValue
+            Move (sValue+String(strField.iLen)+"."+String(strField.iPrecision)+" Offset/Native len: "+String(strField.iOffset)+"/"+String(strField.iNativeLength)+" ") to sValue
+            If (strField.iMainIndex<>0) Begin
+                Move (sValue+"Index: "+String(strField.iMainIndex)+" ") to sValue
+            End
+            If (strField.iRelFile<>0) Begin
+                Move (sValue+"Relation: "+String(strField.iRelFile)+"."+String(strField.iRelField)+" ") to sValue
+            End
+            Send StringPush of oStackFunctions sValue (&aValues)
+        Loop
+        
+        Send StringPush of oStackFunctions "" (&aValues)
+        Send StringPush of oStackFunctions "Indices: " (&aValues)
+        Move (SizeOfArray(strTable.aIndices)-1) to iIndexMax
+        For iIndex from 1 to iIndexMax
+            Move (SizeOfArray(strTable.aIndices[iIndex].aFields)-1) to iSegmentMax
+            If (iSegmentMax>=1) Begin
+                Move strTable.aIndices[iIndex] to strIndex
+                Send StringPush of oStackFunctions ("  Index: "+String(iIndex)) (&aValues)
+                For iSegment from 1 to iSegmentMax
+                    If (strIndex.aFields[iSegment]<>0) Begin
+                        Move strTable.aFields[strIndex.aFields[iSegment]].sName to sFieldName
+                    End
+                    Else Begin
+                        Move "Recnum" to sFieldName
+                    End
+                    Send StringPush of oStackFunctions ("    "+sFieldName+" "+If(strIndex.aCaseInsensitive[iSegment],"UC","")+" "+If(strIndex.aDescending[iSegment],"desc","")) (&aValues)
+                Loop
+            End
+        Loop
+        Function_Return aValues
+    End_Function
+    
+    Function ExplicitTabelToString tTableExplicit strTable Returns String
+        String[] aValues
+        Get ExplicitTabelToStringArray strTable to aValues
+        Function_Return (JoinString(oStringFunctions,aValues,Character(10),0,0))
+    End_Function
+    
+End_Object
+

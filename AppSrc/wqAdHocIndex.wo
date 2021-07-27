@@ -1,0 +1,382 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebQueryFunctions.pkg
+Use cWebHorizontalLine.pkg
+Use cWebList.pkg
+Use cWebGrid.pkg
+Use cWebColumn.pkg
+Use cWebColumnCheckbox.pkg
+
+Use StructFunctions.pkg
+
+Object oWqAdHocIndex is a cWebModalDialog
+    { WebProperty=True }
+    Property Handle  wphMainTable
+    { WebProperty=True }
+    Property Handle  wphNewTab
+    { WebProperty=True }
+    Property Integer wpiNewCol
+    { WebProperty=True }
+    Property String  wpsSegments
+    
+    Property Handle  phSelectedTable
+    Property wqIndexSeg[] paSegments
+    
+    Set psCaption to "Specify ad hoc index"
+    Set piMinWidth to 600
+    Set piMinHeight to 400
+    Set pbServerOnSubmit to True    // enable the OnSubmit event
+    Set pbServerOnShow   to True
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oSelPanel is a cWebPanel
+            Set piColumnCount to 10
+            Set peRegion to prCenter
+            
+            Object oTabsList is a cWebList
+                Set pbFillHeight to True
+                Set pbDataAware to False
+                Set pbColumnSortable to False
+                
+                Object oTabCol is a cWebColumn
+                    Set psCaption to "Table"
+                End_Object
+                
+                Procedure OnChangeCurrentRow String sFromRowID String sToRowID
+                    Set phSelectedTable     to sToRowID
+                    Send GridRefresh        of oColList
+                    WebSet psCurrentRowID   of oColList to 1
+                End_Procedure  // OnChangeCurrentRow
+                
+                Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                    Handle hTab
+                    
+                    WebGet wphMainTable of oWqAdHocIndex to hTab
+                    Send RelatedFiles of ghoWQF (&aTheRows) hTab
+                End_Procedure  // OnManualLoadData
+            
+            End_Object  // oTabsList
+        
+            Object oColList is a cWebList
+                Set pbFillHeight to True
+                Set pbDataAware to False
+                Set pbColumnSortable to False
+                
+                Object oFldCol is a cWebColumn
+                    Set psCaption to "Fields"
+                End_Object
+                
+                Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                    Send CollectColumns of ghoWQF (&aTheRows) (phSelectedTable(oWqAdHocIndex))
+                End_Procedure  // OnManualLoadData
+            
+            End_Object  // oColList
+        
+        End_Object  // oSelPanel
+        
+        Object oIndexPanel is a cWebPanel
+            Set peRegion to prRight
+            Set piWidth to 400
+
+            Object oSelectedList is a cWebGrid
+                Set pbFillHeight        to True
+                Set pbDataAware         to False
+                Set pbOfflineEditing    to True
+                Set pbAllowAppendRow    to False
+                Set pbAllowInsertRow    to False
+                Set pbAllowDeleteRow    to False
+                
+                Object oNumCol is a cWebColumn
+                    Set psCaption to "Num"
+                    Set piWidth to 8
+                    Set pbEnabled to False
+                End_Object
+                
+                Object oNameCol is a cWebColumn
+                    Set psCaption to "Field"
+                    Set piWidth to 65
+                    Set pbEnabled to False
+                End_Object
+                
+                Object oCapsCol is a cWebColumnCheckbox
+                    Set psCaption to "Caps"
+                    Set piWidth to 12
+                End_Object
+                
+                Object oRevCol is a cWebColumnCheckbox
+                    Set psCaption to "Reverse"
+                    Set piWidth to 15
+                End_Object
+                
+                Object oTabCol is a cWebColumn
+                    Set pbRender to False
+                End_Object  // oTabCol
+                
+                Object oColCol is a cWebColumn
+                    Set pbRender to False
+                End_Object  // oColCol
+                
+                Procedure OnProcessDataSet tWebRow[] aData Integer eOp Integer iSelRow
+                    Send StoreTheData aData eOp iSelRow
+                End_Procedure  // OnProcessDataSet
+                
+                Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                    Send LoadTheData (&aTheRows) (&sCurrentRowID)
+                End_Procedure  // OnManualLoadData
+
+            End_Object
+            
+        End_Object  // oSelectedList
+        
+    End_Object  // oIndexPanel
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 16
+        Set peRegion to prBottom
+        
+        Object oAddSegBut is a cWebButton
+            Set psCaption to "Add"
+            Set piColumnSpan to 2
+            Set piColumnIndex to 6
+            
+            Procedure OnClick
+                Send AddSegment
+            End_Procedure
+            
+        End_Object  // oAddSegBut
+
+        Object oMoveUpBut is a cWebButton
+            Set psCaption to "Move up"
+            Set piColumnSpan to 3
+            Set piColumnIndex to 8
+
+            Procedure OnClick
+                Send MoveSegUp
+            End_Procedure
+            
+        End_Object // oMoveUpBut
+
+        Object oMoveDownBut is a cWebButton
+            Set psCaption to "Move down"
+            Set piColumnSpan to 3
+            Set piColumnIndex to 11
+
+            Procedure OnClick
+                Send MoveSegDown
+            End_Procedure
+            
+        End_Object // oMoveDownBut
+
+        Object oDeleteBut is a cWebButton
+            Set psCaption to "Delete"
+            Set piColumnSpan to 3
+            Set piColumnIndex to 14
+
+            Procedure OnClick
+                Send DeleteSegment
+            End_Procedure
+            
+        End_Object 
+
+        Object oWebHorizontalLine1 is a cWebHorizontalLine
+        End_Object
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 3
+            Set piColumnIndex to 11
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object  // oDeleteBut
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 3
+            Set piColumnIndex to 14
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object 
+        
+    End_Object
+    
+    Procedure AddSegment
+        Integer iCol
+        Handle  hTab
+        
+        WebGet psCurrentRowID of oTabsList to hTab
+        WebGet psCurrentRowID of oColList  to iCol
+        
+        If hTab Begin
+            WebSet wphNewTab to hTab
+            WebSet wpiNewCol to iCol
+            Send ProcessDataSet of oSelectedList C_wqAppendRow
+        End
+        
+    End_Procedure  // AddSegment
+    
+    Procedure DeleteSegment
+        Send ProcessDataSet of oSelectedList C_wqDeleteRow
+    End_Procedure  // DeleteSegment
+    
+    Procedure MoveSegUp
+        Send ProcessDataSet of oSelectedList C_wqMoveRowUp
+    End_Procedure  // MoveSegUp
+    
+    Procedure MoveSegDown
+        Send ProcessDataSet of oSelectedList C_wqMoveRowDown
+    End_Procedure  // MoveSegDown
+
+    Procedure OnSubmit
+        Handle  hoFoc
+        
+        Get FocusObject to hoFoc
+        
+        If (hoFoc = oColList) Send AddSegment
+    End_Procedure
+    
+    Procedure StoreTheData tWebRow[] aData Integer eOp Integer iSelRow
+        wqIndexSeg[] aSegs
+        wqIndexSeg   tSeg
+        Integer i iCol iRow iMax
+        Handle  hTab
+        String  sName sSegs
+        
+        For i from 0 to (SizeOfArray(aData) - 1)
+            Move aData[i].aValues[2] to aSegs[i].sName
+            Move aData[i].aValues[3] to aSegs[i].bUC
+            Move aData[i].aValues[4] to aSegs[i].bDesc
+            Move aData[i].aValues[5] to aSegs[i].iTable
+            Move aData[i].aValues[6] to aSegs[i].iField
+        Loop
+        
+        If (eOp = C_wqAppendRow) Begin
+            WebGet wphNewTab to hTab
+            WebGet wpiNewCol to iCol
+            
+            If hTab Begin
+                Move hTab                                       to tSeg.iTable
+                Move iCol                                       to tSeg.iField
+                Move False                                      to tSeg.bBreak
+                Move False                                      to tSeg.bUC
+                Move False                                      to tSeg.bDesc
+                Move (NiceFieldName(ghoWQF, hTab, iCol) + ": ") to tSeg.sName
+                Move tSeg                                       to aSegs[(SizeOfArray(aSegs))]
+
+                WebGet piCurrentRowIndex of oColList to iRow
+                WebGet piRowCount        of oColList to iMax
+                If (iRow < (iMax - 1)) Send MoveToRow of oColList (iRow + 1)
+            End
+            
+        End
+        Else If (eOp = C_wqDeleteRow) Begin
+            If ((iSelRow => 0) and (iSelRow < SizeOfArray(aSegs))) ;
+                Move (RemoveFromArray(aSegs, iSelRow))                  to aSegs
+        End
+        Else If (eOp = C_wqMoveRowUp) Begin
+            
+            If (iSelRow > 0) Begin
+                Move aSegs[iSelRow]                                     to tSeg
+                Move (RemoveFromArray(aSegs, iSelRow))                  to aSegs
+                Move (InsertInArray(aSegs, (iSelRow - 1), tSeg))        to aSegs
+                WebSet psCurrentRowID of oSelectedList                  to (iSelRow - 1)
+            End
+            
+        End
+        Else If (eOp = C_wqMoveRowDown) Begin
+            
+            If (iSelRow < (SizeOfArray(aData) - 1)) Begin
+                Move aSegs[iSelRow]                                     to tSeg
+                Move (RemoveFromArray(aSegs, iSelRow))                  to aSegs
+                If ((iSelRow + 1) => SizeOfArray(aSegs)) ;
+                     Move tSeg                                          to aSegs[(SizeOfArray(aSegs))]
+                Else Move (InsertInArray(aSegs, (iSelRow + 1), tSeg))   to aSegs
+                WebSet psCurrentRowID of oSelectedList                  to (iSelRow + 1)
+            End
+            
+        End
+        
+        Set paSegments to aSegs
+        If (SizeOFArray(aSegs)) ;
+            Get VariantToString of oStructFunctions aSegs to sSegs
+        WebSet wpsSegments to sSegs
+        If (eOp = C_wqSaveData) Forward Send Ok
+        Else                            Send GridRefresh of oSelectedList
+    End_Procedure  // StoreTheData
+    
+    Procedure LoadTheData tWebRow[] ByRef aRows String ByRef sCurrRowID
+        wqIndexSeg[] aSegs
+        Integer i
+        String  sSegs
+        tValueTree tVT
+        
+        WebGet wpsSegments to sSegs
+        
+        If (sSegs <> "") Begin
+            Get StringToValueTree of oStructFunctions sSegs to tVT
+            ValueTreeDeserializeParameter tVT to aSegs
+        End
+        
+        For i from 0 to (SizeOfArray(aSegs) - 1)
+            Move i                  to aRows[i].aValues[0]
+            Move (i + 1)            to aRows[i].aValues[1]
+            Move aSegs[i].sName     to aRows[i].aValues[2]
+            Move aSegs[i].bUC       to aRows[i].aValues[3]
+            Move aSegs[i].bDesc     to aRows[i].aValues[4]
+            Move aSegs[i].iTable    to aRows[i].aValues[5]
+            Move aSegs[i].iField    to aRows[i].aValues[6]
+        Loop
+    
+    End_Procedure  // LoadTheData
+    
+    Procedure Ok
+        Send ProcessDataSet of oSelectedList C_wqSaveData
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+
+    Procedure OnShow
+        Send GridRefresh of oTabsList
+        Send GridRefresh of oSelectedList
+    End_Procedure  // OnLoad
+    
+    Procedure PopupAdHoc Handle hoObj Handle hMainTab wqIndexSeg[] aSegs
+        Integer i
+        String  sSegs
+        
+        If (SizeOfArray(aSegs)) ;
+            Get VariantToString of oStructFunctions aSegs to sSegs
+        WebSet wpsSegments to sSegs
+        WebSet wphMainTable             to hMainTab
+        
+        Send Popup hoObj
+    End_Procedure  // DoPopup
+
+    Function AdHocSegments Returns wqIndexSeg[]
+        wqIndexSeg[] aSegs
+        tValueTree tVT
+        String  sSegs
+        
+//        Get paSegments to aSegs
+        WebGet wpsSegments to sSegs
+        
+        If (sSegs <> "") Begin
+            Get StringToValueTree of oStructFunctions sSegs to tVT
+            ValueTreeDeserializeParameter tVT to aSegs
+        End
+        
+        Function_Return aSegs
+    End_Function  // AdHocSegments
+    
+End_Object

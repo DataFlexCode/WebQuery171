@@ -1,0 +1,363 @@
+
+Use VdfBase.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+Use StringFunctions.pkg // Define oStringFunctions object
+Use DateFunctions.pkg // Define oDateFunctions object
+
+#IFNDEF Is$WebApp // If Windows application
+    Use Win\StatusPanelAlternative.pkg
+#ENDIF
+
+Struct tSequentialFileFixedColumn
+    Integer iStart
+    Integer iWidth
+    Boolean bTrim
+End_Struct
+
+Struct tSequentialFileColumnFormats
+    Integer iType
+    String  sMaxLength
+End_Struct
+
+Struct tSequentialFileReadParams
+    Integer iFileFormat // 0=CSV 1=Fixed positions
+    String  sFieldDelimiter
+    Boolean bProtectQuotes
+    Boolean bStripQuotes    // Remove enclosing quotes from column values
+    Boolean bColumnNames    // bColumnNames in first record
+    Boolean bOem
+    
+    
+    Boolean bSentinel
+    Boolean bAllowCancel
+    String  sSentinelCaption
+    
+    String[] aValidColumnNames // If this array is empty column names are not validated
+    Boolean bAutoLocateHeaderLine // Only works if aValidColumns er sat til noget
+    
+    tSequentialFileFixedColumn[] aColumnPositions // Fixed column positions. Used if iFileFormat=1
+End_Struct
+
+Enum_List // FileReadStatus error codes
+    Define SFRS_NO_ERROR
+    Define SFRS_FILE_NOT_FOUND  // "File not found"
+    Define SFRS_INVALID_COLUMN_NAMES
+    Define SFRS_USER_INTERRUPT  // "File reading interrupted by user" 
+    Define SFRS_HEADER_LINE_NOT_LOCATED
+    Define SFRS_CUSTOM_ERROR
+End_Enum_List
+
+Struct tSequentialFileReadStatus
+    String  sFileName
+    Date    dDateInitiated
+    String  sTimeInitiated
+    Number  nFileSize  // File size
+    Number  nBytesRead
+    Integer iRecordsRead
+    Integer iLinesRead
+    Integer bCancelled    // Was reading interrupted?
+    Integer iErrorCode
+    String  sErrorText
+End_Struct
+
+Class cSequentialFileReader is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        
+        Property tSequentialFileReadParams ptParams
+        Property tSequentialFileReadStatus ptStatus
+        // Not used by the class but in situations where you have an array of them.
+        Property String psFormatName
+    End_Procedure
+    
+        Procedure SetValidColumnNames String sColumnsNames
+            String[] aColumnNames
+            tSequentialFileReadParams stParams
+            Get ptParams to stParams
+            Send SplitString of oStringFunctions sColumnsNames stParams.sFieldDelimiter False stParams.bProtectQuotes (&aColumnNames)
+            Move aColumnNames to stParams.aValidColumnNames
+            Set ptParams to stParams
+        End_Procedure
+        
+        // Check that column names in file are the same as the ones specified in the preset.
+        Function ValidateColumnNames String[] aValidColumnNames String[] aColumnNames Returns Boolean
+            Integer iMax iMax2 iIndex
+            Move (SizeOfArray(aValidColumnNames)-1) to iMax2
+            If (iMax2>0) Begin
+                Move (SizeOfArray(aColumnNames)-1) to iMax
+                If (iMax<>iMax2) Begin
+                    Function_Return False
+                End
+                For iIndex from 0 to iMax
+                    If (aColumnNames[iIndex]<>aValidColumnNames[iIndex]) Begin
+                        Function_Return False
+                    End
+                Loop
+            End
+            Function_Return True
+        End_Function
+    
+        Procedure _DoResetStatus
+            tSequentialFileReadStatus stStatus
+            Get SystemDate of oDateFunctions to stStatus.dDateInitiated
+            Get SystemTimeString of oDateFunctions to stStatus.sTimeInitiated
+            Move 0 to stStatus.nBytesRead
+            Move 0 to stStatus.iRecordsRead
+            Move False to stStatus.bCancelled
+            Move SFRS_NO_ERROR to stStatus.iErrorCode
+            Move "" to stStatus.sErrorText
+
+            Set ptStatus to stStatus
+        End_Procedure
+        
+        Procedure SplitStringFixedPositions String sLine tSequentialFileFixedColumn[] aColumnPositions String[] ByRef aColumnValues
+        End_Procedure
+        
+        Procedure UpdateStatus tSequentialFileReadStatus stStatus
+#IFNDEF Is$WebApp // If Windows 
+            Set Action_Text of ghoStatusPanel to ("Read: "+String(stStatus.iRecordsRead)+" records ("+NumberToStringTS(oStringFunctions,stStatus.nBytesRead,0)+" bytes)")
+            Set Meter_Pct of ghoStatusPanel to (100.0*stStatus.nBytesRead/stStatus.nFileSize)
+            Set Meter_Text of ghoStatusPanel to (String(Integer(100.0*stStatus.nBytesRead/stStatus.nFileSize))+"%")
+#ENDIF            
+        End_Procedure
+        
+        Procedure _StripQuotes String[] ByRef aColumnValues
+            Integer iMax iIndex
+            String sValue
+            Move (SizeOfArray(aColumnValues)-1) to iMax
+            For iIndex from 0 to iMax
+               Send StripQuotes of oStringFunctions (&aColumnValues[iIndex]) 
+            Loop
+        End_Procedure
+        
+    Function CanRead String sFileName Returns Boolean
+        Boolean bAnsi
+        Boolean bFin
+        Boolean bColumnNames
+        Integer iChannel iRecordsRead
+        String  sLine
+        Boolean bTabDelimited
+        
+        tSequentialFileReadParams stParams
+        tSequentialFileReadStatus stStatus    
+        String[] aColumnValues
+        
+        Get ptParams to stParams
+        Move (stParams.sFieldDelimiter=Character(9)) to bTabDelimited
+        If (bTabDelimited) Begin
+            Get DirectInput of oFileFunctions ("binary: "+sFileName) to iChannel
+        End
+        Else Begin
+            Get DirectInput of oFileFunctions sFileName to iChannel
+        End
+        If (iChannel=>0) Begin
+            Move (not(stParams.bOem)) to bAnsi
+            Move 0 to iRecordsRead
+            Repeat
+                Readln channel iChannel sLine
+                If (bTabDelimited) Begin // If we read binary: the readln command will leave in cr and/or lf characters.
+                   Move (Replaces(Character(10),sLine,"")) to sLine 
+                   Move (Replaces(Character(13),sLine,"")) to sLine 
+                End
+                Move (SeqEof) to bFin
+                If (not(bFin)) Begin
+                    
+                    If (bAnsi) Get ToOEM sLine to sLine
+                    If (stParams.iFileFormat=0) Begin
+                        Send SplitString of oStringFunctions sLine stParams.sFieldDelimiter False stParams.bProtectQuotes (&aColumnValues)
+                    End
+                    If (stParams.iFileFormat=1) Begin
+                        Send SplitStringFixedPositions sLine stParams.aColumnPositions (&aColumnValues)
+                    End
+                    
+                    Move ((stParams.bAutoLocateHeaderLine or iRecordsRead=0) and stParams.bColumnNames) to bColumnNames
+                    
+                    If (bColumnNames and SizeOfArray(stParams.aValidColumnNames)>0) Begin
+                        If (stParams.bStripQuotes) Begin
+                            Send _StripQuotes (&aColumnValues)
+                        End
+                        If (ValidateColumnNames(Self,stParams.aValidColumnNames,aColumnValues)) Begin
+                            Send CloseInput of oFileFunctions iChannel
+                            Function_Return True
+                        End
+                        Else Begin
+                            If (not(stParams.bAutoLocateHeaderLine)) Begin
+                                Send CloseInput of oFileFunctions iChannel
+                                Function_Return False
+                            End
+                        End
+                    End
+                    
+                    If (not(bFin) and not(stParams.bAutoLocateHeaderLine)) Begin
+                        // Do nothing!
+                    End
+                End
+                Increment iRecordsRead
+            
+            Until (bFin)
+            
+            If (stParams.bAutoLocateHeaderLine) Begin
+                Send CloseInput of oFileFunctions iChannel
+                Function_Return False
+            End
+        
+        End
+        Else Begin 
+            Function_Return False
+        End
+        Send CloseInput of oFileFunctions iChannel
+        Function_Return False
+    End_Function
+
+    //Procedure DoHandleRecord String[] aValues Boolean bColumnNames
+    Function DoReadFile String sFileName Handle hMsg Integer hObj Returns Boolean
+        Boolean bAnsi
+        Boolean bFin
+        Boolean bColumnNames
+        Boolean bTabDelimited
+        Integer iChannel
+        Boolean bCancelRequest
+        Integer iCancelResponse
+        String  sLine
+        
+        tFileData stFileData
+        tSequentialFileReadParams stParams
+        tSequentialFileReadStatus stStatus    
+        String[] aColumnValues
+        
+        Send _DoResetStatus
+        
+        Get ptParams to stParams
+        Get ptStatus to stStatus
+        Move sFileName to stStatus.sFileName    
+        
+        Move (stParams.sFieldDelimiter=Character(9)) to bTabDelimited
+        If (bTabDelimited) Begin
+            Get DirectInput of oFileFunctions ("binary: "+sFileName) to iChannel
+        End
+        Else Begin
+            Get DirectInput of oFileFunctions sFileName to iChannel
+        End
+        If (iChannel=>0) Begin
+            Move (not(stParams.bOem)) to bAnsi
+            Move 0 to stStatus.nFileSize
+            If (ReadFileData(oFileFunctions,sFileName,&stFileData)) Begin
+                Move stFileData.nFileSize to stStatus.nFileSize
+            End
+            
+#IFNDEF Is$WebApp // If Windows application
+            If (stParams.bSentinel) Begin
+                Send Initialize_StatusPanel of ghoStatusPanel stParams.sSentinelCaption sFileName ("("+NumberToStringTS(oStringFunctions,stStatus.nFileSize,0)+" bytes)")
+                Send Start_StatusPanel of ghoStatusPanel
+                Send EnableCancelButton of ghoStatusPanel (stParams.bAllowCancel) // MUST be done *after* Start_StatusPanel
+            End
+#ENDIF            
+            Move 0 to stStatus.iRecordsRead
+            Move 0 to stStatus.iLinesRead
+            Repeat
+                Readln channel iChannel sLine
+                If (bTabDelimited) Begin // If we read binary: the readln command will leave in cr and/or lf characters.
+                   Move (Replaces(Character(10),sLine,"")) to sLine 
+                   Move (Replaces(Character(13),sLine,"")) to sLine 
+                End
+                Move (SeqEof) to bFin
+                If (not(bFin)) Begin
+                    
+                    Get_Channel_Position iChannel to stStatus.nBytesRead
+                    Increment stStatus.iLinesRead
+                    
+                    If (bAnsi) Get ToOEM sLine to sLine
+                    If (stParams.iFileFormat=0) Begin
+                        Send SplitString of oStringFunctions sLine stParams.sFieldDelimiter False stParams.bProtectQuotes (&aColumnValues)
+                    End
+                    If (stParams.iFileFormat=1) Begin
+                        Send SplitStringFixedPositions sLine stParams.aColumnPositions (&aColumnValues)
+                    End
+                    
+                    Move ((stParams.bAutoLocateHeaderLine or stStatus.iRecordsRead=0) and stParams.bColumnNames) to bColumnNames
+                    
+                    If (bColumnNames and SizeOfArray(stParams.aValidColumnNames)>0) Begin
+                        If (stParams.bStripQuotes) Begin
+                            Send _StripQuotes (&aColumnValues)
+                        End
+                        If (ValidateColumnNames(Self,stParams.aValidColumnNames,aColumnValues)) Begin
+                            Move False to stParams.bAutoLocateHeaderLine
+                        End
+                        Else Begin
+                            If (not(stParams.bAutoLocateHeaderLine)) Begin
+                                Move True to bFin
+                                Move SFRS_INVALID_COLUMN_NAMES to stStatus.iErrorCode
+                                Move "Incompatible file (invalid column names)" to stStatus.sErrorText
+                            End
+                        End
+                    End
+                    
+                    If (not(bFin) and not(stParams.bAutoLocateHeaderLine)) Begin
+                        If (stParams.bStripQuotes) Begin
+                            Send _StripQuotes (&aColumnValues)
+                        End
+                        
+                        Increment stStatus.iRecordsRead
+                        Send hMsg of hObj aColumnValues bColumnNames (&stStatus) sLine
+
+                        If (stStatus.iErrorCode<>SFRS_NO_ERROR) Begin
+                            Move True to bFin
+                        End
+                    
+                        If (not(bFin)) Begin
+#IFNDEF Is$WebApp // If Windows application
+                            If (stParams.bSentinel) Begin
+                                Send UpdateStatus stStatus
+                                Get Check_StatusPanel of ghoStatusPanel to bCancelRequest
+                                If bCancelRequest Begin
+                                    Get YesNo_Box "Do you want to cancel?" "Cancel request" MB_DEFBUTTON1 to iCancelResponse
+                                    If (iCancelResponse=MBR_Yes) Begin
+                                        Move True to bFin
+                                        Move True to stStatus.bCancelled
+                                        Move SFRS_USER_INTERRUPT to stStatus.iErrorCode
+                                        Move "Process interrupted by user" to stStatus.sErrorText
+                                    End
+                                    Else Begin
+                                        Send Start_StatusPanel of ghoStatusPanel
+                                    End
+                                End
+                            End
+#ENDIF
+                        End
+                    End
+                End
+            
+            Until (bFin)
+            
+#IFNDEF Is$WebApp // If Windows application
+            Send Stop_StatusPanel of ghoStatusPanel
+#ENDIF
+            Send CloseInput of oFileFunctions iChannel
+        
+            If (stParams.bAutoLocateHeaderLine) Begin
+                Move SFRS_HEADER_LINE_NOT_LOCATED to stStatus.iErrorCode
+                Move "Header line could not be auto-located" to stStatus.sErrorText
+            End
+        
+        End
+        Else Begin 
+            Move SFRS_FILE_NOT_FOUND to stStatus.iErrorCode
+            Move (Replace("#","File not found (#)",sFileName)) to stStatus.sErrorText
+        End
+        
+        Set ptStatus to stStatus
+        Function_Return (stStatus.iErrorCode<>0)
+    End_Function
+    
+    Procedure ShowDone
+        tSequentialFileReadStatus stStatus    
+        Get ptStatus to stStatus
+        If (stStatus.iErrorCode=SFRS_NO_ERROR) Begin
+            Send Info_Box "File successfully read"
+        End
+        Else Begin
+            Send Info_Box stStatus.sErrorText
+        End
+    End_Procedure
+    
+End_Class // cSequentialFileReader

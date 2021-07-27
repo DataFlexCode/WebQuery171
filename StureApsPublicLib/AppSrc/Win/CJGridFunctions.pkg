@@ -1,0 +1,106 @@
+Use cCJGrid.pkg
+
+Global_Variable Integer oCJGridFunctions
+
+Object _oCJGridFunctions is a cObject 
+    Move Self to oCJGridFunctions
+    
+    Function SelectedRow Integer hGrid Returns Integer
+        Integer hoData iRow
+        Get phoDataSource of hGrid to hoData
+        Get SelectedRow of hoData to iRow
+        Function_Return iRow
+    End_Function
+    
+    Function SelectedRowDataRow Integer hGrid tDataSourceRow ByRef strRowData Returns Boolean
+        Integer hoData iRow
+        tDataSourceRow[] aDataSource
+        
+        Get phoDataSource of hGrid to hoData
+        Get SelectedRow of hoData to iRow
+        If (iRow<>-1) Begin
+            Get DataSource of hoData to aDataSource
+            Move aDataSource[iRow] to strRowData
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Function DataSource Integer hGrid Returns tDataSourceRow[]
+        Integer hoData iRow
+        tDataSourceRow[] aDataSource
+        Get phoDataSource of hGrid to hoData
+        Get DataSource of hGrid to aDataSource
+        Function_Return aDataSource
+    End_Function
+    
+    Procedure SwapCurrentRowUp Integer hGrid // hGrid must be non-db aware
+        Integer hoData iRow
+        tDataSourceRow[] aDataSource
+        tDataSourceRow strRowData
+        Get phoDataSource of hGrid to hoData
+        Get DataSource of hoData to aDataSource
+        Get SelectedRow of hoData to iRow
+        If (iRow>0) Begin
+            Send EndEdit of hGrid 
+            Move aDataSource[iRow] to strRowData
+            Move aDataSource[iRow-1] to aDataSource[iRow]
+            Move strRowData to aDataSource[iRow-1]
+            Send ReInitializeData of hGrid aDataSource True
+            Send MoveUpRow of hGrid 
+        End
+    End_Procedure
+    
+    Procedure SwapCurrentRowDown Integer hGrid // hGrid must be non-db aware
+        Integer hoData iRow iMaxRow
+        tDataSourceRow[] aDataSource
+        tDataSourceRow strDataSource
+        Get phoDataSource of hGrid to hoData
+        Get DataSource of hoData to aDataSource
+        Get SelectedRow of hoData to iRow
+        Get RowCount of hoData to iMaxRow
+        Decrement iMaxRow
+        If (iRow<iMaxRow) Begin
+            Send EndEdit of hGrid 
+            Move aDataSource[iRow+1] to strDataSource
+            Move aDataSource[iRow] to aDataSource[iRow+1]
+            Move strDataSource to aDataSource[iRow]
+            Send ReInitializeData of hGrid aDataSource True
+            Send MoveDownRow of hGrid 
+        End
+    End_Procedure
+    
+    Procedure RemoveSelectedRow Integer hGrid // hGrid must be non-db aware
+        Integer iRow
+        Get SelectedRow hGrid to iRow
+        If (iRow<>-1) Begin
+            Send RemoveRowAndSelect of hGrid iRow
+        End
+    End_Procedure
+End_Object
+
+Class cfreeCJGrid is a cCJGrid
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        On_Key Key_Ctrl+Key_Up_Arrow Send SwapCurrentRowUp
+        On_Key Key_Ctrl+Key_Down_Arrow Send SwapCurrentRowDown
+        Property Boolean pbAllowRowSwapUpDown False
+    End_Procedure
+    
+    Procedure OnRowsSwapped
+    End_Procedure
+    
+    Procedure SwapCurrentRowUp
+        If (pbAllowRowSwapUpDown(Self)) Begin
+            Send SwapCurrentRowUp of oCJGridFunctions Self
+            Send OnRowsSwapped
+        End
+    End_Procedure
+
+    Procedure SwapCurrentRowDown
+        If (pbAllowRowSwapUpDown(Self)) Begin
+            Send SwapCurrentRowDown of oCJGridFunctions Self
+            Send OnRowsSwapped
+        End
+    End_Procedure
+End_Class

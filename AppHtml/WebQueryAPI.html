@@ -1,0 +1,227 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html><head> 
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+  <title>WebQuery API</title>
+</head>
+<body style="font-family: Verdana, Geneva, sans-serif; font-size: 11.2px;">
+<h2>WebQuery API</h2>
+
+<p>WebQuery has a number of properties and messages which are intended
+to be public - those are documented here.</p>
+
+<h3>Property psCaption {<i>String</i>}</h3>
+
+<p>This is just the standard framework property controlling what
+is displayed
+as the title of the WebQuery UI panel - you can set it to whatever you
+like. The default is "WebQuery Definition".</p>
+
+<h3>Property phoSessionObj {<i>Object Handle</i>}</h3>
+
+<p>This property should contain the Object ID of the object which
+controls
+session management for your web application, however even if you have
+customised the session management in your web app you should not need
+to
+modify this property setting because it defaults to the global variable
+ghoWebSessionManager which you will need to have popualated with
+whatever Object ID you have filling that role.</p>
+
+<h3>Property phLoggedInFunc {<i>Boolean function reference</i>}</h3>
+
+<p>This property defines the function which WebQuery will call to
+discover
+whether the current session is for a logged-in user. If you have
+customised the session management within your web application to make
+this different from the standard, you can tell WebQuery about it by
+having a line in your web app after the "Use WebQuery.wo" line of the
+form:</p>
+
+<pre>    Set phLoggedInFunc of oWebQuery to (RefFunc(<i>YourFunctionName</i>))</pre>
+
+<p>It defaults to <i>IsLoggedIn</i>.</p>
+
+<h3>Property phUserNameFunc {<i>String function reference</i>}</h3>
+
+This property defines the function which WebQuery will call to retrieve
+the login name of the current session's user. If you have
+customised the session management within you web application to make
+this different from the standard, you can tell WebQuery about it by
+having a line in your web app after the "Use WebQuery.wo" line of the
+form:
+<pre>    Set phUserNameFunc of oWebQuery to (RefFunc(<i>YourFunctionName</i>))</pre>
+
+<p>It defaults to <i>psLoginName</i>.</p>
+
+<h3>Property psOutputDirectory {<i>String</i>}</h3>
+
+<p>This property determines where under your web app's AppHTML directory WebQuery
+will write its temporary HTML files prior to sending them to the browser for
+display to the user. It <u>must</u> point to a directory which is accessible to
+the web server. By default it is set to "WebQuery" and will thus cause a directory
+named "AppHTML/WebQuery" to be created when a report is first run.</p>
+
+<p>The files written to
+this directory are deleted as soon as they are loaded in the web browser by a
+piece of JavaScript embedded in their HTML which makes a call back to the WebApp,
+so this directory should always be empty.</p>
+
+<p>This mechanism also means that users cannot "reload" reports
+because as soon as they have seen them, the file on which they are based has
+already been deleted - they must run the query again to see the output again.</p>
+
+<h3>Property psStoreDirectory {<i>String</i>}</h3>
+
+<p>This property determines where saved queries will be written to on your web
+server. It should <u>not</u> be in a location accessible to the web server, but
+the web application should be able to read, write and create in it.</p>
+
+<p>By default this is set to your application's home directory (the
+<i>psHome</i> property of the oApplication's phoWorkspace object) plus "WebQuery".
+</p>
+
+<p>When a user first attempts to open or save a query, this directory will be
+created, along with two subdirectories: "Public" and one named for the user's
+login name. Other users will then have their own directories created within it
+as they use the open or save query features.</p>
+
+<h3>Property psDownloadDirectory {<i>String</i>}</h3>
+
+<p>This property determines where downloads (in HTML, CSV, Text or XML format)
+will be written to. It should <u>not</u> be in a location accessible to the web 
+server, but the web application should be able to read, write and create in it.</p>
+
+<p>By default it is the same as <i>psStoreDirectory</i> above.<p>
+
+<p>Files created in this directory will be sent to the user's browser as downloads
+through the <i>CustomDownlLoadURL</i> mechanism of the <i>oWebResourceManager</i>
+object. They will be deleted when the user clicks on the "<i>Click when done</i>"
+button displayed during download operations.</p>
+
+<h3>Property pbAllowRawOutput {<i>Boolean</i>}</h3>
+
+<p>This property, which is false by default, determines whether "<" and ">" symbols in
+the report data will be replaced in the output with their respective "HTML entities":
+&amp;lt; and &amp;gt; (if false), or be output unchanged (if true).</p>
+
+<p>Setting this to true will allow HTML embedded in the output to be sent intact
+to the browser, allowing such things as HTML links and images to appear in reports.
+See the sample report "Sales Person Pictures" for an example of this.</p>
+
+<h3>Property pbUseSqlDefault {<i>Boolean</i>}</h3>
+
+<p>This property (which defaults to False) will control the initial checked state
+of the "<b>Use SQL</b>" checkbox on the Output tab. It will also control its state
+following a "<b>Clear query</b>" action (i.e. if the user clicks the "Clear query"
+button).</p>
+
+<h3>Procedure ExcludeTable {<i>Table.File_Number</i>}</h3>
+
+<p>This message takes an integer argument which is the filelist file-number of a
+table to exclude from WebQuery so that the users never see it.</p>
+
+<p>The preferred mechanism for using it is to place a line such as:</p>
+
+<pre>    Send ExcludeTable of oWebQuery <i>tablename</i>.File_Number</pre>
+
+<p>In your WebApp.src below the "Use WebQuery.wo" line, however for most tables
+you will need to open them first, so write:</p>
+
+<pre>
+    Open <i>tablename</i>
+    Send ExcludeTable of oWebQuery <i>tablename</i>.File_Number
+</pre>
+
+<p>Alternative you can simply pass the integer file number of the table within
+filelist.cfg, but this mechanism will break if table numbers are changed.</p>
+
+<p>Table whose "Description" (User Display Name) begins with an "@" character will
+always be excluded from WebQuery.</p>
+
+<p><u>Note:</u> Excluding tables will break any relational chains which pass
+through them, meaning that tables they relate to will not appear in the list of
+available tables if a child table of theirs is selected as the Main Table for a
+query</p> 
+
+<h3>Procedure ClearExcludedTables</h3>
+
+<p>This message clears down WebQuery's list of excluded tables and can be used in
+conjunction with the above ExcludeTable message to dynamically hide and show tables
+depending on some factor(s) such as the access rights of the user.</p>
+
+<h3>Procedure ExcludeField {<i>Table.File_Number Integer}</i></h3>
+
+<p>This message takes two integer arguments which are the filelist file-number 
+of a table and the number of a field within it to exclude from WebQuery so that
+the users never see it.</p>
+
+<p>The preferred mechanism for using it is to place a line such as:</p>
+
+<pre>    Send ExcludeField of oWebQuery File_Field <i>tablename</i>.<i>fieldname</i></pre>
+
+<p>In your WebApp.src below the "Use WebQuery.wo" line, however for most tables
+you will need to open them first, so write:</p>
+
+<pre>
+    Open <i>tablename</i>
+    Send ExcludeField of oWebQuery File_Field <i>tablename</i>.<i>fieldname</i>
+</pre>
+
+<p>Alternative you can simply pass the integer file number of the table within
+filelist.cfg followed by the field number, but this mechanism will break if
+table numbers or field numbers are changed.</p>
+
+<p>Fields whose name begins with an "@" character will
+always be excluded from WebQuery.</p>
+
+<h3>Procedure ClearExcludedFields</h3>
+
+<p>This message clears down WebQuery's list of excluded fields and can be used in
+conjunction with the above ExcludeField message to dynamically hide and show fields
+depending on some factor(s) such as the access rights of the user.</p>
+
+<h3>Function PublicPath (returns string)</h3>
+
+<p>This function returns the path of the directory in which queries have been
+saved as "Public", which will be the same as:</p>
+
+<pre>    (psOutputDirectory(oWebQuery) + "\Public")</pre>
+
+<p><u>Note:</u> It does not guarantee that the directory actually exists yet.</p>
+
+<h3>Function PrivatePath (returns string)</h3>
+
+<p>This function returns the path of the directory in which queries by the
+currently logged-in user have been saved as private (i.e. under "My Queries").
+This will be the same as:</p>
+
+<pre>    (psOutputDirectory(oWebQuery) + "\<i>User's Login Name</i>")</pre>
+
+<p>If the user is not logged in it will return an empty string.</p>
+
+<p><u>Note:</u> It does not guarantee that the directory actually exists yet.</p>
+
+<h3>Procedure LoadAndRun {<i>String</i>}</h3>
+
+<p>This message will cause WebQuery to load a saved query from file and
+immediately run it.<p>
+
+<p>It can be used to place predefined reports onto the menus (see the sample
+reports provided under "Reports" menu in this program) or elsewhere in your
+web application.</p>
+
+<p>It takes a single argument which should be the full path and name of a saved
+query, for example:</p>
+
+<pre>
+    Send LoadAndRun of oWebQuery "C:\WebQueryReports\<i>Some Report Name</i>.wqr"
+</pre>
+
+<p>You can access queries which have been saved as "public" using the technique:</p>
+
+<pre>
+    Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Users List.wqr")
+</pre>
+
+</body>
+</html>

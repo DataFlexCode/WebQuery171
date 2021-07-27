@@ -1,0 +1,193 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebList.pkg
+Use cWebColumn.pkg
+
+Enum_List
+    Define C_wqEQ for 0
+    Define C_wqLT
+    Define C_wqLE
+    Define C_wqGR
+    Define C_wqGT
+    Define C_wqNE
+    Define C_wqIN
+    Define C_wqCIN
+    Define C_wqBT
+    Define C_wqCBT
+    Define C_wqINL
+    Define C_wqEndSelOps
+End_Enum_List
+
+Struct wqSelType
+    String  sCode
+    String  sDesc
+End_Struct  // wqSelType
+
+Object oWqSelectionTypes is a cObject
+    Property wqSelType[] paSelTypes
+    
+    Procedure LoadTypes
+        wqSelType[] aTypes
+        Integer i
+        
+        For i from 0 to (C_wqEndSelOps - 1)
+            If (i =  0) Move "="                        to aTypes[i].sCode
+            If (i =  1) Move "<"                        to aTypes[i].sCode
+            If (i =  2) Move "<="                       to aTypes[i].sCode
+            If (i =  3) Move ">="                       to aTypes[i].sCode
+            If (i =  4) Move ">"                        to aTypes[i].sCode
+            If (i =  5) Move "<>"                       to aTypes[i].sCode
+            If (i =  6) Move "IN"                       to aTypes[i].sCode
+            If (i =  7) Move "CIN"                      to aTypes[i].sCode
+            If (i =  8) Move "x-y"                      to aTypes[i].sCode
+            If (i =  9) Move "CBT"                      to aTypes[i].sCode
+            If (i = 10) Move "in list"                  to aTypes[i].sCode
+            If (i =  0) Move "Equal to"                 to aTypes[i].sDesc
+            If (i =  1) Move "Less than"                to aTypes[i].sDesc
+            If (i =  2) Move "Less than or equal to"    to aTypes[i].sDesc
+            If (i =  3) Move "Greater than or equal to" to aTypes[i].sDesc
+            If (i =  4) Move "Greater than"             to aTypes[i].sDesc
+            If (i =  5) Move "Not equal to"             to aTypes[i].sDesc
+            If (i =  6) Move "String includes"          to aTypes[i].sDesc
+            If (i =  7) Move "String does not include"  to aTypes[i].sDesc
+            If (i =  8) Move "Between"                  to aTypes[i].sDesc
+            If (i =  9) Move "Outside interval"         to aTypes[i].sDesc
+            If (i = 10) Move "in list"                  to aTypes[i].sDesc
+        Loop
+        
+        Set paSelTypes to aTypes
+    End_Procedure  // LoadTypes
+    
+    Function SelCode Integer i Returns String
+        wqSelType[] aTypes
+        
+        If (i => C_wqEndSelOps) Function_Return ""
+        
+        Get paSelTypes to aTypes
+        Function_Return aTypes[i].sCode
+    End_Function  // SelCode
+    
+    Function SelDesc Integer i Returns String
+        wqSelType[] aTypes
+        
+        If (i => C_wqEndSelOps) Function_Return ""
+        
+        Get paSelTypes to aTypes
+        Function_Return aTypes[i].sDesc
+    End_Function  // SelDesc
+    
+    Function SelDescFromType String sType Returns String
+        Integer i
+        wqSelType[] aTypes
+        
+        Get paSelTypes to aTypes
+        
+        For i from 0 to (SizeOfArray(aTypes) - 1)
+            If (sType = aTypes[i].sCode) Function_Return aTypes[i].sDesc
+        Loop
+
+        Function_Return ""        
+    End_Function  // SelDescFromType
+
+    Send LoadTypes    
+End_Object  // oWqSelectionTypes
+
+Object oWqSelectionOperators is a cWebModalDialog
+    { WebProperty=True }
+    Property Integer wpiOperation
+    
+    Set psCaption           to "Chose selection operator"
+    Set piMinWidth          to 240
+    Set piMinHeight         to 410
+    Set pbResizable         to False
+    Set pbServerOnSubmit    to True    // enable the OnSubmit event
+    
+    Object oSelOpsMain is a cWebPanel
+        Set piColumnCount to 1
+        
+        Object oOpsList is a cWebList
+            Set piColumnSpan     to 0
+            Set pbFillHeight     to True
+            Set pbDataAware      to False
+            Set pbColumnSortable to False
+            
+            Object oOperatorsCol is a cWebColumn
+                Set psCaption to "Selection Operators"
+            End_Object
+            
+            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                Integer i
+                Handle  hoST
+                
+                Forward Send OnManualLoadData (&aTheRows) (&sCurrentRowID)
+                Move (oWqSelectionTypes(Self)) to hoST
+                
+                For i from 0 to (C_wqEndSelOps - 1)
+                    Move i                                                  to aTheRows[i].aValues[0]
+                    Move (SelDesc(hoST, i) * "(" + SelCode(hoST, i) + ")")  to aTheRows[i].aValues[1]
+                Loop
+                
+            End_Procedure  // OnManualLoadData
+            
+            Procedure OnLoad
+                Send GridRefresh
+            End_Procedure  // OnLoad
+            
+        End_Object  // OpsList
+        
+    End_Object 
+    
+    Object oSelOpsBottom is a cWebPanel
+        Set piColumnCount to 3
+        Set peRegion to prBottom
+
+        Object oSelOpsOkBtn is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 1
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+        End_Object 
+
+        Object oSelOpsCancelBtn is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 2
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object 
+        
+    End_Object 
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure DoPopup Handle hoObj Integer eOp
+        WebSet wpiOperation to eOp
+        
+        Send Popup hoObj
+    End_Procedure  // DoPopup 
+    
+    Function SelectedOperator Returns Integer
+        Integer iOp
+        
+        WebGet psCurrentRowID of oOpsList to iOp
+        Function_Return iOp
+    End_Function  // SelectedOperator
+    
+    Function Operation Returns Integer
+        Integer eOp
+        
+        WebGet wpiOperation to eOp
+        Function_Return eOp
+    End_Function  // Operation
+    
+End_Object  // oWqSelectionOperators

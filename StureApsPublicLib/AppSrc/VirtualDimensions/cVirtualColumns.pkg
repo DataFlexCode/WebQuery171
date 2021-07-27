@@ -1,0 +1,1128 @@
+Use TableQueryFunctions.pkg
+Use Compare.pkg
+
+Struct tvdCollection
+    String sID
+    String sLabel
+    Integer _iSortOrder
+    RowID   riRow
+End_Struct
+
+Struct tvdLink
+    String sCollectionID
+    String sColumnID
+    Integer _iSortOrder
+End_Struct
+
+Struct tvdSelectOption
+    String sValue
+    String sLabel
+    Integer _iSortOrder
+    Boolean bNoSelect
+    RowID riRow
+End_Struct
+
+Struct tvdMaster
+    String sID
+    String sLabel
+    Boolean bMandatory
+    Integer _iSortOrder
+    tvdSelectOption[] aSelectOptions
+    RowID riRow
+End_Struct
+
+Struct tvdValue
+    String sColumnID
+    String sValue
+End_Struct
+
+Class _cSelectOptionsSaver is a cItemCompare
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean _pbSucces
+        Property tvdSelectOption[] paOld
+        Property tvdSelectOption[] paNew
+        Property String psColumnID
+    End_Procedure
+    
+    Function OldSelectOption Integer iItem Returns tvdSelectOption
+        tvdSelectOption[] aOld 
+        Get paOld to aOld
+        Function_Return aOld[iItem]
+    End_Function
+    
+    Function NewSelectOption Integer iItem Returns tvdSelectOption
+        tvdSelectOption[] aNew 
+        Get paNew to aNew
+        Function_Return aNew[iItem]
+    End_Function
+    
+    Function OldEmpty Returns Boolean
+        tvdSelectOption[] aOld 
+        Get paOld to aOld
+        Function_Return (SizeOfArray(aOld)=0)
+    End_Function
+    
+    Function NewEmpty Returns Boolean
+        tvdSelectOption[] aNew 
+        Get paNew to aNew
+        Function_Return (SizeOfArray(aNew)=0)
+    End_Function
+    
+    Function OldOrNewEmpty Returns Boolean
+        Function_Return (OldEmpty(Self) or NewEmpty(Self))
+    End_Function
+    
+    Function CompareItems Integer iItem1 Integer iItem2 Returns Boolean
+        tvdSelectOption strOld strNew
+        If (OldOrNewEmpty(Self)) Begin
+            Function_Return False
+        End
+        Get OldSelectOption iItem1 to strOld
+        Get NewSelectOption iItem2 to strNew
+        If (IsNullRowID(strOld.riRow)) Begin // If either row ID is null, the function should return false 
+            // Is this necessary?
+            Function_Return False
+        End
+        Function_Return (SerializeRowID(strOld.riRow)=SerializeRowID(strNew.riRow))
+    End_Function
+    
+    //> This is sent when items are found to be identical. Should be augmented.
+    Procedure OnItemsMatched Integer iItem1 Integer iItem2 // Update if necesary
+        tvdSelectOption strOld strNew
+        Get OldSelectOption iItem1 to strOld
+        Get NewSelectOption iItem2 to strNew
+        If (strOld.sLabel<>strNew.sLabel or strOld.bNoSelect<>strNew.bNoSelect or strOld._iSortOrder<>strNew._iSortOrder) Begin
+            Send SelectOptionSaveRecord (psColumnID(Self)) strNew
+        End
+    End_Procedure
+
+    //> This is sent when an item cannot be matched.
+    //> Means iItem on the left side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the right side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched1 Integer iItem Integer iInfo // Delete
+        Boolean bOk
+        tvdSelectOption strOld 
+        Get OldSelectOption iItem to strOld
+        Get SelectOptionsDelete (psColumnID(Self)) strOld True to bOk
+    End_Procedure
+
+    //> This is sent when an item cannot be matched
+    //> Means iItem on the right side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the left side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched2 Integer iItem // Create
+        tvdSelectOption strNew 
+        Get NewSelectOption iItem to strNew
+        Send SelectOptionSaveRecord (psColumnID(Self)) strNew
+    End_Procedure
+
+    Function SaveOptions String sColumnID tvdSelectOption[] aOld tvdSelectOption[] aNew Returns Boolean
+        Boolean bOk
+        Set psColumnID to sColumnID
+        Set paOld to aOld
+        Set paNew to aNew
+        Set _pbSucces to True
+        Send RunCompare 0 (SizeOfArray(aOld)-1) 0 (SizeOfArray(aNew)-1) 0 False
+        Function_Return (_pbSucces(Self))
+    End_Function
+End_Class // _cSelectOptionsSaver
+
+Class _cCollectionLinksSaver is a cItemCompare
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean _pbSucces
+        Property tvdLink[] paOld
+        Property tvdLink[] paNew
+        Property String psCollectionID
+    End_Procedure
+    
+    Function OldLink Integer iItem Returns tvdLink
+        tvdLink[] aOld 
+        Get paOld to aOld
+        Function_Return aOld[iItem]
+    End_Function
+    
+    Function NewLink Integer iItem Returns tvdLink
+        tvdLink[] aNew 
+        Get paNew to aNew
+        Function_Return aNew[iItem]
+    End_Function
+    
+    Function CompareItems Integer iItem1 Integer iItem2 Returns Boolean
+        tvdLink strOld strNew
+        Get OldLink iItem1 to strOld
+        Get NewLink iItem2 to strNew
+        Function_Return (strOld.sColumnID=strNew.sColumnID)
+    End_Function
+    
+    //> This is sent when items are found to be identical. Should be augmented.
+    Procedure OnItemsMatched Integer iItem1 Integer iItem2 // Update if necesary
+        tvdLink strOld strNew
+        Get OldLink iItem1 to strOld
+        Get NewLink iItem2 to strNew
+        If (strOld.sColumnID<>strNew.sColumnID or strOld._iSortOrder<>strNew._iSortOrder) Begin
+            Send LinkSaveRecord strNew
+        End
+    End_Procedure
+
+    //> This is sent when an item cannot be matched.
+    //> Means iItem on the left side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the right side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched1 Integer iItem Integer iInfo // Delete
+        Boolean bOk
+        tvdLink strOld 
+        Get OldLink iItem to strOld
+        Send LinkDeleteRecord strOld
+    End_Procedure
+
+    //> This is sent when an item cannot be matched
+    //> Means iItem on the right side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the left side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched2 Integer iItem // Create
+        tvdLink strNew 
+        Get NewLink iItem to strNew
+        Send LinkSaveRecord strNew
+    End_Procedure
+
+    Function SaveLinks String sCollectionID tvdLink[] aOld tvdLink[] aNew Returns Boolean
+        Boolean bOk
+        Lock
+            Set psCollectionID to sCollectionID
+            Set paOld to aOld
+            Set paNew to aNew
+            Set _pbSucces to True
+            Send RunCompare 0 (SizeOfArray(aOld)-1) 0 (SizeOfArray(aNew)-1) 0 False
+        Unlock
+        Function_Return (_pbSucces(Self))
+    End_Function
+End_Class // _cCollectionLinksSaver
+
+
+Class _cDimensionValueSaver is a cItemCompare
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean _pbSucces
+        Property tvdValue[] paOld
+        Property tvdValue[] paNew
+    End_Procedure
+    
+    Function OldValue Integer iItem Returns tvdValue
+        tvdValue[] aOld 
+        Get paOld to aOld
+        Function_Return aOld[iItem]
+    End_Function
+    
+    Function NewValue Integer iItem Returns tvdValue
+        tvdValue[] aNew 
+        Get paNew to aNew
+        Function_Return aNew[iItem]
+    End_Function
+    
+    Function CompareItems Integer iItem1 Integer iItem2 Returns Boolean
+        tvdValue strOld strNew
+        Get OldValue iItem1 to strOld
+        Get NewValue iItem2 to strNew
+        Function_Return (strOld.sColumnID=strNew.sColumnID)
+    End_Function
+    
+    //> This is sent when items are found to be identical. Should be augmented.
+    Procedure OnItemsMatched Integer iItem1 Integer iItem2 // Update if necesary
+        tvdValue strOld strNew
+        Get OldValue iItem1 to strOld
+        Get NewValue iItem2 to strNew
+        If (strOld.sValue<>strNew.sValue) Begin
+            Send ValueSaveRecord strNew
+        End
+    End_Procedure
+
+    //> This is sent when an item cannot be matched.
+    //> Means iItem on the left side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the right side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched1 Integer iItem Integer iInfo // Delete
+        Boolean bOk
+        tvdValue strOld 
+        Get OldValue iItem to strOld
+        Send ValueDeleteRecord strOld
+    End_Procedure
+
+    //> This is sent when an item cannot be matched
+    //> Means iItem on the right side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the left side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched2 Integer iItem // Create
+        tvdValue strNew
+        Get NewValue iItem to strNew
+        Send ValueSaveRecord strNew
+    End_Procedure
+
+    Function SaveValues tvdValue[] aOld tvdValue[] aNew Returns Boolean
+        Boolean bOk
+        Lock
+            Set paOld to aOld
+            Set paNew to aNew
+            Set _pbSucces to True
+            Send RunCompare 0 (SizeOfArray(aOld)-1) 0 (SizeOfArray(aNew)-1) 0 False
+        Unlock
+        Function_Return (_pbSucces(Self))
+    End_Function
+End_Class // _cDimensionValueSaver
+
+Global_Variable Integer[] _gaVCObjects
+
+Function VirtualDimensionsHandler Global Integer iTable Returns Integer 
+    Integer iMax iItem iMainTable
+    Handle hObj
+    Move (SizeOfArray(_gaVCObjects)-1) to iMax
+    For iItem from 0 to iMax
+        Move _gaVCObjects[iItem] to hObj
+        Get piMainTable of hObj to iMainTable
+        If (iMainTable=iTable) Begin
+            Function_Return hObj
+        End
+    Loop
+    Function_Return 0 // Not found
+End_Function
+
+Class cVirtualDimensions is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer piMainTable
+        Property Integer piTableDimensionCollection
+        Property Integer piTableDimensionLink
+        Property Integer piTableDimensionMaster
+        Property Integer piTableDimensionSelect
+        Property Integer piTableDimensionValue
+        Move Self to _gaVCObjects[SizeOfArray(_gaVCObjects)]
+        Object oSelectOptionsSaver is a _cSelectOptionsSaver
+        End_Object
+        Object oLinksSaver is a _cCollectionLinksSaver
+        End_Object
+        Object oValueSaver is a _cDimensionValueSaver
+        End_Object
+    End_Procedure
+    
+    Procedure Destroy_Object
+        Integer iItem
+        // Should remove it self from _gaVCObjects:
+        Move (SearchArray(Self,_gaVCObjects)) to iItem
+        If (iItem<>-1) Begin
+            Move (RemoveFromArray(_gaVCObjects,iItem)) to _gaVCObjects
+        End
+        Forward Send Destroy_Object
+    End_Procedure
+    
+    Function LinkFromBuffer Returns tvdLink
+        Integer iTable
+        tvdLink strLink
+        Get piTableDimensionLink to iTable
+        Get_Field_Value iTable 1 to strLink.sCollectionID
+        Get_Field_Value iTable 2 to strLink.sColumnID
+        Get_Field_Value iTable 3 to strLink._iSortOrder
+        Function_Return strLink
+    End_Function
+    
+    Function LinkCollection String sCollectionID Returns tvdLink[]
+        Integer iTable 
+        tvdLink[] aLinks
+        tTableQuery strQ
+        Get piTableDimensionLink to iTable
+        Get NewQuery of oTQ iTable to strQ
+        Send AddFilter of oTQ (&strQ) iTable 1 tqEQ sCollectionID // 1:CollectionLink_ID
+        Send AddOrderBy of oTQ (&strQ) iTable 3 False False // 3:DisplaySeq
+        While (FindRecord(oTQ,&strQ))
+            Get LinkFromBuffer to aLinks[SizeOfArray(aLinks)]
+        Loop
+        Function_Return aLinks
+    End_Function
+    
+    Procedure LinkSaveRecord tvdLink strLink
+        Integer iTable
+        Get piTableDimensionLink to iTable
+        Clear iTable
+        Set_Field_Value iTable 1 to strLink.sCollectionID
+        Set_Field_Value iTable 2 to strLink.sColumnID
+        Vfind iTable 1 EQ
+        Set_Field_Value iTable 3 to strLink._iSortOrder
+        SaveRecord iTable
+    End_Procedure
+    
+    Procedure LinkDeleteRecord tvdLink strLink
+        Integer iTable
+        Get piTableDimensionLink to iTable
+        Clear iTable
+        Set_Field_Value iTable 1 to strLink.sCollectionID
+        Set_Field_Value iTable 2 to strLink.sColumnID
+        Vfind iTable 1 EQ
+        If (Found) Begin
+            Delete iTable
+        End
+    End_Procedure
+
+    Function LinksSave String sCollectionID tvdLink[] aNew Returns Boolean 
+        Boolean bRval
+        tvdLink[] aOld
+        Get LinkCollection sCollectionID to aOld
+        Get SaveLinks of oLinksSaver sCollectionID aOld aNew to bRval
+        Function_Return bRval
+    End_Function
+    
+    Function CollectionFromBuffer Returns tvdCollection
+        Integer iTable
+        tvdCollection strCollection
+        Get piTableDimensionCollection to iTable
+        Get_Field_Value iTable 1 to strCollection.sID
+        Get_Field_Value iTable 2 to strCollection.sLabel
+        Get_Field_Value iTable 3 to strCollection._iSortOrder
+        Move (Rtrim(strCollection.sID)) to strCollection.sID
+        Move (Rtrim(strCollection.sLabel)) to strCollection.sLabel
+        Move (GetRowID(iTable)) to strCollection.riRow
+        Function_Return strCollection
+    End_Function
+    
+    Function CollectionFindByID String sID Returns tvdCollection
+        Integer iTable
+        tvdCollection strCollection
+        Get piTableDimensionCollection to iTable
+        Clear iTable
+        Set_Field_Value iTable 1 to sID
+        Vfind iTable 1 EQ
+        If (Found) Begin
+            Get CollectionFromBuffer to strCollection
+        End
+        Function_Return strCollection
+    End_Function
+    
+    Function CollectionFindByRowID RowID riRow Returns tvdCollection
+        Integer iTable
+        tvdCollection strCollection
+        Get piTableDimensionCollection to iTable
+        If (FindByRowID(iTable,riRow)) Begin
+            Get CollectionFromBuffer to strCollection
+        End
+        Function_Return strCollection
+    End_Function
+    
+    Function CollectionSaveRecord tvdCollection ByRef strCollection Returns Boolean
+        Integer iTable
+        tvdCollection strCollectionOrg
+        tvdLink[] aLinks
+        
+        Get CollectionFindByRowID strCollection.riRow to strCollectionOrg
+        
+        Get piTableDimensionCollection to iTable
+
+        If (not(IsNullRowID(strCollection.riRow))) Begin       // If we're editing an existing collection
+            If (strCollectionOrg.sID<>strCollection.sID) Begin // and the ID of ot has changed then we 
+                Get LinkCollection strCollection.sID to aLinks // check to see if any column links are
+                If (SizeOfArray(aLinks)>0) Begin               // pointing to it, and if there are:
+                    Error 453 "Cannot rename collection, links exists"
+                    Function_Return False
+                End
+            End
+        End
+        
+        If (strCollection.sID="") Begin
+            Error 523 "Can not save collection with blank name"
+        End
+        
+        Lock        
+            Clear iTable 
+            Set_Field_Value iTable 1 to strCollection.sID
+            Vfind iTable 1 EQ
+            If (Found) Begin
+                If (SerializeRowID(GetRowID(iTable))<>SerializeRowID(strCollection.riRow)) Begin
+//                    Error 211 "Collection name already used"
+                    Send UserError "Collection name already used"
+                    Unlock
+                    Function_Return False
+                End
+            End
+            Else Begin
+                If (not(IsNullRowID(strCollection.riRow))) Begin
+                    Get CollectionFindByRowID strCollection.riRow to strCollectionOrg
+                End
+            End
+            Set_Field_Value iTable 2 to strCollection.sLabel
+            Set_Field_Value iTable 3 to strCollection._iSortOrder
+            SaveRecord iTable
+        Unlock
+        Move (GetRowID(iTable)) to strCollection.riRow
+        Function_Return True
+    End_Function
+    
+    Function CollectionDeleteRecord tvdCollection strCollection Returns Boolean
+        Integer iTable
+        tvdLink[] aLinks
+        Get piTableDimensionCollection to iTable
+        Clear iTable
+        If (FindByRowID(iTable,strCollection.riRow)) Begin
+            Get LinkCollection strCollection.sID to aLinks
+            If (SizeOfArray(aLinks)=0) Begin
+                Delete iTable
+                Function_Return True    
+            End
+            Send UserError "Can't delete collection with column links in it"
+            Function_Return False
+        End
+        Send UserError "No record to delete"
+        Function_Return False
+    End_Function
+    
+    Function Collections Returns tvdCollection[]
+        Integer iTable
+        tTableQuery strQ
+        tvdCollection[] aCollections
+        Get piTableDimensionCollection to iTable
+        Get NewQuery of oTQ iTable to strQ
+        Send AddOrderBy of oTQ (&strQ) iTable 3 False True
+        While (FindRecord(oTQ,&strQ))
+            Get CollectionFromBuffer to aCollections[SizeOfArray(aCollections)]
+        End
+        Function_Return aCollections
+    End_Function
+    
+    // Procedure CollectionsSaveDisplayOrder saves changes to the display sequence
+    Procedure CollectionsSaveDisplayOrder tvdCollection[] aCollections
+        Boolean bOk
+        Integer iMax iItem
+        tvdCollection strCollection
+        Move (SizeOfArray(aCollections)-1) to iMax
+        Lock
+            For iItem from 0 to iMax
+                Get CollectionFindByID aCollections[iItem].sID to strCollection
+                If (strCollection.sID<>"") Begin // This is how we test if the collection was found
+                    If (strCollection._iSortOrder<>aCollections[iItem]._iSortOrder) Begin
+                        Move aCollections[iItem]._iSortOrder to strCollection._iSortOrder
+                        Get CollectionSaveRecord strCollection to bOk
+                    End
+                End    
+            Loop
+        Unlock
+    End_Procedure
+    
+        Procedure _MasterSelectRead tvdMaster ByRef strMaster Boolean bAll
+            Integer iTable
+            tTableQuery strQ
+            
+            Move (ResizeArray(strMaster.aSelectOptions,0)) to strMaster.aSelectOptions
+            
+            Get piTableDimensionSelect to iTable
+            Get NewQuery of oTQ iTable to strQ
+            Send AddFilter of oTQ (&strQ) iTable 1 tqEQ strMaster.sID // Column_ID
+            
+            If (not(bAll)) Begin
+                Send AddFilter of oTQ (&strQ) iTable 5 tqEQ 0 // NoSelect
+                Send AddOrderBy of oTQ (&strQ) iTable 2 False False // DisplaySeq
+            End
+            Else Begin
+                Send AddOrderBy of oTQ (&strQ) iTable 2 False False // DisplaySeq
+            End
+            While (FindRecord(oTQ,&strQ))
+                Get SelectOptionFromBuffer to strMaster.aSelectOptions[SizeOfArray(strMaster.aSelectOptions)]    
+            Loop
+        End_Procedure
+    
+    Function MasterFromBuffer Integer iSelectOptionsMode Returns tvdMaster // iSelectOptionsMode: 0=don't read, 1=All active, 2=All
+        Integer iTable
+        tvdMaster strMaster
+        Get piTableDimensionMaster to iTable
+        Get_Field_Value iTable 1 to strMaster.sID
+        Get_Field_Value iTable 2 to strMaster.sLabel
+        Get_Field_Value iTable 3 to strMaster.bMandatory
+        Move (GetRowID(iTable)) to strMaster.riRow
+        Move (Rtrim(strMaster.sID)) to strMaster.sID
+        Move (Rtrim(strMaster.sLabel)) to strMaster.sLabel
+        If (iSelectOptionsMode<>0) Begin
+            Send _MasterSelectRead (&strMaster) (iSelectOptionsMode=2)
+        End
+        Function_Return strMaster
+    End_Function
+
+    Function MasterFindByRowID RowID riRow Integer iSelectOptionsMode Returns tvdMaster // iSelectOptionsMode: 0=don't read, 1=All active, 2=All
+        Integer iTable
+        tvdMaster strMaster
+        Get piTableDimensionMaster to iTable
+        Clear iTable
+        If (FindByRowID(iTable,riRow)) Begin
+            Get MasterFromBuffer iSelectOptionsMode to strMaster
+        End
+        Function_Return strMaster
+    End_Function
+    
+    Function MasterFindByID String sColumnID Integer iSelectOptionsMode Returns tvdMaster // iSelectOptionsMode: 0=don't read, 1=All active, 2=All
+        Integer iTable
+        tvdMaster strMaster
+        Get piTableDimensionMaster to iTable
+        Clear iTable
+        Set_Field_Value iTable 1 to sColumnID
+        Vfind iTable 1 EQ
+        If (Found) Begin
+            Get MasterFromBuffer iSelectOptionsMode to strMaster
+        End
+        Function_Return strMaster
+    End_Function
+    
+    Procedure MasterSaveRecord tvdMaster strMaster
+        Boolean bOk bFound
+        Integer iTable
+        If (strMaster.sID="") Begin
+           Send UserError "Can't save virtual column without name" "Error on save" 
+        End
+        Else Begin
+            Lock
+                Get piTableDimensionMaster to iTable
+                Clear iTable
+                If (IsNullRowID(strMaster.riRow)) Begin
+                    Set_Field_Value iTable 1 to strMaster.sID
+                    Vfind iTable 1 EQ
+                End
+                Else Begin
+                    Move (FindByRowID(iTable,strMaster.riRow)) to bFound
+                    Set_Field_Value iTable 1 to strMaster.sID
+                End
+
+                Set_Field_Value iTable 2 to strMaster.sLabel
+                Set_Field_Value iTable 3 to (If(strMaster.bMandatory,1,0))
+                SaveRecord iTable
+                Get SelectOptionsSave strMaster.sID strMaster.aSelectOptions to bOk
+            Unlock
+        End
+    End_Procedure
+    
+    Function MasterCanDelete String sColumnID Returns Boolean
+        Boolean bCanDelete
+        Integer iTable
+        tTableQuery strQ
+        Get piTableDimensionValue to iTable
+        Get NewQuery of oTQ iTable to strQ
+        Send AddFilter (&strQ) iTable 4 tqEQ sColumnID // 4: Value
+        Send SetLimit of oTQ (&strQ) 1
+        Move True to bCanDelete
+        While (FindRecord(oTQ,&strQ))
+            Move False to bCanDelete
+        Loop
+        Function_Return bCanDelete
+    End_Function
+    
+    Function MasterDelete tvdMaster strMaster Boolean bNoCheck Returns Boolean
+        Boolean bDeleted
+        Integer iTable
+        tTableQuery strQ
+        Move False to bDeleted
+        Lock
+            If (bNoCheck or MasterCanDelete(Self,strMaster.sID)) Begin
+                Get piTableDimensionMaster to iTable
+                
+                If (FindByRowID(iTable,strMaster.riRow)) Begin
+                    Delete iTable
+                    
+                    // Delete value records:
+                    Get piTableDimensionValue to iTable
+                    Get NewQuery of oTQ iTable to strQ
+                    Send AddFilter of oTQ (&strQ) iTable 1 tqEQ strMaster.sID // 1:Value.Column_ID
+                    While (FindRecord(oTQ,&strQ))
+                        Delete iTable
+                    Loop
+                    
+                    Move True to bDeleted
+                End
+            End
+        Unlock
+        Function_Return bDeleted
+    End_Function
+    
+    Function MasterRename String sOldColumnID String sNewColumnID Returns Boolean
+        Integer iTable
+        Boolean bRenamed
+        tvdMaster strMaster
+        tTableQuery strQ
+        
+        Move False to bRenamed
+        
+        Lock
+            // If NewColumn ID already exists we give up
+            Get MasterFindByID sNewColumnID 0 to strMaster
+            If (IsNullRowID(strMaster.riRow)) Begin
+                Get piTableDimensionMaster to iTable
+                Move sNewColumnID to strMaster.sID
+                SaveRecord iTable
+                
+                // Rename values:
+                Get piTableDimensionValue to iTable
+                Get NewQuery of oTQ iTable to strQ
+                Send AddFilter of oTQ (&strQ) iTable 1 tqEQ sOldColumnID
+                Send ForcePrefetch of oTQ (&strQ)
+                While (FindRecord(oTQ,&strQ))
+                    Set_Field_Value iTable 1 to sNewColumnID
+                    SaveRecord iTable
+                Loop
+                
+                // Rename collection links:
+                Get piTableDimensionLink to iTable
+                Get NewQuery of oTQ iTable to strQ
+                Send AddFilter of oTQ (&strQ) iTable 2 tqEQ sOldColumnID
+                Send ForcePrefetch of oTQ (&strQ)
+                While (FindRecord(oTQ,&strQ))
+                    Set_Field_Value iTable 2 to sNewColumnID
+                    SaveRecord iTable
+                Loop
+
+                // Rename select options: 
+                Get piTableDimensionSelect to iTable
+                Get NewQuery of oTQ iTable to strQ
+                Send AddFilter of oTQ (&strQ) iTable 1 tqEQ sOldColumnID
+                Send ForcePrefetch of oTQ (&strQ)
+                While (FindRecord(oTQ,&strQ))
+                    Set_Field_Value iTable 1 to sNewColumnID
+                    SaveRecord iTable
+                Loop
+                Move True to bRenamed
+                
+            End
+        Unlock
+        Function_Return bRenamed
+    End_Function
+    
+    Function Masters String sCollectionID Integer iSelectOptionsMode Returns tvdMaster[] // iSelectOptionsMode: 0=don't read, 1=All active, 2=All
+        Integer iTable
+        String sColumnID
+        tTableQuery strQ
+        tvdMaster[] aMasters
+        If (sCollectionID="") Begin
+            Get piTableDimensionMaster to iTable
+            Get NewQuery of oTQ iTable to strQ
+            Send AddOrderBy of oTQ (&strQ) iTable 3 False True
+            While (FindRecord(oTQ,&strQ))
+                Get MasterFromBuffer iSelectOptionsMode to aMasters[SizeOfArray(aMasters)]
+            End
+        End
+        Else Begin
+            Get piTableDimensionLink to iTable
+            Get NewQuery of oTQ iTable to strQ
+            Send AddFilter of oTQ (&strQ) iTable 1 tqEQ sCollectionID
+            Send AddOrderBy of oTQ (&strQ) iTable 2 False False
+            While (FindRecord(oTQ,&strQ))
+                Get_Field_Value iTable 2 to sColumnID
+                Get MasterFindByID sColumnID iSelectOptionsMode to aMasters[SizeOfArray(aMasters)]
+            Loop
+        End
+        Function_Return aMasters
+    End_Function
+    
+    Function MasterLinkCollection String sColumnID Returns tvdLink[]
+        Integer iTable 
+        tvdLink[] aLinks
+        tTableQuery strQ
+        Get piTableDimensionLink to iTable
+        Get NewQuery of oTQ iTable to strQ
+        Send AddFilter of oTQ (&strQ) iTable 2 tqEQ sColumnID // 1:Column_ID
+        While (FindRecord(oTQ,&strQ))
+            Get LinkFromBuffer to aLinks[SizeOfArray(aLinks)]
+        Loop
+        Function_Return aLinks
+    End_Function
+    
+    Function SelectOptionFromBuffer Returns tvdSelectOption
+        Integer iTable
+        tvdSelectOption strSelectOption
+        Get piTableDimensionSelect to iTable
+        Get_Field_Value iTable 2 to strSelectOption._iSortOrder
+        Get_Field_Value iTable 3 to strSelectOption.sValue
+        Get_Field_Value iTable 4 to strSelectOption.sLabel
+        Get_Field_Value iTable 5 to strSelectOption.bNoSelect
+        Move (GetRowID(iTable)) to strSelectOption.riRow
+        
+        Move (Rtrim(strSelectOption.sValue)) to strSelectOption.sValue
+        Move (Rtrim(strSelectOption.sLabel)) to strSelectOption.sLabel
+        Function_Return strSelectOption
+    End_Function
+    
+    Function SelectOptionValueUsed String sColumnID String sValue Returns Boolean
+        Integer iTable
+        tTableQuery strQ
+        Boolean bUsed
+        Move False to bUsed
+        Get piTableDimensionSelect to iTable
+        Get NewQuery of oTQ iTable to strQ
+        Send AddFilter of oTQ (&strQ) iTable 1 tqEQ sColumnID
+        Send AddFilter of oTQ (&strQ) iTable 4 tqEQ sValue
+        Send SetLimit of oTQ (&strQ) 1
+        While (FindRecord(oTQ,&strQ))
+            Move True to bUsed
+        Loop
+        Function_Return bUsed
+    End_Function
+    
+    Function SelectOptions String sColumnID Boolean iSelectMode Returns tvdSelectOption[] // iSelectMode 0:Selectable only, 1:all
+        Integer iTable
+        tTableQuery strQ
+        tvdSelectOption[] aOptions
+        
+        Get piTableDimensionSelect to iTable
+        Get NewQuery of oTQ iTable to strQ
+        Send AddFilter of oTQ (&strQ) iTable 1 tqEQ sColumnID
+        
+        If (iSelectMode=0) Begin // Only ones that can be selected
+            Send AddFilter of oTQ (&strQ) iTable 5 tqEQ 0 // NoSelect=0 
+            Send AddOrderBy of oTQ (&strQ) iTable 1 False False // Sort by display sequence
+        End
+        Else Begin // All select options on column
+            Send AddOrderBy of oTQ (&strQ) iTable 3 False False // Sort by value
+        End
+        
+        While (FindRecord(oTQ,&strQ))
+            Get SelectOptionFromBuffer to aOptions[SizeOfArray(aOptions)]
+        Loop
+        
+        Function_Return aOptions
+    End_Function
+    
+    Function SelectOptionsSave String sColumnID tvdSelectOption[] aNew Returns Boolean 
+        Boolean bRval
+        tvdSelectOption[] aOld
+        Get SelectOptions sColumnID 1 to aOld // Get ALL options (regardless of whether they can be selected or not)
+        Get SaveOptions of oSelectOptionsSaver sColumnID aOld aNew to bRval
+        Function_Return bRval
+    End_Function
+
+    Function SelectOptionsDelete String sColumnID tvdSelectOption strSelectOption Boolean bCheckIfUsed Returns Boolean 
+        Boolean bContinue bFound
+        Integer iTable
+        Get piTableDimensionSelect to iTable
+        If (bCheckIfUsed) Begin
+            Move (not(SelectOptionValueUsed(Self,sColumnID,strSelectOption.sValue))) to bContinue
+        End
+        Else Begin
+            Move True to bContinue
+        End
+        If (bContinue) Begin
+            Move (FindByRowID(iTable,strSelectOption.riRow)) to bFound
+            If (bFound) Begin
+                Delete iTable
+            End
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Procedure SelectOptionSaveRecord String sColumnID tvdSelectOption strSelectOption
+        Integer iTable
+        Boolean bFound
+        Get piTableDimensionSelect to iTable
+        
+        Clear iTable
+        If (IsNullRowID(strSelectOption.riRow)) Begin
+            Set_Field_Value iTable 1 to sColumnID
+            Set_Field_Value iTable 3 to strSelectOption.sValue
+            Vfind iTable 1 EQ
+        End
+        Else Begin
+            Move (FindByRowID(iTable,strSelectOption.riRow)) to bFound
+            Set_Field_Value iTable 1 to sColumnID
+            Set_Field_Value iTable 3 to strSelectOption.sValue
+        End
+        
+        Set_Field_Value iTable 2 to strSelectOption._iSortOrder
+        Set_Field_Value iTable 4 to strSelectOption.sLabel
+        Set_Field_Value iTable 5 to strSelectOption.bNoSelect
+        SaveRecord iTable
+    End_Procedure
+
+
+    // Functions Values and ValuesSave are both working in relation to 
+    // the active main table record
+        Function _FindValueColumnID tvdValue[] aValues String sColumnID Returns Integer
+            Integer iMax iItem
+            Move (SizeOfArray(aValues)-1) to iMax
+            For iItem from 0 to iMax
+                If (sColumnID=aValues[iItem].sColumnID) Begin
+                    Function_Return iItem
+                End
+            Loop
+            Function_Return -1
+        End_Function
+        
+        Procedure _InsertValue tvdValue[] ByRef aValues String sColumnID String sValue
+            Integer iColumnIndex
+            Move (Rtrim(sColumnID)) to sColumnID
+            Move (Rtrim(sValue)) to sValue
+            Get _FindValueColumnID aValues sColumnID to iColumnIndex
+            If (iColumnIndex=-1) Begin // Append value
+                Move (SizeOfArray(aValues)) to iColumnIndex
+                Move sColumnID to aValues[iColumnIndex].sColumnID
+            End
+            Move sValue to aValues[iColumnIndex].sValue
+        End_Procedure
+        
+        Procedure _RemoveEmptyValues tvdValue[] ByRef aValues
+            Integer iItem
+            Move 0 to iItem
+            While (iItem<SizeOfArray(aValues))
+                If (aValues[iItem].sValue="") Begin
+                    Move (RemoveFromArray(aValues,iItem)) to aValues
+                End
+                Else Begin
+                    Increment iItem
+                End
+            Loop
+        End_Procedure
+    
+    Function Values String sCollectionID Boolean bCompact Returns tvdValue[]
+        Integer iMainTable iLinkTable iValueTable
+        String sColumnID sValue
+        tTableQuery strQ
+        tvdValue[] aValues
+        
+        Get piTableDimensionLink to iLinkTable
+        Get piMainTable to iMainTable
+        Get piTableDimensionValue to iValueTable
+        
+        // Go through the columns that are supposed to be in this sCollection
+        If (sCollectionID<>"") Begin
+            Get NewQuery of oTQ iLinkTable to strQ
+            Send AddFilter of oTQ (&strQ) iLinkTable 1 tqEQ sCollectionID // CollectionLink_ID
+            Send AddOrderBy of oTQ (&strQ) iLinkTable 3 False False  // DisplaySeq
+            
+            While (FindRecord(oTQ,&strQ))
+                Get_Field_Value iLinkTable 2 to sColumnID
+                Move (rTrim(sColumnID)) to aValues[SizeOfArray(aValues)].sColumnID
+            Loop
+        End
+        
+        // Then go through the values 
+        Get NewQuery of oTQ iValueTable to strQ
+        Send AddFilterRelate of oTQ (&strQ) iMainTable
+        While (FindRecord(oTQ,&strQ))
+            Get_Field_Value iValueTable 1 to sColumnID
+            Get_Field_Value iValueTable 3 to sValue
+            Send _InsertValue (&aValues) (Rtrim(sColumnID)) (Rtrim(sValue))
+        Loop
+        
+        If (bCompact) Begin
+            Send _RemoveEmptyValues (&aValues)
+        End
+        
+        Function_Return aValues
+    End_Function
+    
+    Procedure ValueSaveRecord tvdValue strValue
+        Integer iTable iMainTable
+        Get piMainTable to iMainTable
+        If (IsNullRowID(GetRowID(iMainTable))) Begin
+            Error 232 "Attempt to save dim-value on inactive main record"
+        End
+        Else Begin
+            Get piTableDimensionValue to iTable
+            Clear iTable
+            Set_Field_Value iTable 1 to strValue.sColumnID
+            Attach iTable // Bring down the value of the parent table to this record buffer
+            Vfind iTable 1 EQ
+            If (Found and strValue.sValue="") Begin
+                Delete iTable // If a blank value is saved, we delete it instead
+            End
+            Else Begin
+                If (strValue.sValue<>"") Begin
+                    Set_Field_Value iTable 3 to strValue.sValue
+                    SaveRecord iTable
+                End
+            End
+        End
+    End_Procedure
+    
+    Procedure ValueDeleteRecord tvdValue strValue
+        Integer iTable
+        Get piTableDimensionValue to iTable
+        Clear iTable
+        Set_Field_Value iTable 1 to strValue.sColumnID
+        Attach iTable // Bring down the value of the parent table to this record buffer
+        Vfind iTable 1 EQ
+        If (Found) Begin
+            Delete iTable
+        End
+    End_Procedure
+    
+    Function ValuesSave tvdValue[] aValues Returns Boolean
+        Boolean bSuccess
+        tvdValue[] aOldValues
+        Get Values "" True to aOldValues
+        Get SaveValues of oValueSaver aOldValues aValues to bSuccess
+        Function_Return bSuccess
+    End_Function
+    
+    Function ValueListPatternMatch String sDimID String sPattern Returns tvdSelectOption[]
+        Integer iIndex 
+        String sValue
+        tvdSelectOption[] aOptions
+        tWildCardEvalSequence stSeq
+
+        Get SelectOptions sDimID 0 to aOptions // Get all options
+        
+        Get WildCardEvalSequence of oStringFunctions (Uppercase(sPattern)) to stSeq
+        
+        Move 0 to iIndex
+        
+        While (iIndex<SizeOfArray(aOptions))
+            Move aOptions[iIndex].sValue to sValue
+            If (WildCardMatch(oStringFunctions,Uppercase(sValue),stSeq)) Begin
+                Increment iIndex
+            End
+            Else Begin 
+                 Move (RemoveFromArray(aOptions,iIndex)) to aOptions
+            End
+        Loop
+        
+        Function_Return aOptions
+    End_Function
+
+End_Class
+
+Class cVirtualDimensionsRecordBuffer is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property tvdValue[] _paValues
+        Property String _psCollectionID
+        Property Integer piMainTable
+        Property Boolean _pbChangedState False
+    End_Procedure
+    
+    Function Handler Returns Integer
+        Integer iMainTable hVD
+        Get piMainTable to iMainTable
+        Get VirtualDimensionsHandler iMainTable to hVD
+        Function_Return hVD
+    End_Function
+    
+    Procedure ReadFromServer String sCollectionID
+        Integer hHandler
+        tvdValue[] aValues
+        Get Handler to hHandler
+        Get Values of hHandler sCollectionID False to aValues
+        Set _paValues to aValues
+        Set _psCollectionID to sCollectionID
+        Set _pbChangedState to False
+    End_Procedure
+    
+    Function BufferValue Returns tvdValue[]
+        tvdValue[] aValues
+        Get _paValues to aValues
+        Function_Return aValues
+    End_Function
+    
+    Procedure Set BufferValue tvdValue[] aValues
+        Set _paValues to aValues
+    End_Procedure
+    
+    Procedure SaveBuffer // Main table must be active
+        Boolean bSuccess
+        Integer hVD
+        tvdValue[] aValues
+        Get Handler to hVD
+        Get _paValues to aValues
+        Get ValuesSave of hVD aValues to bSuccess
+        Set _pbChangedState to False
+    End_Procedure
+    
+    Function Should_Save Returns Boolean
+        Function_Return (_pbChangedState(Self))
+    End_Function
+    
+    Procedure DeleteBuffer // Main table must be active
+        Integer iValueTable iMainTable
+        tTableQuery strQ
+        tvdValue[] aEmpty
+        Get piMainTable to iMainTable
+        Get piTableDimensionValue to iValueTable
+        Get NewQuery of oTQ iValueTable to strQ
+        Send AddFilterRelate of oTQ (&strQ) iMainTable
+        Send ForcePrefetch of oTQ (&strQ)
+        While (FindRecord(oTQ,&strQ))
+            Delete iValueTable
+        Loop
+        Set _paValues to aEmpty
+        Set _pbChangedState to False
+    End_Procedure
+    
+    Function AddDimension String sColumnID Returns Integer
+        Integer hVD iColumnIndex
+        tvdValue[] aValues
+        Get Handler to hVD
+        Get _paValues to aValues
+        Get _FindValueColumnID of hVD aValues sColumnID to iColumnIndex
+        If (iColumnIndex=-1) Begin
+            Move (SizeOfArray(aValues)) to iColumnIndex
+            Move sColumnID to aValues[iColumnIndex].sColumnID
+            Set _paValues to aValues
+        End
+        Function_Return iColumnIndex
+    End_Function
+    
+    Procedure AddDimensionsToBuffer String[] aDims
+        Integer iMax iItem iThrowAway
+        Move (SizeOfArray(aDims)-1) to iMax
+        For iItem from 0 to iMax
+            Get AddDimension aDims[iItem] to iThrowAway
+        Loop
+    End_Procedure
+    
+    Procedure SetDimensionValue String sColumnID String sValue
+        Integer iColumnIndex
+        tvdValue[] aValues
+        Get AddDimension sColumnID to iColumnIndex
+        Get _paValues to aValues
+        Move sValue to aValues[iColumnIndex].sValue
+        Set _paValues to aValues
+        Set _pbChangedState to True
+    End_Procedure
+    
+    Function DimensionsInBuffer Returns String[]
+        Integer iMax iItem
+        String[] aDims
+        tvdValue[] aValues
+        Get _paValues to aValues
+        Move (SizeOfArray(aValues)-1) to iMax
+        For iItem from 0 to iMax
+            Move aValues[iItem].sColumnID to aDims[SizeOfArray(aDims)]
+        Loop
+        Function_Return aDims
+    End_Function
+    
+    Procedure Set BufferRow Integer iBufferRow tvdValue strValue
+        tvdValue[] aValues
+        Get _paValues to aValues
+        Move strValue to aValues[iBufferRow]
+        Set _paValues to aValues
+        Set _pbChangedState to True
+    End_Procedure
+    
+    Function BufferRow Integer iBufferRow Returns tvdValue
+        tvdValue[] aValues
+        Get _paValues to aValues
+        Function_Return aValues[iBufferRow]
+    End_Function
+End_Class // cVirtualDimensionsRecordBuffer

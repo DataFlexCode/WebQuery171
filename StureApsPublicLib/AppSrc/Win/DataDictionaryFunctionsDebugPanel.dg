@@ -1,0 +1,1151 @@
+Use Windows.pkg
+Use dfTreeVw.pkg
+//Use DFPostMessage.pkg
+Use Win\ObjectInfo.pkg
+Use Win\GridFunctions.pkg
+Use RgbFunctions.pkg
+Use TableAccessFunctions.pkg
+Use FileFunctions.pkg
+Use Dd_debug.dg
+Use cTextEdit.pkg
+Use DataDictionaryFunctions.pkg
+Use DFPostMessage.pkg
+Use yUML.pkg
+Use DataEntityLoggingFunctions.pkg
+Use Win\DataDictionaryFunctionsDataEntityLabelPanel.dg
+
+Global_Variable Integer oDataDictionaryFunctionsDebugPanel
+
+Object _oDataDictionaryFunctionsDebugPanel is a ModalPanel
+    Set Size to 319 492
+    Set Locate_Mode to CENTER_ON_SCREEN
+    Move Self to oDataDictionaryFunctionsDebugPanel
+    
+    Procedure SizeMaxVertical
+        Integer iYscreensize iXscreensize iLoc iGuiSize
+
+        Move (GetSystemMetrics(SM_CXSCREEN)) to iXscreensize
+        Move (GetSystemMetrics(SM_CYSCREEN)) to iYscreensize
+
+        Get Location to iLoc
+        Set Location to 0 (Low(iLoc))
+
+        Get GuiSize to iGuiSize
+        Set GuiSize to iXscreensize (Low(iGuiSize))
+
+        Send Adjust_Logicals
+    End_Procedure
+    On_Key kUser Send SizeMaxVertical
+
+    Set Label to "Data Dictionary Info Panel (StureApsPublicLib)"
+    Property tOIDeoInfo pstObjectInfo
+    Property Integer _phCurrentDD 0
+
+    Set Border_Style to Border_Thick
+    Set piMinSize to 299 405
+    On_Key kCancel Send Close_Panel
+
+    Object oMainLabel is a Form
+        Set Size to 13 219
+        Set Location to 12 17
+        Set Enabled_State to False
+        Set Form_Justification_Mode to Form_DisplayCenter
+        Set FontWeight to 900
+        Set peAnchors to anTopLeftRight
+    End_Object
+
+    Object oShowFocus is a Button
+        Set Size to 14 40
+        Set Location to 12 256
+        Set Label to "&Focus info"
+        Set peAnchors to anTopRight
+        Set Skip_State to True
+        Procedure OnClick
+            tOIDeoInfo stObject
+            Get pstObjectInfo to stObject
+            Send ShowPanel of oObjectInfo stObject
+        End_Procedure
+    End_Object
+    On_Key Key_Ctrl+Key_F Send OnClick of oShowFocus
+
+    Object oCallDDInspector is a Button
+        Set Size to 14 48
+        Set Location to 12 300
+        Set Label to "DD I&nspector"
+        Set peAnchors to anTopRight
+        Set Skip_State to True
+        Procedure OnClick
+            tOIDeoInfo stObject
+            Get pstObjectInfo to stObject
+            Send ShowDDs of oDD_Debug stObject.hDirectServer
+        End_Procedure
+    End_Object
+    On_Key Key_Ctrl+Key_N Send OnClick of oCallDDInspector
+
+    Object oStickyDebugger is a Button
+        Set Size to 14 45
+        Set Location to 12 351
+        Set Label to "Stick&y graph"
+        Set peAnchors to anTopRight
+        Set Skip_State to True
+        Register_Procedure _Activate_oDataDictionaryViewDebugger tOIDeoInfo stObject
+        Procedure OnClick
+            tOIDeoInfo stObject
+            Get pstObjectInfo to stObject
+            Send Close_Panel
+            Broadcast Recursive Send _Activate_oDataDictionaryViewDebugger of Desktop stObject
+//            Send DFPostMessage MSG_Activate stObject.hObject
+        End_Procedure
+#IFDEF U_cIdleHandler  // 12.1 onwards
+#ELSE
+        Set Enabled_State to False
+#ENDIF
+    End_Object
+
+    On_Key Key_Ctrl+Key_Y Send OnClick of oStickyDebugger
+
+    Object oDataSnapshotBtn is a Button
+        Set Size to 14 52
+        Set Location to 12 399
+        Set Label to "Data &snapshot"
+        Set peAnchors to anTopRight
+        Set Skip_State to True
+        Procedure OnClick
+            Integer iMainTable
+            tDataEntityScanStruct stScanStruct
+            tOIDeoInfo stObject
+            String sFileNameSaved sLabel
+            Get pstObjectInfo to stObject
+            If (stObject.hPanelMainDD<>0) Begin
+                
+                If (PopupPanel(oDataDictionaryFunctionsDataEntityLabelPanel,&sLabel)) Begin
+                    Send Refind_Records of stObject.hPanelMainDD
+                    Get Main_File of stObject.hPanelMainDD to iMainTable
+                    Get ScanStructureFromRelations of oDataEntityLoggingFunctions iMainTable to stScanStruct
+                    Send SaveEntitySnapshot of oDataEntityLoggingFunctions stScanStruct (&sFileNameSaved) sLabel
+                    Send Close_Panel
+                    Send Info_Box sFileNameSaved "File name saved to disk"
+                End
+            End
+            Else Begin                                                           
+                Send UserError "Can not take a data snapshot. No Main_DD detected" "No main dd detected" 
+            End
+        End_Procedure
+    End_Object
+
+    On_Key Key_Ctrl+Key_S Send OnClick of oDataSnapshotBtn
+    
+    Object oYUMLBtn is a Button
+        Set Size to 14 30
+        Set Location to 12 455
+        Set Label to "&yUML"
+        Set peAnchors to anTopRight
+        Set Skip_State to True
+        Procedure OnClick
+            Broadcast Recursive Send CallYuml of (Parent(Self)) 
+        End_Procedure
+    End_Object
+
+    On_Key Key_Ctrl+Key_Y Send OnClick of oYUMLBtn
+    
+    Object oLabel1 is a TextBox
+        Set Size to 50 10
+        Set Location to 31 7
+        Set FontWeight to 900
+        Set Label to "All DDO's in structure"
+    End_Object
+    Object oLabel2 is a TextBox
+        Set Size to 50 10
+        Set Location to 31 245
+        Set FontWeight to 900
+        Set Label to "Parent DDOs"
+        Set peAnchors to anTopRight
+    End_Object
+    Object oLabel3 is a TextBox
+        Set Size to 50 10
+        Set Location to 31 367
+        Set FontWeight to 900
+        Set Label to "Child DDOs"
+        Set peAnchors to anTopRight
+    End_Object
+
+    Object oDDList is a GridSture
+        Set Location to 41 6
+    
+        Set Size to 125 234
+
+        Set Line_Width to 5 0
+    
+        Set Form_Width 0 to 28
+        Set Header_Label  0 to "Rank"
+    
+        Set Form_Width 1 to 80
+        Set Header_Label  1 to "Table"
+    
+        Set Form_Width 2 to 40
+        Set Header_Label 2 to "Status"
+        
+        Set Header_Label 3 to "Has record"
+        Set Form_Width 3 to 50
+        
+        Set Header_Label 4 to "Chg"
+        Set Form_Width 4 to 30
+
+        Set peAnchors to anTopLeftRight
+        Set peResizeColumn to rcSelectedColumn
+        Set piResizeColumn to 1
+        Set Select_Mode to Multi_Select
+
+        Procedure CallVDFXray
+            If (Item_Count(Self)) Begin
+                Send RunVDFXrayCurrentFileList of oTableAccessFunctions (Main_File(_phCurrentDD(Self))) 0
+            End
+        End_Procedure
+        
+        Procedure Mouse_Click Integer iWindowNumber Integer iPosition
+            Forward Send Mouse_Click iWindowNumber iPosition
+            Send CallVDFXray
+        End_Procedure
+
+        On_Key kEnter Send CallVDFXray
+        
+        Function AllowToggle Integer iColumn Integer iItem Returns Boolean
+            Function_Return False
+        End_Function
+
+        Function _Name Integer hDDO Returns String
+            Integer iConstrainFile
+            Integer hConstrainDDO
+            String sValue sConstrainName
+            Get DdoLabel hDDO to sValue
+            Get Constrain_File of hDDO to iConstrainFile
+            If (iConstrainFile<>0) Begin
+                Get Data_Set of hDDO iConstrainFile to hConstrainDDO
+                If (hConstrainDDO<>0) Begin
+                    Get DdoLabel hConstrainDDO to sConstrainName
+                End
+                Else Begin
+                    Get_Attribute DF_FILE_LOGICAL_NAME of iConstrainFile to sConstrainName
+                    Move (sConstrainName+" no DD!") to sConstrainName
+                End
+                Move (sValue+" (constrain: "+sConstrainName+")") to sValue
+            End
+            Function_Return sValue
+        End_Function
+        
+        Procedure _DisplayRank Integer hDD Integer iLevel
+            Integer iRow iBase
+            String sLabel
+            Get FindAuxValueRow of oGridFunctions Self hDD 0 0 to iRow
+            If (iRow<>-1) Begin
+                 Get RowBaseItem of oGridFunctions Self iRow to iBase
+                 If (iLevel=0) Begin
+                    Move "---->" to sLabel
+                 End
+                 Else Begin
+                    Move iLevel to sLabel
+                 End
+                 Set Value iBase to sLabel
+            End
+        End_Procedure
+        
+        Procedure DoRanks
+            Send CallBackRanks of oParentStructure MSG__DisplayRank Self
+            Send CallBackRanks of oChildStructure MSG__DisplayRank Self
+        End_Procedure
+        
+        Procedure InitializeContent
+            Integer iMax iIndex iBase hDD hMainDD
+            Integer iStartItem iStartRow
+            Integer[] aDDO aMissing
+            Boolean bErr
+            String sStatus sRowID
+            RowID riRowID
+            tOIDeoInfo stFocus
+            
+            Set Dynamic_Update_State to False
+            Send Delete_Data
+            Get pstObjectInfo to stFocus
+            If (stFocus.hServer>0) Begin
+                Get CompleteStructure of oDataDictionaryFunctions stFocus.hServer False to aDDO
+                Move (SizeOfArray(aDDO)-1) to iMax
+                For iIndex from 0 to iMax
+                    Get Item_Count to iBase
+                    Move aDDO[iIndex] to hDD
+                    Send Add_Item MSG_NONE ""
+                    Send Add_Item MSG_NONE (_Name(Self,hDD))
+                    
+                    Get MissingParentTableArray of oDataDictionaryFunctions hDD to aMissing
+                    Move (SizeOfArray(aMissing)<>0) to bErr
+                    If (not(bErr)) Begin
+                        Get MissingChildTableArray of oDataDictionaryFunctions hDD to aMissing
+                        Move (SizeOfArray(aMissing)<>0) to bErr
+                    End
+                    
+                    Send Add_Item MSG_NONE (If(bErr,"!","")) 
+                    
+                    If (HasRecord(hDD)) Begin
+                        Get CurrentRowId of hDD to riRowID
+                        Move (SerializeRowID(riRowID)) to sRowID
+                    End
+                    Else Begin
+                        Move "" to sRowID
+                    End
+                    Send Add_Item MSG_NONE sRowID
+//                    Send AddCheckBoxItem of oGridFunctions Self (HasRecord(hDD))
+                   
+                    Send AddCheckBoxItem of oGridFunctions Self (Changed_State(hDD))
+                    Set Aux_Value iBase to hDD
+                    If (hDD=stFocus.hServer) Begin
+                        Move iBase to iStartItem
+                        Move iIndex to iStartRow
+                    End
+                Loop
+            End
+            Send SetEntryState of oGridFunctions Self False
+            Send SetHighlightRowState of oGridFunctions Self
+            Set Current_Item to iStartItem
+            Set Dynamic_Update_State to True
+            Send OnRowChange iStartRow iStartRow
+        End_Procedure
+        
+        Procedure NewTableLabels
+            Integer iRow iMax iBase hDD
+            String sLabel
+            Get RowCount of oGridFunctions Self to iMax
+            Decrement iMax
+            For iRow from 0 to iMax
+                Get RowBaseItem of oGridFunctions Self iRow to iBase
+                Get Aux_Value iBase to hDD
+                Get DdoLabel hDD to sLabel
+                Set Value (iBase+1) to sLabel
+            Loop
+        End_Procedure
+        
+        Procedure GotoDD Integer hDD
+            Integer iMax iRow
+            Get FindAuxValueRow of oGridFunctions Self hDD 0 0 to iRow
+            If (iRow<>-1) Begin
+                Set Current_Item to (RowBaseItem(oGridFunctions,Self,iRow))
+            End
+        End_Procedure
+        
+        Procedure OnRowChange Integer iRowFrom Integer iRowTo
+            Integer hDD
+            Move 0 to hDD
+            If (Item_Count(Self)<>0) Begin
+                Get Aux_Value (RowBaseItem(oGridFunctions,Self,iRowTo)) to hDD
+            End
+            Set _phCurrentDD to hDD
+            Send OnNewDdo True
+        End_Procedure
+
+    End_Object
+
+    Object oParentStructure is a TreeView
+        Set Size to 125 120
+        Set Location to 41 244
+        Set peAnchors to anTopRight
+        
+        Procedure OnItemChanged Handle hItem Handle hItemOld
+            Integer hDD
+            If (hItem<>0) Begin
+                Get ItemData hItem to hDD
+                If (_phCurrentDD(Self)<>hDD) Begin
+                    Set _phCurrentDD to hDD
+                    Send OnNewDdo False
+                End
+            End
+        End_Procedure
+    
+        Procedure OnItemDblClick Handle hItem
+            Integer hDD
+            If (hItem<>0) Begin
+                Get ItemData hItem to hDD
+                Send DFPostMessageSuppress MSG_GotoDD (oDDList(Self)) hDD
+            End
+        End_Procedure
+
+        Procedure OnItemClick Handle hItem
+            Integer hDD
+            If (hItem<>0) Begin
+                Get ItemData hItem to hDD
+                Set _phCurrentDD to hDD
+                Send OnNewDdo False
+            End
+        End_Procedure
+
+        Procedure _AddDD Handle hParent Integer hDD
+            Integer iIndex iMax
+            Handle hNewParent
+            Integer[] aDDOs
+            String sLabel
+
+            Get DdoLabel hDD to sLabel
+
+            Get AddTreeItem sLabel hParent hDD 0 0 to hNewParent
+            
+            Get ParentDdoArray of oDataDictionaryFunctions hDD to aDDOs
+            Move (SizeOfArray(aDDOs)-1) to iMax
+            For iIndex from 0 to iMax
+                Send _AddDD hNewParent aDDOs[iIndex]
+            Loop
+        End_Procedure
+
+        Procedure AddDDOs Handle hItem Integer hRootDD
+            Send _AddDD hItem hRootDD
+        End_Procedure
+
+        Function CurrentDDO Returns Integer
+            Integer hDD
+            Handle hItem
+            If (ItemCount(Self)<>0) Begin
+                Get CurrentTreeItem to hItem
+                Get ItemData hItem to hDD
+            End
+            Else Begin
+                Move 0 to hDD
+            End
+            Function_Return hDD
+        End_Function
+        
+        Procedure NewDDO Integer hDD
+            Send DoDeleteItem (RootItem(Self))
+            If (hDD<>0) Begin
+                Send AddDDOs 0 hDD
+                Send DoExpandAll (RootItem(Self))
+                Set CurrentTreeItem to (RootItem(Self))
+            End
+        End_Procedure
+        
+            Procedure _UpdateLabel Handle hItem Integer iLevel
+                Integer hDD
+                String sLabel
+                Get ItemData hItem to hDD
+                Get DdoLabel hDD to sLabel
+                Set ItemLabel hItem to sLabel
+            End_Procedure
+        
+        Procedure NewTableLabels
+            Send DoEnumerateTree MSG__UpdateLabel (RootItem(Self)) 0
+        End_Procedure
+        
+        Property Integer _phMsg
+        Property Integer _phObj
+        Procedure _HandleRank Handle hItem Integer iLevel 
+            Integer hMsg hObj hDD
+            Get _phMsg to hMsg
+            Get _phObj to hObj
+            Get ItemData hItem to hDD
+            Send hMsg of hObj hDD iLevel
+        End_Procedure
+        
+        Procedure CallBackRanks Integer hMsg Integer hObj
+            Set _phMsg to hMsg
+            Set _phObj to hObj
+            Send DoEnumerateTree MSG__HandleRank (RootItem(Self)) 0
+        End_Procedure
+
+    End_Object // oParentStructure
+
+    Object oChildStructure is a TreeView
+        Set Size to 125 120
+        Set Location to 41 366
+        Set peAnchors to anTopRight
+    
+        Procedure OnItemChanged Handle hItem Handle hItemOld
+            Integer hDD
+            If (hItem<>0) Begin
+                Get ItemData hItem to hDD
+                If (_phCurrentDD(Self)<>hDD) Begin
+                    Set _phCurrentDD to hDD
+                    Send OnNewDdo False
+                End
+            End
+        End_Procedure
+
+        Procedure OnItemDblClick Handle hItem
+            Integer hDD
+            If (hItem<>0) Begin
+                Get ItemData hItem to hDD
+                Send DFPostMessageSuppress MSG_GotoDD (oDDList(Self)) hDD
+            End
+        End_Procedure
+            
+        Procedure OnItemClick Handle hItem
+            Integer hDD
+            If (hItem<>0) Begin
+                Get ItemData hItem to hDD
+                Set _phCurrentDD to hDD
+                Send OnNewDdo False
+            End
+        End_Procedure
+
+        Procedure _AddDD Handle hParent Integer hDD
+            Integer iIndex iMax
+            Handle hNewParent
+            Integer[] aDDOs
+            String sLabel
+
+            Get DdoLabel hDD to sLabel
+            
+            Get AddTreeItem sLabel hParent hDD 0 0 to hNewParent
+            
+            Get ChildDdoArray of oDataDictionaryFunctions hDD to aDDOs
+            Move (SizeOfArray(aDDOs)-1) to iMax
+            For iIndex from 0 to iMax
+                Send _AddDD hNewParent aDDOs[iIndex]
+            Loop
+        End_Procedure
+
+        Procedure AddDDOs Handle hItem Integer hRootDD
+            Send _AddDD hItem hRootDD
+        End_Procedure
+
+        Function CurrentDDO Returns Integer
+            Integer hDD
+            Handle hItem
+            If (ItemCount(Self)<>0) Begin
+                Get CurrentTreeItem to hItem
+                Get ItemData hItem to hDD
+            End
+            Else Begin
+                Move 0 to hDD
+            End
+            Function_Return hDD
+        End_Function
+        
+        Procedure NewDDO Integer hDD
+            Send DoDeleteItem (RootItem(Self))
+            If (hDD<>0) Begin
+                Send AddDDOs 0 hDD
+                Send DoExpandAll (RootItem(Self))
+                Set CurrentTreeItem to (RootItem(Self))
+            End
+        End_Procedure
+        
+            Procedure _UpdateLabel Handle hItem Integer iLevel
+                Integer hDD
+                String sLabel
+                Get ItemData hItem to hDD
+                Get DdoLabel hDD to sLabel
+                Set ItemLabel hItem to sLabel
+            End_Procedure
+        
+        Procedure NewTableLabels
+            Send DoEnumerateTree MSG__UpdateLabel (RootItem(Self)) 0
+        End_Procedure
+
+        Property Integer _phMsg
+        Property Integer _phObj
+        Procedure _HandleRank Handle hItem Integer iLevel 
+            Integer hMsg hObj hDD
+            Get _phMsg to hMsg
+            Get _phObj to hObj
+            Get ItemData hItem to hDD
+            Send hMsg of hObj hDD (0-iLevel)
+        End_Procedure
+
+        Procedure CallBackRanks Integer hMsg Integer hObj 
+            Set _phMsg to hMsg
+            Set _phObj to hObj
+            Send DoEnumerateTree MSG__HandleRank (RootItem(Self)) 0
+        End_Procedure
+    End_Object // oChildStructure
+
+    Procedure RefreshTableLabels
+        Integer hDdo
+        String sLabel
+
+        Get _phCurrentDD to hDdo
+
+        Get DdoLabel hDdo to sLabel
+        Set Value of oCurrentTable to sLabel
+        
+        Send NewTableLabels of oDDList
+        Send NewTableLabels of oParentStructure
+        Send NewTableLabels of oChildStructure
+        Send NewTableLabels of (oTab3(oTabs))
+    End_Procedure
+    
+    Procedure InitializeContent
+        tOIDeoInfo stFocus
+        Get pstObjectInfo to stFocus
+        Set Value of oMainLabel to (Lowercase(name(stFocus.hObject)))
+        Send InitializeContent of oDDList
+        Send DoRanks of oDDList
+    End_Procedure
+
+    Object oTreeLabel is a RadioGroup
+        Set Location to 168 244
+        Set Size to 27 242
+        Set Label to "Label composition"
+        Set peAnchors to anTopRight
+    
+        Object oRadio is a Radio
+            Set Label to "Table"
+            Set Size to 10 31
+            Set Location to 11 26
+        End_Object
+    
+        Object oRadio is a Radio
+            Set Label to "DDO"
+            Set Size to 10 28
+            Set Location to 11 60
+        End_Object
+        
+        Object oRadio is a Radio
+            Set Label to "User defined"
+            Set Size to 10 56
+            Set Location to 11 91
+        End_Object
+        Set Current_Radio to 0
+
+        Object oTableNumbers is a CheckBox
+            Set Size to 10 59
+            Set Location to 11 154
+            Set Label to "Add table numbers"
+        
+            Procedure OnChange
+                Send RefreshTableLabels
+            End_Procedure
+        
+        End_Object
+
+//        Object oConditionalRelations is a CheckBox
+//            Set Size to 10 64
+//            Set Location to 15 117
+//            Set Label to "Conditional parent (cp)"
+//            Set Checked_State to True
+//            
+//            Procedure OnChange
+//                Send RefreshTableLabels
+//            End_Procedure
+//
+//        End_Object
+//
+//        Object oCfree is a CheckBox
+//            Set Size to 10 38
+//            Set Location to 5 186
+//            Set Label to "cfreeDD (cf)"
+//            
+//            Procedure OnChange
+//                Send RefreshTableLabels
+//            End_Procedure
+//        End_Object
+
+        Procedure Notify_Select_State Integer iToItem Integer iFromItem
+            Forward Send Notify_Select_State iToItem iFromItem
+            Send RefreshTableLabels
+        End_Procedure
+    
+    End_Object
+    
+    Function DdoLabel Integer hDD Returns String
+        Boolean bTableNumber
+        Boolean bConditionalRelations bValue bCfree
+        Integer iTable iCurRad
+        String sLabel
+        
+        If (hDD=0) Begin
+            Function_Return "N/A"
+        End
+        
+        Get main_file of hDD to iTable
+        Get Current_Radio of oTreeLabel to iCurRad
+        Get Checked_State of oTableNumbers to bTableNumber
+//        Get Checked_State of oConditionalRelations to bConditionalRelations
+//        Get Checked_State of oCfree to bCfree
+        Move False to bConditionalRelations
+        Move False to bCfree
+        If (iCurRad=0) Begin // Table name
+            Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sLabel
+        End
+        If (iCurRad=1) Begin // Table display name
+            Move (Replace(Name(Parent(hDD))+".",Name(hDD),"")) to sLabel
+            Move (Lowercase(sLabel)) to sLabel
+        End
+        If (iCurRad=2) Begin // DDO name
+            Get_Attribute DF_FILE_DISPLAY_NAME of iTable to sLabel
+        End
+        If (bTableNumber) Begin
+            Move (sLabel+" ("+String(iTable)+")") to sLabel
+        End
+        Function_Return sLabel
+    End_Function
+
+    Object oCurrentTable is a Form
+        Set Size to 13 72
+        Set Location to 178 8
+        Set Label to "Current table/DDO name:"
+        Set Label_Justification_Mode to JMode_Top
+        Set Label_Col_Offset to 0
+        Set peAnchors to anTopLeft
+        Set Entry_State 0 to False
+    End_Object
+
+    Object oCurrentDdoName is a Form
+        Set Size to 13 158
+        Set Location to 178 83
+        Set Label_Col_Offset to 0
+        Set peAnchors to anTopLeftRight
+        Set Entry_State 0 to False
+    End_Object
+
+    Object oTabs is a TabDialog
+        Set Size to 118 477
+        Set Location to 197 9
+        Set peAnchors to anAll
+
+        Object oTab1 is a TabPage
+            Set Label to "Columns"
+
+            Object oColumnGrid is a GridSture
+                Set Location to 4 4
+            
+                Set Size to 94 463
+            
+                Set Line_Width to 5 0
+            
+                Set Form_Width 0 to 20
+                Set Header_Label 0 to "#"
+                Set Form_Datatype 0 to 0
+            
+                Set Form_Width 1 to 82
+                Set Header_Label 1 to "Column name"
+            
+                Set Form_Width 2 to 41
+                Set Header_Label 2 to "Changed"
+                Set Header_Label 3 to "Current value"
+                Set Form_Width 3 to 150
+                Set Header_Label 4 to "Label"
+                Set Form_Width 4 to 150
+                Set peAnchors to anAll
+                Set peResizeColumn to rcSelectedColumn
+                Set piResizeColumn to 3
+                Set Select_Mode to Multi_Select
+            
+                Function AllowToggle Integer iColumn Integer iItem Returns Boolean
+                    Function_Return False
+                End_Function
+
+                Procedure Fill_List Integer hDD
+                    Integer iTable iField iMax iType iBase
+                    Boolean bChanged bMissing
+                    String sValue
+                    
+                    Set Dynamic_Update_State to False
+                    Send Delete_Data
+                    
+                    If (hDD) Begin
+                        Get main_file of hDD to iTable
+                        Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iMax
+                        For iField from 1 to iMax
+                            Get Item_Count to iBase
+                            Get_Attribute DF_FIELD_TYPE of iTable iField to iType
+                            Send Add_Item MSG_NONE iField
+                            Get_Attribute DF_FIELD_NAME of iTable iField to sValue
+                            Send Add_Item MSG_NONE sValue
+                            If (iType<>DF_OVERLAP) Begin
+                                
+                                Get IsExtendedFieldDefinitionMissing of oDataDictionaryFunctions hDD iField to bMissing
+                                If (not(bMissing)) Begin
+                                    Get Field_Changed_State of hDD iField to bChanged
+                                    Send AddCheckBoxItem of oGridFunctions Self bChanged
+                                    Get Field_Current_Value of hDD iField to sValue
+                                    Send Add_Item MSG_NONE sValue
+                                    Get ControlLabel of oDataDictionaryFunctions hDD iTable iField to sValue
+                                    Send Add_Item MSG_NONE sValue
+                                End
+                                Else Begin
+                                    Send Add_Item MSG_NONE ""
+                                    Send Add_Item MSG_NONE "(text or binary) Extended fields not defined."
+                                    Send Add_Item MSG_NONE ""
+                                    Set ItemColor (iBase+2) to (BrightColor(oRgbFunctions,clGray))
+                                    Set ItemColor (iBase+3) to (BrightColor(oRgbFunctions,clGray))
+                                    Set ItemColor (iBase+4) to (BrightColor(oRgbFunctions,clGray))
+                                End
+                            End
+                            Else Begin
+                                Send Add_Item MSG_NONE ""
+                                Send Add_Item MSG_NONE "(overlap)"
+                                Send Add_Item MSG_NONE ""
+                                Set ItemColor (iBase+2) to (BrightColor(oRgbFunctions,clGray))
+                                Set ItemColor (iBase+3) to (BrightColor(oRgbFunctions,clGray))
+                                Set ItemColor (iBase+4) to (BrightColor(oRgbFunctions,clGray))
+                            End
+                            Set Aux_Value iBase to iField
+                        Loop
+                    End
+                    Send SetEntryState of oGridFunctions Self False
+                    Set Dynamic_Update_State to True
+                End_Procedure
+                
+                    Function _CurrentColumn Returns Integer
+                        Integer iItem
+                        Get BaseItem of oGridFunctions Self to iItem
+                        Function_Return (Aux_Value(Self,iItem))
+                    End_Function
+        
+                Procedure CallVDFXray
+                    If (Item_Count(Self)) Begin
+                        Send RunVDFXrayCurrentFileList of oTableAccessFunctions (main_file(_phCurrentDD(Self))) (_CurrentColumn(Self))
+                    End
+                End_Procedure
+        
+                On_Key kEnter Send CallVDFXray
+                
+                Procedure Mouse_Click Integer iWindowNumber Integer iPosition
+                    Forward Send Mouse_Click iWindowNumber iPosition
+                    Send CallVDFXray
+                End_Procedure
+            End_Object
+
+            Procedure NewDdo Integer hDD
+                Send Fill_List of oColumnGrid hDD
+            End_Procedure
+
+        End_Object
+
+        Object oTab2 is a TabPage
+            Set Label to "Status"
+
+            Object oStatusText is a cTextEdit
+                Set Size to 93 463
+                Set Location to 4 4
+                Set Read_Only_State to True
+                Set peAnchors to anAll
+                Procedure AddLine String sValue
+                    Send AppendText sValue
+                    Send AppendText (Character(10))
+                End_Procedure
+            End_Object
+            
+            Function TableLabel Integer iTable Returns Integer
+                String sLabel sValue
+                Move "#, # (#)" to sLabel
+                Move (Replace("#",sLabel,iTable)) to sLabel
+                Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sValue
+                Move (Replace("#",sLabel,sValue)) to sLabel
+                Get_Attribute DF_FILE_DISPLAY_NAME of iTable to sValue
+                Move (Replace("#",sLabel,sValue)) to sLabel
+                Function_Return sLabel
+            End_Function
+
+            Procedure NewDdo Integer hDD
+                Integer iMax iIndex iTable
+                Integer[] aMissing
+                String sLabel
+                
+                Send Delete_Data of oStatusText
+                If (hDD<>0) Begin
+                
+                    Get MissingParentTableArray of oDataDictionaryFunctions hDD to aMissing
+                    Send AddLine of oStatusText "Missing from parent structure:"
+                    
+                    If (SizeOfArray(aMissing)<>0) Begin
+                        Move (SizeOfArray(aMissing)-1) to iMax
+                        For iIndex from 0 to iMax
+                            Move aMissing[iIndex] to iTable
+                            Get TableLabel iTable to sLabel
+                            Send AddLine of oStatusText ("  "+sLabel)
+                        Loop
+                    End
+                    Else Begin
+                        Send AddLine of oStatusText "  none"
+                    End
+                    Send AddLine of oStatusText ""
+    
+                    Get MissingChildTableArray of oDataDictionaryFunctions hDD to aMissing
+                    Send AddLine of oStatusText "Missing from child structure:"
+                    
+                    If (SizeOfArray(aMissing)<>0) Begin
+                        Move (SizeOfArray(aMissing)-1) to iMax
+                        For iIndex from 0 to iMax
+                            Move aMissing[iIndex] to iTable
+                            Get TableLabel iTable to sLabel
+                            Send AddLine of oStatusText ("  "+sLabel)
+                        Loop
+                    End
+                    Else Begin
+                        Send AddLine of oStatusText "  none"
+                    End
+                    Send Beginning_of_Data of oStatusText
+                End
+            End_Procedure
+                                             
+            // The program should work fine without the page procedure below. It does. Almost.
+            // It is a work around to fix the fact that you cannot set the value of a cTextEdit before
+            // it has been assigned a window handle. DAW hopefully will fix this.
+            Procedure page Integer iPageObject
+                Forward Send Page iPageObject
+                Integer hDD
+                Get _phCurrentDD to hDD
+                Send DFPostMessage MSG_NewDDO Self hDD
+//                Showln "NOW"
+            End_Procedure
+        End_Object
+
+        Object oTab3 is a TabPage
+            Set Label to "DDO Graph"
+
+            Object oGrid is a GridSture
+                Set Location to 4 4
+                Set Size to 82 463
+
+                Send AddColumn of oGridFunctions ""           (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,8,0)) 30
+                Send AddColumn of oGridFunctions ""           (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,50,0)) 334
+                Send AddColumn of oGridFunctions "Has record" (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,8,0)) 50
+                Send AddColumn of oGridFunctions "Changed"    (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,8,0)) 40
+
+                Send ApplyToGrid of oGridFunctions Self False
+            
+                Set peAnchors to anAll
+                Set peResizeColumn to rcSelectedColumn
+                Set piResizeColumn to 1
+                
+                Set Form_Typeface 0 to "Courier New"
+                Set Form_FontHeight 0 to 16
+                Set Form_Typeface 1 to "Courier New"
+                Set Form_FontHeight 1 to 16
+                Set GridLine_Mode to Grid_Visible_Vert
+            
+                    Function _GraphicLead tRelationsDrawingMapItem stItem Returns String
+                        Integer iMax iIndex
+                        String sLead
+                        Move (SizeOfArray(stItem.aVerticalLines)-1) to iMax
+                        For iIndex from 0 to iMax
+                            If (iIndex=iMax) Begin
+                                If (stItem.bParent) Begin
+                                    If (stItem.bFirst) Begin
+                                        Move (sLead+"/-") to sLead
+                                    End
+                                    Else Begin
+                                        Move (sLead+"|-") to sLead
+                                    End
+                                End
+                                Else If (stItem.bChild) Begin
+                                    If (stItem.bLast) Begin
+                                        Move (sLead+"\-") to sLead
+                                    End
+                                    Else Begin
+                                        Move (sLead+"|-") to sLead
+                                    End                                    
+                                End
+                            End
+                            Else Begin
+                                If (stItem.aVerticalLines[iIndex]) Begin
+                                    Move (sLead+"| ") to sLead
+                                End
+                                Else Begin
+                                    Move (sLead+"  ") to sLead
+                                End
+                            End
+                        Loop
+                        Function_Return sLead
+                    End_Function
+
+                Property tRelationsDrawingMapItem[] _paMap
+                
+                Function BaseItemLabel Integer iBase Returns String
+                    Integer iIndex hDD
+                    String sLabel
+                    tRelationsDrawingMapItem[] aMap
+                    
+                    Get Aux_Value iBase to iIndex
+                    Get _paMap to aMap
+                    
+                    Move aMap[iIndex].iItemId to hDD
+                    Get DdoLabel hDD to sLabel
+                    Move (_GraphicLead(Self,aMap[iIndex])+sLabel) to sLabel
+                    If (aMap[iIndex].iAlreadyMappedAtRow<>-1) Begin
+                        Move (sLabel+" (*") to sLabel
+                    End                          
+                    Function_Return sLabel
+                End_Function
+                
+                Procedure _DoLabel Integer iBase
+                    Set Value (iBase+1) to (BaseItemLabel(Self,iBase))
+                End_Procedure
+
+                Procedure FillGrid tRelationsDrawingMapItem[] aMap
+                    Integer iMax iIndex hDD iBase
+                    String sLabel
+                    
+                    Set _paMap to aMap
+                    
+                    Set Dynamic_Update_State to False
+                    Send Delete_Data
+                    Move (SizeOfArray(aMap)-1) to iMax
+                    For iIndex from 0 to iMax
+                        Get Item_Count to iBase
+                        Send Add_Item MSG_NONE ""
+                        Send Add_Item MSG_NONE "" // sLabel
+                        Send Add_Item MSG_NONE "" // Active
+                        Send Add_Item MSG_NONE "" // Changed
+                        Set Aux_Value iBase to iIndex
+                        Set Aux_Value (iBase+1) to aMap[iIndex].iItemId
+                        Send _DoLabel iBase
+                    Loop
+                    Send SetEntryState of oGridFunctions Self False
+                    Send SetAlternatingRowColors of oGridFunctions Self clBlue
+                    Set Dynamic_Update_State to True
+                End_Procedure
+                
+                Procedure _NewTableLabels
+                    Integer hDD iMax iRow iBase
+                    Get RowCount of oGridFunctions Self to iMax
+                    Decrement iMax
+                    For iRow from 0 to iMax
+                        Get RowBaseItem of oGridFunctions Self iRow to iBase
+                        Send _DoLabel iBase
+                    Loop
+                    Set Gridline_Mode to Grid_Visible_Vert // Remove "_" characters from previous value (error due do GridLine_Mode preventing re-draw of grid-lines between cells)
+                End_Procedure
+            
+                Procedure UpdateInfoColumns
+                    Integer hDD iMax iRow iBase
+                    Boolean bChanged bHasRecord bShouldSave
+                    String sValue
+                    Get RowCount of oGridFunctions Self to iMax
+                    Decrement iMax
+                    For iRow from 0 to iMax
+                        Get RowBaseItem of oGridFunctions Self iRow to iBase
+                        Get Aux_Value (iBase+1) to hDD
+                        Get HasRecord of hDD to bHasRecord
+                        Set Value (iBase+2) to (If(bHasRecord,"Y","-"))
+                        Get Changed_State of hDD to bChanged
+                        Get Should_Save of hDD to bShouldSave
+                        If (bChanged or bShouldSave) Begin
+                            If (bChanged and bShouldSave) Begin
+                                Move "Y (cs+ss)" to sValue
+                            End
+                            Else If (bChanged) Begin
+                                Move "Y (cs)" to sValue
+                            End
+                            Else Begin
+                                Move "Y (ss)" to sValue
+                            End
+                        End
+                        Else Begin
+                            Move "-" to sValue
+                        End
+                        Set Value (iBase+3) to sValue
+                    Loop
+                End_Procedure
+            End_Object
+            
+            Procedure NewDdo Integer hDD
+                tRelationsDrawingMapItem[] aMap
+                Get DDO_RelationsDrawingMap of oDataDictionaryFunctions hDD to aMap
+                Send FillGrid of oGrid aMap
+                Send UpdateInfoColumns of oGrid
+            End_Procedure
+            
+            Procedure NewTableLabels
+                Send _NewTableLabels of oGrid
+            End_Procedure
+            
+            Object oyUML is a cYumlFunctions
+            End_Object
+
+            Procedure CallYuml
+                Integer iIndex iMax hRootDD
+                String sUrl sFromLabel sToLabel
+                tYumlClassDiagram strDiagram
+                tDDORelation[] aDdoRelations
+                
+                Get _phCurrentDD to hRootDD
+                Get DDO_Relations of oDataDictionaryFunctions hRootDD to aDdoRelations
+                
+                Get NewDiagram of oyUML to strDiagram
+    
+                Move (SizeOfArray(aDdoRelations)-1) to iMax
+                For iIndex from 0 to iMax
+                    
+                    Get DdoLabel aDdoRelations[iIndex].hFromDDO to sFromLabel
+                    Get DdoLabel aDdoRelations[iIndex].hToDDO to sToLabel
+                    Send AddRelation of oyUML (&strDiagram) sFromLabel sToLabel aDdoRelations[iIndex].bConstrained
+                Loop
+    
+                Get DiagramUrl of oyUML strDiagram to sUrl
+                Send ShellExecuteDocument of oFileFunctions sUrl
+            End_Procedure
+
+            Object oyUMLAllBtn is a Button
+                Set Size to 14 271
+                Set Location to 87 74
+                Set Label to 'Generate yUML text file with diagram data for all DDO structures in the project'
+                Set peAnchors to anBottomRight
+                Procedure OnClick
+                    Send yUML_GenerateAllDdoDiagrams of oDataDictionaryFunctions
+                    Send Info_Box "Diagram data has been extracted and saved. Fire up VDFXRay to inspect diagrams ('Functions'->'Show DDO relation diagrams')"
+                End_Procedure
+            End_Object
+            
+            Object oYumlBtn is a Button
+                Set Size to 14 119
+                Set Location to 87 349
+                Set Label to 'Call yUML for this DDO graph'
+                Set peAnchors to anBottomRight
+                Procedure OnClick
+                    Send CallYuml
+                End_Procedure
+            End_Object
+        End_Object
+    End_Object
+
+    Procedure OnNewDdo Boolean bUpdateTrees
+        Integer hDdo
+        String sLabel
+
+        Get _phCurrentDD to hDdo
+
+        Get DdoLabel hDdo to sLabel
+        Set Value of oCurrentTable to sLabel
+        If (hDdo<>0) Begin
+            Set Value of oCurrentDdoName to (Lowercase(Name(hDdo)))
+        End
+        Else Begin
+            Set Value of oCurrentDdoName to "No object"
+        End
+
+        If (bUpdateTrees) Begin
+            Send NewDdo of oParentStructure hDdo
+            Send NewDdo of oChildStructure hDdo
+        End
+        Send NewDDO of oTab1 hDdo
+        Send NewDDO of oTab2 hDdo
+        Send NewDDO of oTab3 hDdo
+    End_Procedure
+    
+    Procedure popup
+        tOIDeoInfo stFocus
+        
+        Get FocusInfo of oObjectInfo to stFocus
+        If (stFocus.hServer=0) Begin
+            If (stFocus.hDeoWithServer<>0) Begin
+                Get server of stFocus.hDeoWithServer to stFocus.hServer
+            End
+        End
+        
+        Set pstObjectInfo to stFocus
+
+        Send DFPostMessageSuppress MSG_InitializeContent Self
+        Forward Send Popup
+    End_Procedure
+End_Object
+
+Procedure PopupDataDictionaryFunctionsDebugPanel for BaseClass
+    Send Popup of oDataDictionaryFunctionsDebugPanel
+End_Procedure
+
+Procedure AddKeyQ for dbModalPanel
+    On_Key Key_Ctrl+Key_Q Send PopupDataDictionaryFunctionsDebugPanel    
+End_Procedure
+
+On_Key Key_Ctrl+Key_Q Send PopupDataDictionaryFunctionsDebugPanel    
+
+//On_Key Key_Ctrl+Key_Q Send PopupDataDictionaryFunctionsDebugPanel // Popup of _oDataDictionaryFunctionsDebugPanel
+//On_Key Key_Alt+Key_Q Send PopupDataDictionaryFunctionsDebugPanel // Popup of _oDataDictionaryFunctionsDebugPanel
+

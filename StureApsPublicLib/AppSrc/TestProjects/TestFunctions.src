@@ -1,0 +1,351 @@
+#HEADER
+Use DFAllEnt.pkg
+Use cCJStandardCommandBarSystem.pkg
+Use cComScriptlet.pkg
+#ENDHEADER
+
+#IF ((FMAC_VERSION*10+FMAC_REVISION)>170) // If 17.1 or higher
+    Set_StrictEval to True // Make the runtime check for un-managed string eval's
+#ENDIF
+
+Object oHtmlHelp is a cHtmlHelp
+End_Object
+
+Object oApplication is a cApplication
+    Set peHelpType to htHtmlHelp
+End_Object
+
+Object oToolTipController is a cToolTipController
+    Move Self to ghoToolTipController
+End_Object
+
+Use oEditContextMenu.pkg
+Use oDEOEditContextMenu17.pkg
+
+Use VdfRuntime.pkg
+
+Object oMain is a Panel
+    Set Label to "Test StureApsPublicLib packages"
+    Set Location to 4 3
+    Set Size to 300 450
+
+    Object oCommandBarSystem is a cCJCommandBarSystem
+        Set pbTimerUpdate to True
+
+        Procedure OnCreateCommandBars
+            Handle hoOptions
+            Get OptionsObject to hoOptions
+            Forward Send OnCreateCommandBars
+        End_Procedure
+
+        Object oMenuBar is a cCJMenuBar
+
+            Object oFileMenu is a cCJMenuItem
+                Set peControlType to xtpControlPopup
+                Set psCaption   to "&Files"
+//                Set psDescription to "Find, Gem, Slet data eller afslut programmet."
+//                Set psCategory to "Menuer"
+
+//                Object oClearMenuItem is a cCJClearMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                End_Object
+//
+//                Object oClearAllMenu is a cCJClearAllMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                End_Object
+//
+//                Object oPromptMenuItem is a cCJPromptMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                    Set pbControlBeginGroup to True
+//                End_Object
+//
+//                Object oFindMenuItem is a cCJFindMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                    Set pbControlBeginGroup to True
+//                End_Object
+//
+//                Object oFindNextMenu is a cCJFindNextMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                End_Object
+//
+//                Object oFindPreviousMenu is a cCJFindPreviousMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                End_Object
+//
+//                Object oFindFirstMenu is a cCJFindFirstMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                End_Object
+//
+//                Object oFindLastMenu is a cCJFindLastMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                End_Object
+//
+//                Object oSaveMenuItem is a cCJSaveMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                    Set pbControlBeginGroup to True
+//                End_Object
+//
+//                Object oDeleteMenuItem is a cCJDeleteMenuItem
+//                    Set pbAddToDesignerMenu to True
+//                End_Object
+
+                Object oExitMenu is a cCJExitMenuItem
+                    Set psCaption to "Exit application"
+//                    Set pbControlBeginGroup to True
+                End_Object
+
+            End_Object
+
+            Object oViewMenu is a cCJMenuItem
+                Set peControlType to xtpControlPopup
+                Set psCaption to "&Views"
+                Set psToolTip to "Test views"
+
+                Object ooTestStringViewMenuItem is a cCJMenuItem
+                    Set psCaption to "StringFunctions.pkg"
+                    Set psTooltip to "StringFunctions.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oStringFunctionsTestView of hoClient
+                    End_Procedure
+                End_Object
+
+                Object ooTestFileViewMenuItem is a cCJMenuItem
+                    Set psCaption to "FileFunctions.pkg"
+                    Set psTooltip to "FileFunctions.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oFileFunctionsTestView of hoClient
+                    End_Procedure
+                End_Object
+
+                Object ooTestUuidViewMenuItem is a cCJMenuItem
+                    Set psCaption to "UniversallyUniqueIDentifierFunctions.pkg"
+                    Set psTooltip to "UniversallyUniqueIDentifierFunctions.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oTestUuidView of hoClient
+                    End_Procedure
+                End_Object
+
+                Object ooTestFTPTransferViewMenuItem is a cCJMenuItem
+                    Set psCaption to "cFTPTransferSture.pkg"
+                    Set psTooltip to "cFTPTransferSture.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oTestFTPTransferView of hoClient
+                    End_Procedure
+                End_Object
+
+                Object oURLcomposedecomposeUrlObjpkgMenuItem is a cCJMenuItem
+                    Set psCaption to "UrlFunctions.pkg"
+                    Set psTooltip to "UrlFunctions.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oUrlObjTest of hoClient
+                    End_Procedure
+                End_Object
+
+                Object oJsonFunctionspkgtestviewMenuItem is a cCJMenuItem
+                    Set psCaption to "JsonFunctions.pkg"
+                    Set psTooltip to "JsonFunctions.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oJsonFunctionsView of hoClient
+                    End_Procedure
+                End_Object
+
+                Object oListRuntimesandWebApplicationsVdfRuntimepkgMenuItem is a cCJMenuItem
+                    Set psCaption to "VdfRuntime.pkg"
+                    Set psTooltip to "VdfRuntime.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oVdfRuntime of hoClient
+                    End_Procedure
+                End_Object
+
+                Object oWhatthecComWebBrowserStureclasscandoMenuItem is a cCJMenuItem
+                    Set psCaption to "Win\cComWebBrowserSture.pkg"
+                    Set psTooltip to "Win\cComWebBrowserSture.pkg"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oWebBrowserTestView of hoClient
+                    End_Procedure
+                End_Object
+
+                Object oExpressionparsertestMenuItem is a cCJMenuItem
+                    Set psCaption to "Expression parser test"
+                    Set psTooltip to "Expression parser test"
+                
+                    Procedure OnExecute Variant vCommandBarControl
+                        Handle hoClient
+                        Get Client_Id to hoClient
+                        Send Activate_oExpressionParserTestView of hoClient
+                    End_Procedure
+                End_Object
+
+                Object oAboutMenuItem is a cCJAboutMenuItem
+                    Set pbControlBeginGroup to True 
+                    Set psCaption to "About"
+                End_Object
+//                Object oOutputImagetoWinPrint2ReportWinprint2FunctionspkgMenuItem is a cCJMenuItem
+//                    Set psCaption to "Winprint2Functions.pkg"
+//                    Set psTooltip to "Winprint2Functions.pkg"
+//                
+//                    Procedure OnExecute Variant vCommandBarControl
+//                        Handle hoClient
+//                        Get Client_Id to hoClient
+//                        Send Activate_oWinprint2FunctionsTestView of hoClient
+//                    End_Procedure
+//                End_Object
+            End_Object
+
+        End_Object
+
+        Object oFindToolBar is a cCJToolbar
+            Set psTitle to "S›ge-bj‘lke"
+
+            Object oFindFirstTool is a cCJFindFirstMenuItem
+            End_Object
+
+            Object oFindPreviousTool is a cCJFindPreviousMenuItem
+            End_Object
+
+            Object oFindMenuTool is a cCJFindMenuItem
+            End_Object
+
+            Object oFindNextTool is a cCJFindNextMenuItem
+            End_Object
+
+            Object oFindLastTool is a cCJFindLastMenuItem
+            End_Object
+
+            Object oPromptToolItem is a cCJPromptMenuItem
+                Set pbControlBeginGroup to True
+            End_Object
+
+        End_Object
+
+        Object oFileToolBar is a cCJToolbar
+            Set psTitle to "Gem, Slet og blank sk‘rm"
+
+            Object oClearToolItem is a cCJClearMenuItem
+                Set peControlStyle to xtpButtonIconAndCaption
+            End_Object
+
+            Object oClearAllToolItem2 is a cCJClearAllMenuItem
+                Set peControlStyle to xtpButtonIconAndCaption
+            End_Object
+
+            Object oSaveToolItem is a cCJSaveMenuItem
+                Set peControlStyle to xtpButtonIconAndCaption
+                Set pbControlBeginGroup to True
+            End_Object
+
+            Object oDeleteToolItem is a cCJDeleteMenuItem
+                Set peControlStyle to xtpButtonIconAndCaption
+            End_Object
+
+        End_Object
+
+        Object oEditToolBar is a cCJToolbar
+            Set psTitle to "Redigeringsbj‘lke"
+
+            Object oCutToolbarItem is a cCJCutMenuItem
+            End_Object
+
+            Object oCopyToolbarItem is a cCJCopyMenuItem
+            End_Object
+
+            Object oPasteToolbarItem is a cCJPasteMenuItem
+            End_Object
+
+            Object oDeleteEditToolbarItem is a cCJDeleteEditMenuItem
+                Set pbControlBeginGroup to True
+            End_Object
+
+        End_Object
+
+        Object oRememberToolbar is a cCJToolbar
+
+            Object oRememberItems is a cCJMenuItem
+
+                Set peControlType to xtpControlPopup
+                Set peControlStyle to xtpButtonCaption
+                Set psCaption to C_$Remember
+                
+                Object oMenuItem is a cCJRememberFieldMenuItem
+                    Set peControlStyle to xtpButtonIconAndCaption
+                End_Object
+                
+                Object oMenuItem is a cCJRememberLastFieldMenuItem
+                    Set peControlStyle to xtpButtonIconAndCaption
+                End_Object
+                
+                Object oMenuItem is a cCJUnRememberFieldMenuItem
+                    Set peControlStyle to xtpButtonIconAndCaption
+                End_Object
+                
+                Object oMenuItem is a cCJUnRememberFieldAllMenuItem
+                    Set peControlStyle to xtpButtonIconAndCaption
+                End_Object
+
+            End_Object
+            
+        End_Object
+        
+        Object oStatusBar is a cCJStatusBar
+
+            Object oStatusPane1 is a cCJStatusBarPane
+                Set piID to sbpIDIdlePane
+                Set pbStyleStretch to True
+            End_Object
+
+            Object oStatusPane2 is a cCJStatusBarPane
+                Set phoViewPane to Self
+                Set pbStyleStretch to True
+            End_Object
+
+        End_Object
+
+    End_Object
+
+    Object oClientArea is a ClientArea
+        Use StdAbout.pkg
+        Use TestProjects\TestUuidView.vw
+        Use TestProjects\TestFTPTransferView.vw
+        Use TestProjects\TestStringFunctions.vw
+        Use TestProjects\TestFileFunctions.vw
+        Use TestProjects\TestWinStatusPanelAlternative.vw
+        Use TestProjects\UrlFunctions.vw
+        Use TestProjects\JsonFunctions.vw
+        Use TestProjects\VdfRuntime.vw
+        Use TestProjects\Winprint2FunctionsTestView.vw
+        Use TestProjects\WebBrowserTestView.vw
+        Use TestProjects\ExpressionParserTestView.vw
+
+        Procedure Activate_About
+            Send DoAbout "" "" "" "" ""
+        End_Procedure
+
+    End_Object
+
+End_Object
+
+Start_UI

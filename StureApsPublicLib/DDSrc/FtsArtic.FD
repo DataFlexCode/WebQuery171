@@ -1,0 +1,6 @@
+#REPLACE FILE1001 FtsArtic
+#REPLACE FtsArtic.Recnum |FN1001,0
+#REPLACE FtsArtic.Article_Id |FN1001,1
+#REPLACE FtsArtic.Date |FD1001,2
+#REPLACE FtsArtic.Time |FS1001,3
+#REPLACE FtsArtic.Hit_Count |FN1001,4

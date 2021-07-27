@@ -1,0 +1,53 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebHtmlBox.pkg
+
+Use StructFunctions.pkg
+Use cWebIFrame.pkg
+
+//Enum_List
+//    Define C_wqFirstPage for  1
+//    Define C_wqLastPage  for -1
+//End_Enum_List
+
+Object oWqOutputModal is a cWebModalDialog
+    Set psCaption           to "Report"
+    Set piMinWidth          to 800
+    Set piMinHeight         to 600
+    Set pbResizable         to True
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oReportFrame is a cWebIFrame
+            Set pbFillHeight to True
+        End_Object  // oReportFrame
+
+    End_Object
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 12
+        Set peRegion to prBottom
+
+        Object oCloseButton is a cWebButton
+            Set psCaption to C_$Close
+            Set piColumnSpan to 1
+            Set piColumnIndex to 11
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object  // oCloseButton
+        
+    End_Object
+    
+    Procedure PopupOutput Handle hoObj String sFile String sTitle
+        WebSet psCaption to ("WebQuery:" * sTitle)
+        WebSet psUrl of oReportFrame to sFile
+        Send Popup hoObj
+    End_Procedure  //PopupReport
+    
+End_Object

@@ -1,0 +1,18 @@
+// If (YesNo(oConfirmationFunctions,"Want to?","Question",True)) Begin
+
+Use VdfBase.pkg
+Use Msgbox.pkg
+
+Class cConfirmationFunctions is a cObject
+    Function YesNo String sQuestion String sTitle Boolean bDefault Returns Boolean
+        Integer eResponse
+        Get YesNo_Box sQuestion sTitle (If(bDefault,MB_DEFBUTTON1,MB_DEFBUTTON2)) to eResponse
+        Function_Return (eResponse=MBR_YES)
+    End_Function
+End_Class
+
+Global_Variable Integer oConfirmationFunctions
+
+Object _oConfirmationFunctions is a cConfirmationFunctions
+    Move Self to oConfirmationFunctions
+End_Object

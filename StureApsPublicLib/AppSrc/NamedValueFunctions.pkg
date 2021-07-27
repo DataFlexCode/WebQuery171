@@ -1,0 +1,59 @@
+//  Use NamedValueFunctions.pkg // oNamedValueFunctions object
+
+Struct tNamedValue
+    String  sName
+    String  sValue
+End_Struct
+
+Struct tNamedValueList
+    Boolean bCaseSensitive
+    tNamedValue[] aNamedValues
+End_Struct
+
+Global_Variable Integer oNamedValueFunctions
+
+Object _oNamedValueFunctions is a cObject
+    
+    Move Self to oNamedValueFunctions
+    
+    Function NewNamedValueList Boolean bCaseSensitive Returns tNamedValueList
+        tNamedValueList strEmptyList
+        Move bCaseSensitive to strEmptyList.bCaseSensitive
+        Function_Return strEmptyList
+    End_Function
+    
+        Function _FindName Boolean bCaseSense tNamedValue[] aValues String sName Returns Integer
+            Integer iIndex iMax
+            Move (SizeOfArray(aValues)-1) to iMax
+            For iIndex from 0 to iMax
+                If (sName=aValues[iIndex].sName) Begin
+                    Function_Return iIndex
+                End
+            Loop
+            Function_Return -1
+        End_Function
+        
+    Function NameHasValue tNamedValueList strList String sName Returns Boolean
+        Function_Return (_FindName(Self,strList.bCaseSensitive,strList.aNamedValues,sName)>=0)
+    End_Function
+        
+    Procedure Set NamedValue tNamedValueList ByRef strList String sName String sValue
+        Integer iIndex
+        Get _FindName strList.bCaseSensitive strList.aNamedValues sName to iIndex
+        If (iIndex=-1) Begin
+            Move (SizeOfArray(strList.aNamedValues)) to iIndex
+            Move sName to strList.aNamedValues[iIndex].sName
+        End
+        Move sValue to strList.aNamedValues[iIndex].sValue
+    End_Procedure
+    
+    Function NamedValue tNamedValueList strList String sName Returns String
+        Integer iIndex
+        Get _FindName True strList.aNamedValues sName to iIndex
+        If (iIndex<>-1) Begin
+            Function_Return strList.aNamedValues[iIndex].sValue
+        End
+        Function_Return ""
+    End_Function
+    
+End_Object

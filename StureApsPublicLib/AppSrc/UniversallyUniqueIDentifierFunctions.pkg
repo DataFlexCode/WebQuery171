@@ -1,0 +1,170 @@
+Use VdfBase.pkg
+
+// Everything in here was "lifted" from Vincents Oorsprong's article on the matter at this address:
+// support.dataaccess.com/Forums/entry.php?118-Create-a-New-Universally-Unique-IDentifier-(UUID)
+
+Struct tUUID
+    UInteger uiData1
+    UShort usData2
+    UShort usData3
+    UChar[8] ucData4   
+End_Struct
+
+Struct tUUIDEx
+    tUUID UUID
+    Integer iStatus
+End_Struct
+
+External_Function UUID_UuidCreate "UuidCreate" Rpcrt4.dll Address Uuid Returns Integer
+External_Function UUID_UuidCreateSequential "UuidCreateSequential" Rpcrt4.dll Address aUuid Returns Integer
+External_Function UUID_UuidToString  "UuidToStringA" Rpcrt4.dll Address aUuid Address lpUUIDString Returns Integer
+External_Function UUID_RpcStringFree "RpcStringFreeA" Rpcrt4.dll Address pStr Returns Integer
+External_Function UUID_UuidFromString "UuidFromStringA" Rpcrt4.dll Address lpUUIDString Address aUuid Returns Integer
+External_Function UUID_UuidCreateNil "UuidCreateNil" rpcrt4.dll Address aUuid Returns Integer
+External_Function UUID_UuidEqual "UuidEqual" rpcrt4.dll Address aUuid1 Address aUuid2 Address aUUIDStatus Returns Integer
+External_Function UUID_UuidCompare "UuidCompare" rpcrt4.dll Address aUuid1 Address aUuid2 Address aUUIDStatus Returns Integer
+External_Function UUID_UuidIsNil "UuidIsNil" rpcrt4.dll Address aUuid Address aUUIDStatus Returns UShort
+
+Define ERROR_SUCCESS                 for 0    // The operation completed successfully.
+Define ERROR_INVALID_HANDLE          for 6    // The handle is invalid.
+Define ERROR_OUTOFMEMORY             for 14   // Not enough storage is available to complete this operation.
+Define ERROR_INVALID_PARAMETER       for 87   // The parameter is incorrect.
+Define ERROR_INSUFFICIENT_BUFFER     for 122  // The data area passed to a system call is too small.
+Define ERROR_MAX_THRDS_REACHED       for 164  // No more threads can be created in the system.
+Define ERROR_IO_PENDING              for 997  // Overlapped I/O operation is in progress.
+Define ERROR_NONE_MAPPED             for 1332 // No mapping between account names and security IDs was done.
+Define ERROR_INVALID_SECURITY_DESCR  for 1338 // The security descriptor structure is invalid.
+Define ERROR_TIMEOUT                 for 1460 // This operation returned because the timeout period expired.
+Define RPC_S_INVALID_STRING_UUID     for 1705 // The string universal unique identifier (UUID) is invalid.
+Define RPC_S_INVALID_TAG             for 1733 // The tag is invalid.
+Define RPC_S_UUID_NO_ADDRESS         for 1739 // No network address is available to use to construct a universal unique identifier (UUID).
+Define RPC_S_INVALID_BOUND           for 1734 // The array bounds are invalid.
+Define RPC_X_ENUM_VALUE_OUT_OF_RANGE for 1781 // The enumeration value is out of range.
+Define ERROR_INVALID_USER_BUFFER     for 1784 // The supplied user buffer is not valid for the requested operation.
+Define ERROR_NOT_ENOUGH_QUOTA        for 1816 // Not enough quota is available to process this command.
+Define RPC_S_UUID_LOCAL_ONLY         for 1824 // A UUID that is valid only on this computer has been allocated.
+Define RPC_X_WRONG_PIPE_ORDER        for 1831 // An invalid operation was attempted on an RPC pipe object.
+Define RPC_X_WRONG_PIPE_VERSION      for 1832 // Unsupported RPC pipe version.
+
+
+Define RPC_S_OK                     for ERROR_SUCCESS
+Define RPC_S_INVALID_ARG            for ERROR_INVALID_PARAMETER
+Define RPC_S_OUT_OF_MEMORY          for ERROR_OUTOFMEMORY
+Define RPC_S_OUT_OF_THREADS         for ERROR_MAX_THRDS_REACHED
+Define RPC_S_INVALID_LEVEL          for ERROR_INVALID_PARAMETER
+Define RPC_S_BUFFER_TOO_SMALL       for ERROR_INSUFFICIENT_BUFFER
+Define RPC_S_INVALID_SECURITY_DESC  for ERROR_INVALID_SECURITY_DESCR
+Define RPC_S_ACCESS_DENIED          for ERROR_ACCESS_DENIED
+Define RPC_S_SERVER_OUT_OF_MEMORY   for ERROR_NOT_ENOUGH_SERVER_MEMORY
+Define RPC_S_ASYNC_CALL_PENDING     for ERROR_IO_PENDING
+Define RPC_S_UNKNOWN_PRINCIPAL      for ERROR_NONE_MAPPED
+Define RPC_S_TIMEOUT                for ERROR_TIMEOUT
+Define RPC_S_NOT_ENOUGH_QUOTA       for ERROR_NOT_ENOUGH_QUOTA
+
+Define RPC_X_NO_MEMORY              for RPC_S_OUT_OF_MEMORY
+Define RPC_X_INVALID_BOUND          for RPC_S_INVALID_BOUND
+Define RPC_X_INVALID_TAG            for RPC_S_INVALID_TAG
+Define RPC_X_ENUM_VALUE_TOO_LARGE   for RPC_X_ENUM_VALUE_OUT_OF_RANGE
+Define RPC_X_SS_CONTEXT_MISMATCH    for ERROR_INVALID_HANDLE
+Define RPC_X_INVALID_BUFFER         for ERROR_INVALID_USER_BUFFER
+Define RPC_X_PIPE_APP_MEMORY        for ERROR_OUTOFMEMORY
+Define RPC_X_INVALID_PIPE_OPERATION for RPC_X_WRONG_PIPE_ORDER
+
+Global_Variable Integer oUuidFunctions
+
+Object _oUuidFunctions is a cObject
+    Move Self to oUuidFunctions
+    Function CreateUUID Returns tUUIDEx
+        tUUIDEx UUID
+        Integer iRetval
+        Move (UUID_UuidCreate (AddressOf (UUID.UUID))) to UUID.iStatus
+        Function_Return UUID
+    End_Function
+    
+    Function CreateSeqUUID Returns tUUIDEx
+        tUUIDEx UUID
+        Integer iRetval
+        Move (UUID_UuidCreateSequential (AddressOf (UUID.UUID))) to UUID.iStatus
+        Function_Return UUID
+    End_Function
+    
+    Function UUIDToString tUUID UUID Returns String
+        Address UUIDPointer
+        String sUUID
+        Integer iRetval
+        
+        Move 0 to UUIDPointer
+        Move (UUID_UuidToString (AddressOf (UUID), AddressOf (UUIDPointer))) to iRetVal
+        If (iRetval = RPC_S_OK) Begin
+            Move UUIDPointer to sUUID
+            Move (UUID_RpcStringFree (AddressOf (UUIDPointer))) to iRetval
+            Move (Uppercase (sUUID)) to sUUID
+        End
+        Else Begin
+            Get Error_Text of Desktop 10 to sUUID
+        End
+        
+        Function_Return sUUID
+    End_Function
+    
+    Function UUIDFromString String sUUID Returns tUUIDEx
+        tUUIDEx UUID
+        Integer iRetval
+        
+        Move (UUID_UuidFromString (AddressOf (sUUID), AddressOf (UUID.UUID))) to UUID.iStatus
+        
+        Function_Return UUID
+    End_Function
+    
+    Function NilUUID Returns tUUID
+        tUUID UUID
+        Integer iRetval
+        
+        Move (UUID_UuidCreateNil (AddressOf (UUID))) to iRetval
+        
+        Function_Return UUID
+    End_Function
+    
+    Function UUIDEqual tUUID UUID1 tUUID UUID2 Returns Boolean
+        Integer iStatus iRetval
+        
+        Move 0 to iStatus
+        Move (UUID_UuidEqual (AddressOf (UUID1), AddressOf (UUID2), AddressOf (iStatus))) to iRetval
+        
+        Function_Return iRetval
+    End_Function
+    
+    Function UuidCompare tUUID UUID1 tUUID UUID2 Returns Integer
+        Integer iStatus iRetval
+        
+        Move 0 to iRetval
+        Move (UUID_UuidCompare (AddressOf (UUID1), AddressOf (UUID2), AddressOf (iStatus))) to iRetval
+        
+        Function_Return iRetval
+    End_Function
+    
+    Function UUIDIsNil tUUID UUID Returns Boolean
+        Integer iStatus iRetval
+        
+        Move 0 to iStatus
+        Move (UUID_UuidIsNil (AddressOf (UUID), AddressOf (iStatus))) to iRetval
+        
+        Function_Return iRetval
+    End_Function
+    
+    Function NewUUID Returns String
+        String sValue
+        tUUIDEx strUUIDEx
+        Get CreateUUID to strUUIDEx
+        Get UUIDToString strUUIDEx.UUID to sValue
+        Function_Return sValue
+    End_Function
+
+    Function NewSequentialUUID Returns String
+        String sValue
+        tUUIDEx strUUIDEx
+        Get CreateSeqUUID to strUUIDEx
+        Get UUIDToString strUUIDEx.UUID to sValue
+        Function_Return sValue
+    End_Function
+End_Object

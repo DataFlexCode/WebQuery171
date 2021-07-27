@@ -1,0 +1,129 @@
+// cWSTicketLockV1.pkg
+// Class:   cWSTicketLockV1
+// Created: 08-09-2013 22:24:42,591
+// 
+
+Use cClientWebService.pkg
+
+
+// Structs used by web service
+
+Struct tWStDFT_WebApplicationState
+    dateTime    dtWebAppExe
+    string      sActiveView
+End_Struct
+
+
+Struct tWStTicketLock_New_Req
+    string                         sOwnerUUID
+    string                         sOwnerAccessCode
+    string                         sApplicationUUID
+    string                         sApplicationAccessCode
+    string                         sModuleUUID
+    string                         sModuleAccessCode
+    string                         sApplicationUserUUID
+    string                         sApplicationUserAccessCode
+    tWStDFT_WebApplicationState    strApplicationState
+End_Struct
+
+
+Struct tWStTicketLock_New_Resp
+    string     sUUID
+    boolean    bSuccess
+    string     sStatusText
+End_Struct
+
+// 
+// Class:   cWSTicketLockV1
+// 
+// Interface:
+// 
+// Function wsNewTicket tWStTicketLock_New_Req llstrReq Returns tWStTicketLock_New_Resp
+// 
+// 
+
+Class cWSTicketLockV1 is a cClientWebService
+
+    Procedure Construct_object
+        Forward send Construct_object
+        Set psServiceLocation     to 'http://stureaps.dk/DataFlexTicket/TicketLockV1.wso'
+        Set psWSDLLocation        to 'http://stureaps.dk/DataFlexTicket/TicketLockV1.wso?WSDL'
+
+        Object oWStDFT_WebApplicationState is a cSoapMetaStruct
+            Set psNameSpace to "http://stureaps.dk/DataFlexTicket"
+            Send defineParameter xsDateTime 1 1 "dtWebAppExe"
+            Send defineParameter xsString 1 1 "sActiveView"
+        End_Object
+
+        Object oWStTicketLock_New_Req is a cSoapMetaStruct
+            Set psNameSpace to "http://stureaps.dk/DataFlexTicket"
+            Send defineParameter xsString 1 1 "sOwnerUUID"
+            Send defineParameter xsString 1 1 "sOwnerAccessCode"
+            Send defineParameter xsString 1 1 "sApplicationUUID"
+            Send defineParameter xsString 1 1 "sApplicationAccessCode"
+            Send defineParameter xsString 1 1 "sModuleUUID"
+            Send defineParameter xsString 1 1 "sModuleAccessCode"
+            Send defineParameter xsString 1 1 "sApplicationUserUUID"
+            Send defineParameter xsString 1 1 "sApplicationUserAccessCode"
+            Send defineStructParameter oWStDFT_WebApplicationState 1 1 "strApplicationState"
+        End_Object
+
+        Object oWStTicketLock_New_Resp is a cSoapMetaStruct
+            Set psNameSpace to "http://stureaps.dk/DataFlexTicket"
+            Send defineParameter xsString 1 1 "sUUID"
+            Send defineParameter xsBoolean 1 1 "bSuccess"
+            Send defineParameter xsString 1 1 "sStatusText"
+        End_Object
+
+    End_Procedure // Construct_object
+
+    // 
+    // Function wsNewTicket
+    // 
+    // List of VDF services
+    // 
+    Function wsNewTicket tWStTicketLock_New_Req llstrReq Returns tWStTicketLock_New_Resp
+        tWStTicketLock_New_Resp llNewTicketResult
+        tSoapParameter[] spParameters
+        tSoapParameter[] spReturnParameters
+        integer eStatus
+
+        Send Reset
+        Set psSOAPAction           to ""
+        Set peSoapStyle            to ssDocument
+
+        Set psRequestNSURI         to "http://stureaps.dk/DataFlexTicket"
+        Set peSoapEncoding         to seLiteral
+        Set psMethodRequest        to "NewTicket"
+        Set pbRequestBare          to false
+        Set pbRequestOnly          to false
+
+        Set psResponseNSURI        to "http://stureaps.dk/DataFlexTicket"
+        Set peResponseSoapEncoding to seLiteral
+        Set psMethodResponse       to "NewTicketResponse"
+        Set pbResponseBare         to false
+
+        // Parameter 0
+        Get DefineStructParameter oWStTicketLock_New_Req 1 1 "strReq" "http://stureaps.dk/DataFlexTicket" to spParameters[0].SoapParamDef 
+        ValueTreeSerializeParameter llstrReq to spParameters[0].ValueTree
+
+        Set pspParameters to spParameters
+
+        // Return Parameter
+        Get DefineStructParameter oWStTicketLock_New_Resp 1 1 "NewTicketResult" "http://stureaps.dk/DataFlexTicket" to spReturnParameters[0].SoapParamDef
+        Set pspReturnParameters to spReturnParameters
+
+        Get DoInvokeService to eStatus
+        If (eStatus=wssOK) Begin
+            Get pspReturnParameters   to spReturnParameters
+            ValueTreeDeserializeParameter spReturnParameters[0].ValueTree to llNewTicketResult
+        End
+        Else Begin
+            Send LastError
+        End
+
+        Function_return llNewTicketResult
+    End_Function // wsNewTicket
+
+End_Class
+

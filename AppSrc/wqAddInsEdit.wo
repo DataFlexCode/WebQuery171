@@ -1,0 +1,136 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebMenuItem.pkg
+Use cWebMenuBar.pkg
+Use cWebImage.pkg
+Use cWebLabel.pkg
+Use cWebCommandbar.pkg
+
+Object oWqAddInsEdit is a cWebModalDialog
+    Property Integer piSelection
+    
+    Set psCaption           to "Expression"
+    Set piMinWidth          to 100
+    Set piMinHeight         to 100
+    Set pbShowClose         to False
+    Set pbResizable         to False
+    Set pbServerOnSubmit    to True    // enable the OnSubmit event
+    Set pbServerOnShow      to True
+
+    Object oAddButton is a cWebButton
+        Set piColumnSpan to 0
+        Set psCaption to "Add"
+    
+        Procedure OnClick
+            Set piSelection to C_wqAddExpression
+            Send Ok
+        End_Procedure
+    End_Object
+
+    Object oInsertButton is a cWebButton
+        Set piColumnSpan to 0
+        Set psCaption to "Insert"
+    
+        Procedure OnClick
+            Set piSelection to C_wqInsertExpression
+            Send Ok
+        End_Procedure
+    End_Object
+
+    Object oEditButton is a cWebButton
+        Set piColumnSpan to 0
+        Set psCaption to "Edit"
+    
+        Procedure OnClick
+            Set piSelection to C_wqEditExpression
+            Send Ok
+        End_Procedure
+    End_Object
+
+    Object oDismissButton is a cWebButton
+        Set piColumnSpan to 0
+        Set psCaption to "Dismiss"
+    
+        Procedure OnClick
+            Send Cancel
+        End_Procedure
+    End_Object
+
+//    Object oCmdBar is a cWebCommandBar
+//        
+//        Object oMenuBar is a cWebMenuBar
+//            
+//            Object oAddItem is a cWebMenuItem
+//                Set psCaption to "Add"
+//                
+//                Procedure OnClick
+//                    Set piSelection to C_wqAddExpression
+//                    Send Ok
+//                End_Procedure  // OnClick
+//                
+//            End_Object
+//            
+//            Object oInsertItem is a cWebMenuItem
+//                Set psCaption to "Insert"
+//                
+//                Procedure OnClick
+//                    Set piSelection to C_wqInsertExpression
+//                    Send Ok
+//                End_Procedure  // OnClick
+//                
+//            End_Object
+//            
+//            Object oEditItem is a cWebMenuItem
+//                Set psCaption to "Edit"
+//                
+//                Procedure OnClick
+//                    Set piSelection to C_wqEditExpression
+//                    Send Ok
+//                End_Procedure  // OnClick
+//                
+//            End_Object
+//            
+//            Object oExitItem is a cWebMenuItem
+//                Set psCaption to "Dismiss"
+//                
+//                Procedure OnClick
+//                    Send Cancel
+//                End_Procedure  // OnClick
+//                
+//            End_Object
+//            
+//        End_Object
+//        
+//    End_Object
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        Forward Send Ok
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure OnEscape
+        Send Cancel
+    End_Procedure
+    
+    Procedure PopupOptions Handle hoObj Boolean bHaveRows Boolean bCalc
+        
+        WebSet pbEnabled of oEditButton   to (bHaveRows and bCalc)
+        WebSet pbEnabled of oInsertButton to bHaveRows
+        
+        Send Popup hoObj
+    End_Procedure  // PopupOptions
+    
+    Function ActionSelected Returns Integer
+        Function_Return (piSelection(Self))
+    End_Function  // Action_Selected
+    
+End_Object

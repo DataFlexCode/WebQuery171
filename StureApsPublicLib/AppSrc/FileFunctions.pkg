@@ -1,0 +1,1764 @@
+// File functions encapsulated in oFileFunctions (SturesPublicLib)
+
+//> The oFileFunctions object contains methods for handling input/output and for manipulating file and folder names.
+//> pkg.doc.end
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+Use StringFunctions.pkg // Define oStringFunctions object
+Use WindowsInfo.pkg     // NetworkUserName function
+
+Use GlobalFunctionsProcedures.pkg // Global functions by DAW
+Use Seq_Chnl // Defines global sequential device management operations (DAW)
+
+#IFNDEF IS$WEBAPP
+Use File_dlg.pkg
+Use Windows.pkg
+Use dfTreeVw.pkg
+#ENDIF
+
+// File attributes
+Define C_MAX_PATH                 for 260
+Define C_MAXDWORD                 for |CI$FFFFFFFF
+Define C_INVALID_HANDLE_VALUE     for -1
+Define C_FILE_ATTRIBUTE_READONLY  for |CI$00000001
+Define C_FILE_ATTRIBUTE_HIDDEN    for |CI$00000002
+Define C_FILE_ATTRIBUTE_SYSTEM    for |CI$00000004
+Define C_FILE_ATTRIBUTE_DIRECTORY for |CI$00000010
+Define C_FILE_ATTRIBUTE_ARCHIVE   for |CI$00000020
+Define C_FILE_ATTRIBUTE_NORMAL    for |CI$00000080
+Define C_FILE_ATTRIBUTE_TEMPORARY for |CI$00000100
+
+// File operations flag
+Define C_MULTIDESTFILES    for |CI$0001  // The Destination property specifies multiple destination files (one for each source file) rather than one directory where all source files are to be deposited.
+Define C_CONFIRMMOUSE      for |CI$0002
+Define C_SILENT            for |CI$0004  // Do not display a progress dialog box.
+Define C_RENAMEONCOLLISION for |CI$0008
+Define C_NOCONFIRMATION    for |CI$0010  // Respond with "Yes to All" for any dialog box that is displayed.
+Define C_WANTMAPPINGHANDLE for |CI$0020  // Fill in SHFILEOPSTRUCT.hNameMappings (must be freed using SHFreeNameMappings)
+Define C_ALLOWUNDO         for |CI$0040  // Preserve Undo information, if possible. If Source property does not contain fully qualified path and file names, this flag is ignored.
+Define C_FILESONLY         for |CI$0080  // Perform the operation on files only if a wildcard file name (*.*) is specified.
+Define C_SIMPLEPROGRESS    for |CI$0100  // Display a progress dialog box but do not show the file names.
+Define C_NOCONFIRMMKDIR    for |CI$0200  // Do not confirm the creation of a new directory if the operation requires one to be created.
+Define C_NOERRORUI         for |CI$0400  // Do not display a user interface if an error occurs.
+
+// File operations
+Define CFO_MOVE            for |CI$0001
+Define CFO_COPY            for |CI$0002
+Define CFO_DELETE          for |CI$0003
+Define CFO_RENAME          for |CI$0004
+
+//> The CSIDL symbols correspond to either file system or virtual folders.
+//> Where the CSIDL identifies a file system folder, a commonly used path
+//> is given as an example. Other paths may be used. Some CSIDLs can be
+//> mapped to an equivalent %VariableName% environment variable.
+//> CSIDLs are much more reliable, however, and should be used if at all possible.
+//>
+//> The symbols are used as parameter to the WinFolderPath function (WinFolderPath).
+Enum_List
+    Define CSIDL_ADMINTOOLS              for |CI$0030 //> File system directory that is used to store administrative tools for an individual user. The Microsoft Management Console will save customized consoles to this directory and it will roam with the user. (Version 5.0)
+    Define CSIDL_ALTSTARTUP              for |CI$001D //> File system directory that corresponds to the user's nonlocalized Startup program group.
+    Define CSIDL_APPDATA                 for |CI$001A //> File system directory that serves as a common repository for application-specific data. A typical path is C:\Documents and Settings\username\Application Data. This CSIDL is supported by the redistributable ShFolder.dll for systems that do not have the Internet Explorer 4.0 integrated shell installed. (Version 4.71)
+    Define CSIDL_BITBUCKET               for |CI$000A //> Virtual folder containing the objects in the user's Recycle Bin.
+    Define CSIDL_COMMON_ADMINTOOLS       for |CI$002F //> File system directory containing containing administrative tools for all users of the computer. Version 5
+    Define CSIDL_COMMON_ALTSTARTUP       for |CI$001E //> File system directory that corresponds to the nonlocalized Startup program group for all users. Valid only for Windows NT© systems.
+    Define CSIDL_COMMON_APPDATA          for |CI$0023 //> Application data for all users. A typical path is C:\Documents and Settings\All Users\Application Data. Version 5
+    Define CSIDL_COMMON_DESKTOPDIRECTORY for |CI$0019 //> File system directory that contains files and folders that appear on the desktop for all users. A typical path is C:\Documents and Settings\All Users\Desktop. Valid only for Windows NT© systems.
+    Define CSIDL_COMMON_DOCUMENTS        for |CI$002E //> File system directory that contains documents that are common to all users. A typical path is C:\Documents and Settings\All Users\Documents. Valid for Windows NT© systems and Windows 95 and Windows 98 systems with Shfolder.dll installed.
+    Define CSIDL_COMMON_FAVORITES        for |CI$001F //> File system directory that serves as a common repository for all users' favorite items. Valid only for Windows NT© systems.
+    Define CSIDL_COMMON_PROGRAMS         for |CI$0017 //> File system directory that contains the directories for the common program groups that appear on the Start menu for all users. A typical path is C:\Documents and Settings\All Users\Start Menu\Programs. Valid only for Windows NT© systems.
+    Define CSIDL_COMMON_STARTMENU        for |CI$0016 //> File system directory that contains the programs and folders that appear on the Start menu for all users. A typical path is C:\Documents and Settings\All Users\Start Menu. Valid only for Windows NT© systems.
+    Define CSIDL_COMMON_STARTUP          for |CI$0018 //> File system directory that contains the programs that appear in the Startup folder for all users. A typical path is C:\Documents and Settings\All Users\Start Menu\Programs\Startup. Valid only for Windows NT© systems.
+    Define CSIDL_COMMON_TEMPLATES        for |CI$002D //> File system directory that contains the templates that are available to all users. A typical path is C:\Documents and Settings\All Users\Templates. Valid only for Windows NT© systems.
+    Define CSIDL_CONTROLS                for |CI$0003 //> Virtual folder containing icons for the Control Panel applications.
+    Define CSIDL_COOKIES                 for |CI$0021 //> File system directory that serves as a common repository for Internet cookies. A typical path is C:\Documents and Settings\username\Cookies.
+    Define CSIDL_DESKTOP                 for |CI$0000 //> Windows Desktop-virtual folder that is the root of the namespace..
+    Define CSIDL_DESKTOPDIRECTORY        for |CI$0010 //> File system directory used to physically store file objects on the desktop (not to be confused with the desktop folder itself). a typical path is C:\Documents and Settings\username\Desktop
+    Define CSIDL_DRIVES                  for |CI$0011 //> My Computer-virtual folder containing everything on the local computer: storage devices, printers, and Control Panel. The folder may also contain mapped network drives.
+    Define CSIDL_FAVORITES               for |CI$0006 //> File system directory that serves as a common repository for the user's favorite items. A typical path is C:\Documents and Settings\username\Favorites.
+    Define CSIDL_FONTS                   for |CI$0014 //> Virtual folder containing fonts. A typical path is C:\WINNT\Fonts.
+    Define CSIDL_HISTORY                 for |CI$0022 //> File system directory that serves as a common repository for Internet history items.
+    Define CSIDL_INTERNET                for |CI$0001 //> Virtual folder representing the Internet.
+    Define CSIDL_INTERNET_CACHE          for |CI$0020 //> File system directory that serves as a common repository for temporary Internet files. A typical path is C:\Documents and Settings\username\Temporary Internet Files.
+    Define CSIDL_LOCAL_APPDATA           for |CI$001C //> File system directory that serves as a data repository for local (non-roaming) applications. A typical path is C:\Documents and Settings\username\Local Settings\Application Data. Version 5
+    Define CSIDL_MYPICTURES              for |CI$0027 //> My Pictures folder. A typical path is C:\Documents and Settings\username\My Documents\My Pictures. Version 5
+    Define CSIDL_NETHOOD                 for |CI$0013 //> A file system folder containing the link objects that may exist in the My Network Places virtual folder. It is not the same as CSIDL_NETWORK, which represents the network namespace root. A typical path is C:\Documents and Settings\username\NetHood.
+    Define CSIDL_NETWORK                 for |CI$0012 //> Network Neighborhood-virtual folder representing the root of the network namespace hierarchy.
+    Define CSIDL_PERSONAL                for |CI$0005 //> File system directory that serves as a common repository for documents. A typical path is C:\Documents and Settings\username\My Documents.
+    Define CSIDL_PRINTERS                for |CI$0004 //> Virtual folder containing installed printers.
+    Define CSIDL_PRINTHOOD               for |CI$001B //> File system directory that contains the link objects that may exist in the Printers virtual folder. A typical path is C:\Documents and Settings\username\PrintHood.
+    Define CSIDL_PROFILE                 for |CI$0028 //> User's profile folder. Version 5
+    Define CSIDL_PROGRAM_FILES           for |CI$002A //> Program Files folder. A typical path is C:\Program Files. Version 5
+    Define CSIDL_PROGRAM_FILES_COMMON    for |CI$002B //> A folder for components that are shared across applications. A typical path is C:\Program Files\Common. Valid only for Windows NT© and Windows© 2000 systems. Version 5
+    Define CSIDL_PROGRAM_FILES_COMMONX86 for |CI$002C //> Program Files folder that is common to all users for x86 applications on RISC systems. A typical path is C:\Program Files (x86)\Common. Version 5
+    Define CSIDL_PROGRAMS                for |CI$0002 //> File system directory that contains the user's program groups (which are also file system directories). A typical path is C:\Documents and Settings\username\Start Menu\Programs.
+    Define CSIDL_RECENT                  for |CI$0008 //> File system directory that contains the user's most recently used documents. A typical path is C:\Documents and Settings\username\Recent. To create a shortcut in this folder, use SHAddToRecentDocs. In addition to creating the shortcut, this function updates the shell's list of recent documents and adds the shortcut to the Documents submenu of the Start menu.
+    Define CSIDL_SENDTO                  for |CI$0009 //> File system directory that contains Send To menu items. A typical path is C:\Documents and Settings\username\SendTo.
+    Define CSIDL_STARTMENU               for |CI$000B //> File system directory containing Start menu items. A typical path is C:\Documents and Settings\username\Start Menu.
+    Define CSIDL_STARTUP                 for |CI$0007 //> File system directory that corresponds to the user's Startup program group. The system starts these programs whenever any user logs onto Windows NT© or starts Windows© 95. A typical path is C:\Documents and Settings\username\Start Menu\Programs\Startup.
+    Define CSIDL_SYSTEM                  for |CI$0025 //> System folder. A typical path is C:\WINNT\SYSTEM32. Version 5
+    Define CSIDL_SYSTEMX86               for |CI$0029 //> System folder for x86 applications on RISC systems. A typical path is C:\WINNT\SYS32X86. Version 5
+    Define CSIDL_TEMPLATES               for |CI$0015 //> File system directory that serves as a common repository for document templates.
+    Define CSIDL_WINDOWS                 for |CI$0024 //> Version 5.0. Windows directory or SYSROOT. This corresponds to the %windir% or %SYSTEMROOT% environment variables. A typical path is C:\WINNT.
+
+    Define CSIDL_CDBURN_AREA             for |CI$003B
+    Define CSIDL_COMMON_MUSIC            for |CI$0035 // IE6+ The file system directory that serves as a repository for music files common to all users. A typical path is C:\Documents and Settings\All Users\Documents\My Music
+    Define CSIDL_COMMON_PICTURES         for |CI$0036 // The file system directory that serves as a repository for image files common to all users. A typical path is C:\Documents and Settings\All Users\Documents\My Pictures
+    Define CSIDL_COMMON_VIDEO            for |CI$0037 // IE6+ The file system directory that serves as a repository for video files common to all users. A typical path is C:\Documents and Settings\All Users\Documents\My Videos
+    Define CSIDL_COMPUTERSNEARME         for |CI$003D // The folder representing other machines in your workgroup
+    Define CSIDL_CONNECTIONS             for |CI$0031 // The virtual folder representing Network Connections, containing network and dial-up connections
+    Define CSIDL_MYDOCUMENTS             for |CI$000C // IE6+ The virtual folder representing the My Documents desktop item
+    Define CSIDL_MYMUSIC                 for |CI$000D // The file system directory that serves as a common repository for music files. A typical path is C:\Documents and Settings\User\My Documents\My Music
+    Define CSIDL_MYVIDEO                 for |CI$000E // IE6+ The file system directory that serves as a common repository for video files. A typical path is C:\Documents and Settings\username\My Documents\My Videos
+    Define CSIDL_PHOTOALBUMS             for |CI$0045 // Vista+ The virtual folder used to store photo albums, typically username\My Pictures\Photo Albums
+    Define CSIDL_PLAYLISTS               for |CI$003F // Vista+ The virtual folder used to store play albums, typically username\My Music\Playlists
+    Define CSIDL_RESOURCES               for |CI$0038 // undocumented
+    Define CSIDL_SAMPLE_MUSIC            for |CI$0040 // Vista+, The file system directory that contains sample music. A typical path is C:\Documents and Settings\username\My Documents\My Music\Sample Music
+    Define CSIDL_SAMPLE_PLAYLISTS        for |CI$0041 // Vista+, The file system directory that contains sample playlists. A typical path is C:\Documents and Settings\username\My Documents\My Music\Sample Playlists
+    Define CSIDL_SAMPLE_PICTURES         for |CI$0042 // Vista+, The file system directory that contains sample pictures. A typical path is C:\Documents and Settings\username\My Documents\My Pictures\Sample Pictures
+    Define CSIDL_SAMPLE_VIDEOS           for |CI$0043 // Vista+, The file system directory that contains sample videos. A typical path is C:\Documents and Settings\username\My Documents\My Videos\Sample Videos
+
+//  Define CSIDL_FLAG_CREATE             for |CI$8000 //> If a special folder does not exist, you can force it to be created by using the following special CSIDL. (Version 5.0) Combine this CSIDL with any of the CSIDLs listed below to force the creation of the associated folder.
+End_Enum_List
+
+Struct tFileTimeStamp
+    DWord dwLowDateTime
+    DWord dwHighDateTime
+End_Struct
+
+Struct tFileSize
+    DWord dwHighSize
+    DWord dwLowSize
+End_Struct
+
+Struct tSystemTime
+    Short iYear
+    Short iMonth
+    Short iDayOfWeek
+    Short iDay
+    Short iHour
+    Short iMinute
+    Short iSecond
+    Short iMilliSeconds
+End_Struct
+
+Struct _tFileFindData
+    DWord dwFileAttributes
+    tFileTimeStamp ftCreation
+    tFileTimeStamp ftLastAccess
+    tFileTimeStamp ftLastWrite
+    tFileSize fsFileSize
+    DWord dwReserved0
+    DWord dwReserved1
+    Char[C_MAX_PATH] csFileName// MAX_PATH=260
+    Char[14] csAlternateFileName
+End_Struct
+
+Struct tFileData
+    String sFileName // This is the filename stripped of its path
+    String sAlternateFileName // This is the 8.3 filename equivalent (DOS name)
+    DWord dwFileAttributes
+    DateTime dtCreation
+    DateTime dtLastAccess
+    DateTime dtLastWrite
+    Boolean bIsFolder
+    Boolean bSelfReference
+    Number nFileSize
+    Integer iAuxData
+    tFileData[] aFolderContent // if (sFileData.dwFileAttributes iand C_FILE_ATTRIBUTE_DIRECTORY) this member _may_ hold the content of a sub-folder
+End_Struct
+
+Struct _tFileBrowseInfo
+    Handle  hWndOwner
+    Pointer pIDLRoot
+    Pointer pszDisplayName
+    Pointer lpszTitle
+    dWord   ulFlags
+    Pointer lpfnCallback
+    dWord   lParam
+    dWord   iImage
+End_Struct
+
+Struct _tFileOperation
+    Handle  hWnd
+    Integer wFunc
+    Pointer pFrom
+    Pointer pTo
+    Short   fFlags
+    Short   fAnyOperationsAborted
+    Pointer hNameMappings
+    Pointer lpszProgressTitle // only used if C_SIMPLEPROGRESS
+End_Struct
+
+Struct tFileChop
+    Integer iLen
+    String  sContent
+End_Struct
+
+Struct tFileInChops
+    String sPath
+    Integer eEncoding // 0=0one, 1=hex, 2=base64.pkg, 3=base64.dll
+    tFileChop[] aSegments
+End_Struct
+
+// lpFileName      : address of name of file to search for
+// lpFindFileData  : address of returned information
+External_Function ff_FindFirstFile "FindFirstFileA"  Kernel32.dll Pointer lpFileName Pointer lpFindFileData Returns Handle
+
+// hFindFile       : handle of search
+// lpFindFileData  : address of structure for data on found file
+External_Function ff_FindNextFile "FindNextFileA" Kernel32.dll Handle hFindFile Pointer lpFindFileData Returns Integer
+
+//  hFindFile      : file search handle
+External_Function ff_FindClose "FindClose" Kernel32.dll Handle hFindFile Returns Integer
+
+//  lpFileTime     : pointer to file time to convert
+//  lpSystemTime   : pointer to structure to receive system time
+External_Function ff_FileTimeToSystemTime "FileTimeToSystemTime" Kernel32.Dll Pointer lpFileTime Pointer lpSystemTime Returns Integer
+
+External_Function ff_SHGetSpecialFolderPath "SHGetSpecialFolderPathA" Shell32.dll Integer i1 Integer i2 Integer i3 Integer i4 Returns Integer
+
+External_Function ff_ShellExecute "ShellExecuteA" Shell32.Dll Handle hwnd String sOperation String sFile String sParameters String sDirectory Integer nShowCmd Returns VOID_TYPE
+
+External_Function ff_CreateDirectory "CreateDirectoryA" Kernel32.dll Pointer lpFileName Pointer lpSecurityAttributes Returns Integer
+
+External_Function ff_RemoveDirectory "RemoveDirectoryA" Kernel32.dll Pointer lpFileName Returns Integer
+
+External_Function ff_SHBrowseForFolder   "SHBrowseForFolder"   Shell32.dll Pointer lpdWordx Returns DWord
+External_Function ff_SHGetPathFromIDList "SHGetPathFromIDList" Shell32.dll Pointer pidList Pointer lpBuffer Returns DWord
+External_Function ff_CoTaskMemFree       "CoTaskMemFree"       Ole32.dll   Pointer pv Returns Integer
+
+// From msdn: Returns zero if successful; otherwise nonzero. Applications normally should simply check for zero or nonzero.
+External_Function ff_SHFileOperation "SHFileOperationA" Shell32.dll Pointer lpFileOp Returns Integer
+
+External_Function ff_SetFileAttributes "SetFileAttributesA" Kernel32.dll Pointer lpFileName DWord dwFileAttributes Returns Integer
+External_Function ff_GetFileAttributes "GetFileAttributesA" Kernel32.dll Pointer lpFileName Returns DWord
+
+External_Function ff_TempPath "GetTempPathA" Kernel32.dll DWord nBufferLength Pointer lpBuffer Returns Integer
+
+External_Function ff_GetLongPathName "GetLongPathNameA" Kernel32.Dll Pointer lpszShortPath Pointer lpszLongPath DWord cchBuffer Returns DWord
+
+// This can be a file or a folder.
+
+Define FF_KILOBYTE for 1024
+Define FF_MEGABYTE for 1048576
+Define FF_GIGABYTE for 1073741824
+
+Enum_List
+    Define FF_ALL
+    Define FF_FILE
+    Define FF_FOLDER
+End_Enum_List
+
+Class cFileFunctions is a cObject
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean _pbCreateVDFXRayFolderOnReq False
+    End_Procedure
+
+    // Parameter naming convensions:
+    //
+    //  string sFileName   : A filename excluding folder path
+    //  string sPath       : Filename including absolute path
+    //  string sFolder     : The absolute path of a folder
+    //  string sFolderList : A list of folders separated by ; characters
+
+    //> Function IsLegalFileName will return the position of the first illegal character found
+    //> in the sFileName parameter. If sFileName contains the empty string or a string
+    //> beginning or ending with a space character, -1 is returned. If sFileName contains a
+    //> legal filename 0 is returned.
+    //>
+    //> The function does not check with the OS file system. It simply checks that
+    //> there are no illegal characters in the filename for our purpose (which is?)
+    
+    Function IsLegalFileName String sFileName Returns Integer
+        Integer iPos iLen
+        String sIllegalChars sChar
+        
+        Move (Length(sFileName)) to iLen
+        If (Trim(sFileName)<>sFileName or iLen=0) begin
+            Function_Return -1
+        End
+
+        // These *are* legal:  ; ( )
+        Move ':\/"<>|' to sIllegalChars
+
+        For iPos from 1 to iLen
+            Move (Mid(sFileName,1,iPos)) to sChar
+            If (sIllegalChars contains sChar) Function_Return iPos
+            If (Ascii(sChar)<32) Function_Return iPos
+        Loop
+
+        Function_Return 0 // sFileName is valid as is far as characters are concerned.
+    End_Function
+
+    Function IsPathAbsolute String sPath Returns Boolean
+        Boolean bAbsolute
+        Move (Left(sPath,2)="\\") to bAbsolute
+        If (not(bAbsolute)) Begin
+            Move (Mid(sPath,1,2)=":") to bAbsolute
+        End
+        Function_Return bAbsolute
+    End_Function
+
+    //> The AppendPath function takes a folder and a file name (without a path) and returns
+    //> a file name including path. Its purpose is to insert or remove a folder separator
+    //> if necessary.
+    Function AppendPath String sFolder ; //> The folder to be appended to
+                        String sItem ; //> The item to be appended
+                        Returns String
+        Boolean bFin
+        Move (Trim(sFolder)) to sFolder
+        Move (Trim(sItem)) to sItem
+
+        If (IsPathAbsolute(Self,sItem)) Begin
+            Function_Return sItem
+        End
+
+        Move False to bFin
+        Repeat // This loop takes into account that sItem may be something like "..\Programs\*.exe".
+            If (Left(sItem,2)=".\") Begin // Remove self reference
+                Move (Replace(".\",sItem,"")) to sItem
+            End
+            Else If (Left(sItem,3)="..\") Begin //
+                Move (Replace("..\",sItem,"")) to sItem
+                Get PathToFolder sFolder to sFolder
+            End
+            Else Begin
+                Move True to bFin
+            End
+        Until (bFin)
+
+        If (Right(sFolder,1)="\" and Left(sItem,1)="\") Begin
+            Move (Replace("\",sItem,"")) to sItem
+        End
+        If (sFolder<>"" and sItem<>"" and Right(sFolder,1)<>"\" and Left(sItem,1)<>"\") Begin
+            Move ("\"+sItem) to sItem
+        End
+        Function_Return (Append(sFolder,sItem))
+    End_Function
+
+    //> Example: x:\vdf12\pkg\dfallent.prp -> x:\vdf12\pkg
+    //>          x:\windows\system32 -> x:\windows
+    Function PathToFolder String sPath Returns String
+        Integer iPos
+        If (Right(sPath,1)="\") Get rRemove of oStringFunctions sPath 1 to sPath
+        Get rPos of oStringFunctions "\" sPath to iPos
+        If not iPos Move (pos(":",sPath)) to iPos
+        If iPos Move (Left(sPath,iPos-1)) to sPath
+        Else Move "" to sPath
+        Function_Return sPath
+    End_Function
+
+    //> Example: x:\vdf12\pkg\dfallent.prp -> prp
+    Function PathToType String sPath Returns String
+        Integer iPos
+        Get rPos of oStringFunctions "\" sPath to iPos
+        If (iPos<>0) begin
+            Move (Remove(sPath,1,iPos)) to sPath
+        End
+        Get rPos of oStringFunctions "." sPath to iPos
+        If (iPos<>0) begin
+            Move (Remove(sPath,1,iPos)) to sPath
+        End
+        Else begin
+            Move "" to sPath
+        End
+        Function_Return sPath
+    End_Function
+
+    //> Example: x:\vdf12\pkg\dfallent.prp --> x:\vdf12\pkg\dfallent
+    Function PathStripType String sPath Returns String
+        String sType
+        Get PathToType sPath to sType
+        If (sType<>"") Begin
+            Move (Left(sPath,Length(sPath)-Length(sType)-1)) to sPath
+        End
+        Function_Return sPath
+    End_Function
+
+    //> Example: x:\vdf12\pkg\dfallent.prp -> dfallent.prp
+    Function PathToFileName String sPath Returns String
+        Integer iPos
+        If (Right(sPath,1)="\") Get rRemove of oStringFunctions sPath 1 to sPath
+        Get rPos of oStringFunctions "\" sPath to iPos
+        If not iPos Get rPos of oStringFunctions ":" sPath to iPos
+        If iPos Move (Remove(sPath,1,iPos)) to sPath
+        Function_Return sPath
+    End_Function
+
+    //> Example: x:\vdf12\pkg\dfallent.prp -> dfallent
+    Function PathToFileRootName String sPath Returns String
+        Integer iPos
+        Get PathToFileName sPath to sPath
+        Get rPos of oStringFunctions "." sPath to iPos
+        If (iPos>0) begin
+            Move (left(sPath,iPos-1)) to sPath
+        End
+        Function_Return sPath
+    End_Function
+
+        Function _FileTime2SystemTime tFileTimeStamp stValue Returns DateTime // Private
+            tSystemTime stTime
+            DateTime dtRval
+            If (ff_FileTimeToSystemTime(AddressOf(stValue),AddressOf(stTime))) Begin
+                Move (DateSetSecond(dtRval,stTime.iSecond)) to dtRval
+                Move (DateSetMinute(dtRval,stTime.iMinute)) to dtRval
+                Move (DateSetHour(dtRval,stTime.iHour)) to dtRval
+                Move (DateSetDay(dtRval,stTime.iDay)) to dtRval
+                Move (DateSetMonth(dtRval,stTime.iMonth)) to dtRval
+                Move (DateSetYear(dtRval,stTime.iYear)) to dtRval
+            End
+            Function_Return dtRval
+        End_Function
+
+        Function _FileData _tFileFindData stValue Returns tFileData // Private
+            tFileData stRval
+            String sTmp
+            Move stValue.dwFileAttributes to stRval.dwFileAttributes
+            Move (stRval.dwFileAttributes iand C_FILE_ATTRIBUTE_DIRECTORY) to stRval.bIsFolder
+            Get _FileTime2SystemTime stValue.ftCreation to stRval.dtCreation      // This converts the timestamps to UTC time. So 
+            Get _FileTime2SystemTime stValue.ftLastAccess to stRval.dtLastAccess  // they'll need converting back if their values
+            Get _FileTime2SystemTime stValue.ftLastWrite to stRval.dtLastWrite    // are displayed to human beings.
+            Move (Number(stValue.fsFileSize.dwHighSize)*C_MAXDWORD+stValue.fsFileSize.dwLowSize) to stRval.nFileSize
+
+            Move (AddressOf(stValue.csFileName)) to sTmp
+            Move (ToOEM(sTmp)) to stRval.sFileName
+
+            Move (sTmp="." or sTmp="..") to stRval.bSelfReference
+
+            Move (AddressOf(stValue.csAlternateFileName)) to sTmp
+            Move (ToOEM(sTmp)) to stRval.sAlternateFileName
+            Function_Return stRval
+        End_Function
+
+    Function ReadFileData String sPath tFileData ByRef stFileData Returns Boolean
+        Integer iVoid
+        Handle hFindFile
+        _tFileFindData stFileFindData
+        Move (ToAnsi(sPath)) to sPath
+        Move (ff_FindFirstFile(AddressOf(sPath),AddressOf(stFileFindData))) to hFindFile
+        If (hFindFile<>C_INVALID_HANDLE_VALUE) begin
+            Move (ff_FindClose(hFindFile)) to iVoid
+        End
+        Get _FileData stFileFindData to stFileData
+        Function_Return (hFindFile<>C_INVALID_HANDLE_VALUE)
+    End_Function
+
+    Procedure ReadFileDataArray String sPath tFileData[] ByRef aFileData Integer iMode // iMode: 0:All 1:Files 2:Folders
+        Integer iVoid iFindNext iSize
+        Handle hFindFile
+        Boolean bFolder
+        _tFileFindData strFindFileData
+        Move (ToAnsi(sPath)) to sPath
+        Move (ff_FindFirstFile(AddressOf(sPath),AddressOf(strFindFileData))) to hFindFile
+        If (hFindFile<>C_INVALID_HANDLE_VALUE) Begin
+            Move (SizeOfArray(aFileData)) to iSize
+            Repeat
+                Move (strFindFileData.dwFileAttributes iand C_FILE_ATTRIBUTE_DIRECTORY) to bFolder
+                If ((bFolder and (iMode<>FF_FILE)) or (not(bFolder) and (iMode<>FF_FOLDER))) Begin
+                    Get _FileData strFindFileData to aFileData[iSize]
+                    Increment iSize
+                End
+                Move (ff_FindNextFile(hFindFile,AddressOf(strFindFileData))) to iFindNext
+            Until (iFindNext=0)
+            Move (ff_FindClose(hFindFile)) to iVoid // Presumably ok to call this even if hFindFile is -1
+        End
+    End_Procedure
+
+    Procedure FileDataArraySize tFileData[] aFileData ;
+                                Integer ByRef iFileCount ;
+                                Integer ByRef iFolderCount ;
+                                Number ByRef nBytes
+        Integer iMax iIndex
+        Move (SizeOfArray(aFileData)-1) to iMax
+        For iIndex from 0 to iMax
+            If (not(aFileData[iIndex].bSelfReference)) Begin
+                If (aFileData[iIndex].bIsFolder) Begin
+                    Increment iFolderCount
+                    Send FileDataArraySize aFileData[iIndex].aFolderContent (&iFileCount) (&iFolderCount) (&nBytes)
+                End
+                Else Begin
+                    Increment iFileCount
+                    Move (nBytes+aFileData[iIndex].nFileSize) to nBytes
+                End
+            End
+        Loop
+    End_Procedure
+
+    Function GetAttribute String sFileName Integer iAttr Returns DWord
+        DWord dwAttr
+        Pointer pAddress
+
+        Move (ToAnsi(sFileName) + Character(0)) to sFileName
+        Move (AddressOf(sFileName)) to pAddress
+        Move (ff_GetFileAttributes(pAddress)) to dwAttr
+        Function_Return (dwAttr iand iAttr)
+    End_Function
+
+    Function SetAttribute String sFileName Integer iAttr Returns Integer
+        Integer bOk
+        DWord dwAttr
+        Pointer pAddress
+
+        Move (ToAnsi(sFileName)+Character(0)) to sFileName
+        Move (AddressOf(sFileName)) to pAddress
+        Move (ff_GetFileAttributes(pAddress)) to dwAttr
+        Move (ff_SetFileAttributes(pAddress,dwAttr ior iAttr)) to bOk
+        Function_Return bOk
+    End_Function
+
+    Function RemoveAttribute String sFileName Integer iAttr Returns Integer
+        Integer bOk
+        DWord dwAttr
+        Pointer pAddress
+
+        Move (ToAnsi(sFileName)+Character(0)) to sFileName
+        Move (AddressOf(sFileName)) to pAddress
+        If (GetAttribute(Self,sFileName,iAttr)) Begin
+            Move (ff_GetFileAttributes(pAddress)) to dwAttr
+            Move (ff_SetFileAttributes(pAddress,dwAttr-iAttr)) to bOk
+        End
+        Function_Return bOk
+    End_Function
+
+    Procedure ReadFolder String sFolder String sMask tFileData[] ByRef aFileData Integer iMode // iMode: 0:All 1:Files 2:Folders
+        String sPath
+        If (sMask="") Move "*" to sMask
+        Get AppendPath sFolder sMask to sPath
+        Send ReadFileDataArray sPath (&aFileData) iMode
+    End_Procedure
+
+    Function IsFolderEmpty String sFolder Returns Boolean
+        Integer iMax iIndex
+        tFileData[] aFileData
+        Send ReadFolder sFolder "*" (&aFileData) 0 // 0: both files and folders
+        Move (SizeOfArray(aFileData)-1) to iMax
+        For iIndex from 0 to iMax
+            If (not(aFileData[iIndex].bSelfReference)) Begin
+                Function_Return False
+            End
+        Loop
+        Function_Return True
+    End_Function
+
+    Procedure ReadFolderRecursive String sFolder String sMask tFileData[] ByRef aFileData Integer iMode Integer iMaxDepth //
+        Integer iIndex iMax
+        String sPath sName
+        If (sMask="") begin
+            Move "*" to sMask
+        End
+        Get AppendPath sFolder sMask to sPath
+        Send ReadFileDataArray sPath (&aFileData) iMode
+        If (iMode=1) Begin // Files only
+            Get AppendPath sFolder "*" to sPath
+            Send ReadFileDataArray sPath (&aFileData) 2 // 2=>folders only
+        End
+        If (iMaxDepth>0) Begin
+            Move (SizeOfArray(aFileData)-1) to iMax
+            For iIndex from 0 to iMax
+                If (aFileData[iIndex].dwFileAttributes iand C_FILE_ATTRIBUTE_DIRECTORY) Begin
+                    Move aFileData[iIndex].sFileName to sName
+                    If (sName<>"." and sName<>"..") begin
+                        Send ReadFolderRecursive (AppendPath(Self,sFolder,sName)) sMask (&aFileData[iIndex].aFolderContent) iMode (iMaxDepth-1)
+                    End
+                End
+            Loop
+        End
+    End_Procedure
+
+    // ******************************************************************************************************
+    //
+
+    Procedure CallbackFileData String sFolder tFileData[] aFileData Integer iMode Integer hMsg Integer hObj // iMode: 0:Both  1:Files only  2:Folders only
+        // callback: Procedure HandleFileData String sFullPath tFileData stFileData
+        Integer iMax iIndex
+        String sFullPath
+        Move (SizeOfArray(aFileData)-1) to iMax
+        For iIndex from 0 to iMax
+            If (aFileData[iIndex].bIsFolder) Begin
+                Get AppendPath sFolder aFileData[iIndex].sFileName to sFullPath
+                If (iMode<>1) Begin // If not "files only"
+                    Send hMsg of hObj sFullPath aFileData[iIndex]
+                End
+                Send CallbackFileData sFullPath aFileData[iIndex].aFolderContent iMode hMsg hObj
+            End
+            Else Begin
+                If (iMode<>2) Begin // If not "folders only"
+                    Get AppendPath sFolder aFileData[iIndex].sFileName to sFullPath
+                    Send hMsg of hObj sFullPath aFileData[iIndex]
+                End
+            End
+        Loop
+    End_Procedure
+
+    // ******************************************************************************************************
+
+    Function FindFileDataIndex tFileData[] aFileData String sFileName Returns Integer
+        Integer iIndex iMax
+        Move (SizeOfArray(aFileData)-1) to iMax
+        Move (Uppercase(sFileName)) to sFileName
+        For iIndex from 0 to iMax
+            If (sFileName=Uppercase(aFileData[iIndex].sFileName)) Function_Return iIndex
+        Loop
+        Function_Return -1 // Not found
+    End_Function
+
+        Procedure _BuildFileDataCursor tFileData[] aFileData String sPath Integer[] ByRef aCursor
+            Integer iIndex
+            String[] aValues
+            If (sPath<>"") Begin
+                Send SplitString of oStringFunctions sPath "\" True False (&aValues)
+                If (SizeOfArray(aValues)>0) Begin // Not really necessary, since we have already checked that sPath is not blank
+                    Get FindFileDataIndex aFileData aValues[0] to iIndex
+                    If (iIndex<>-1) Begin
+                        Move iIndex to aCursor[SizeOfArray(aCursor)]
+                        Send _BuildFileDataCursor aFileData[iIndex].aFolderContent (JoinString(oStringFunctions,aValues,"\",1,0)) (&aCursor)
+                    End
+                    Else Begin // Path not found => Reset the cursor
+                        Move (ResizeArray(aCursor,0)) to aCursor
+                    End
+                End
+            End
+        End_Procedure
+
+    // This function combines a path like "subfolder1\subfolder2\subfolder3" with an
+    // array of tFileData (a recursive definition) and translates it into a
+    // "cursor" that is an array of integers. This array may be used to index your way
+    // to a specific tFileData item. If the sPath can be resolved with respect to
+    // aFileData True will be returned, otherwise False.
+    Function FileDataPathToCursor tFileData[] aFileData String sPath Integer[] ByRef aCursor Returns Boolean
+        If (sPath="") Begin
+            Function_Return False // Not legal to call with empty path.
+        End
+        Send _BuildFileDataCursor aFileData sPath (&aCursor)
+        Function_Return (SizeOfArray(aCursor)<>0)
+    End_Function
+
+    // Function FileDataAtCursor takes a tFileData array and a "cursor" and delivers the
+    // corresponding tFileData element via ByRef parameter stResult. If the cursor "points
+    // out of" the aFileData the function will return False. Calling the function with an
+    // empty cursor (of length 0) is considered illegal and will also return False. Otherwise
+    // True is returned and parameter stResult will contain the referenced element.
+    Function FileDataAtCursor tFileData[] aFileData Integer[] aCursor tFileData ByRef stResult Returns Boolean
+        Integer iCursorMax iCursorIndex iIndex
+
+        Move (SizeOfArray(aCursor)-1) to iCursorMax
+        If (iCursorMax>=0) Begin
+            For iCursorIndex from 0 to iCursorMax
+                Move aCursor[iCursorIndex] to iIndex
+                If (iIndex<SizeOfArray(aFileData)) Begin // We're inside the index range => ok
+                    If (iCursorIndex=iCursorMax) Begin
+                        Move aFileData[iIndex] to stResult
+                    End
+                    Else Begin
+                        Move aFileData[iIndex].aFolderContent to aFileData
+                    End
+                End
+                Else Begin // Cursor points outside of aFileData => failure
+                    Function_Return False
+                End
+            Loop
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+
+    Enum_List // sort by's
+        Define SB_NAME
+        Define SB_CREATED
+        Define SB_ACCESSED
+        Define SB_CHANGED
+        Define SB_SIZE
+    End_Enum_List
+
+            Function _CompareFileDataByName tFileData stVal1 tFileData stVal2 Returns Integer
+                String sValue1 sValue2
+                Move (Uppercase(stVal1.sFileName)) to sValue1
+                Move (Uppercase(stVal2.sFileName)) to sValue2
+                If (sValue1<sValue2) Function_Return (LT)
+                If (sValue1>sValue2) Function_Return (GT)
+                Function_Return (EQ)
+            End_Function
+            Function _CompareFileDataByCreated tFileData stVal1 tFileData stVal2 Returns Integer
+                If (stVal1.dtCreation<stVal2.dtCreation) Function_Return (LT)
+                If (stVal1.dtCreation>stVal2.dtCreation) Function_Return (GT)
+                Function_Return (EQ)
+            End_Function
+            Function _CompareFileDataByAccessed tFileData stVal1 tFileData stVal2 Returns Integer
+                If (stVal1.dtLastAccess<stVal2.dtLastAccess) Function_Return (LT)
+                If (stVal1.dtLastAccess>stVal2.dtLastAccess) Function_Return (GT)
+                Function_Return (EQ)
+            End_Function
+            Function _CompareFileDataByChanged tFileData stVal1 tFileData stVal2 Returns Integer
+                If (stVal1.dtLastWrite<stVal2.dtLastWrite) Function_Return (LT)
+                If (stVal1.dtLastWrite>stVal2.dtLastWrite) Function_Return (GT)
+                Function_Return (EQ)
+            End_Function
+            Function _CompareFileDataBySize tFileData stVal1 tFileData stVal2 Returns Integer
+                If (stVal1.nFileSize<stVal2.nFileSize) Function_Return (LT)
+                If (stVal1.nFileSize>stVal2.nFileSize) Function_Return (GT)
+                Function_Return (EQ)
+            End_Function
+
+    Procedure SortFileDataArray tFileData[] ByRef aFileData Integer iByWhat
+        If (iByWhat=SB_NAME)     Move (SortArray(aFileData,Self,GET__CompareFileDataByName)) to aFileData
+        If (iByWhat=SB_CREATED)  Move (SortArray(aFileData,Self,GET__CompareFileDataByCreated)) to aFileData
+        If (iByWhat=SB_ACCESSED) Move (SortArray(aFileData,Self,GET__CompareFileDataByAccessed)) to aFileData
+        If (iByWhat=SB_CHANGED)  Move (SortArray(aFileData,Self,GET__CompareFileDataByChanged)) to aFileData
+        If (iByWhat=SB_SIZE)     Move (SortArray(aFileData,Self,GET__CompareFileDataBySize)) to aFileData
+    End_Procedure
+
+    //> Function FileExists returns 0 if not, 1 if file and 2 if folder
+    Function FileExists String sPath Returns Integer
+        Integer iRval
+        tFileData strFileData
+        If (Length(sPath)=2 and Right(sPath,1)=":") Begin
+            Valid_Drive sPath iRval
+            If (iRval=-1) Begin
+                Move 0 to iRval // Folder does not exist
+            End
+            Else If (iRval=0) Begin
+                Move 2 to iRval // The drive exists => 'Folder' exists
+            End
+            Else Begin
+                Move 0 to iRval // Unknown value => folder does not exist
+            End
+        End
+        Else Begin
+            If (ReadFileData(Self,sPath,&strFileData)) Begin
+                If (strFileData.dwFileAttributes iand C_FILE_ATTRIBUTE_DIRECTORY) Begin
+                    Move 2 to iRval
+                End
+                Else Begin
+                    Move 1 to iRval
+                End
+            End
+            Else Begin
+                Move 0 to iRval
+            End
+        End
+        Function_Return iRval
+    End_Function
+
+    Function FindFile String sFileName String sFolderList Returns String
+        Integer iMax iIndex
+        String[] aFolders
+        String sFolder
+        Move (Replaces('"',sFolderList,'')) to sFolderList
+        Send SplitString of oStringFunctions sFolderList ";" True False (&aFolders)
+        Move (SizeOfArray(aFolders)-1) to iMax
+        For iIndex from 0 to iMax
+            If (FileExists(Self,AppendPath(Self,aFolders[iIndex],sFileName))<>0) Begin
+                Function_Return aFolders[iIndex]
+            End
+        Loop
+        Function_Return "" // not found
+    End_Function
+
+    Function DirectOutput String sPath Returns Integer
+        Integer iChannel
+        Get Seq_New_Channel to iChannel
+        Move (ToAnsi(sPath)) to sPath
+        Direct_Output channel iChannel sPath
+        Function_Return iChannel
+    End_Function
+
+    Function AppendOutput String sPath Returns Integer
+        Integer iChannel
+        Get Seq_New_Channel to iChannel
+        Move (ToAnsi(sPath)) to sPath
+        Append_Output channel iChannel sPath
+        Function_Return iChannel
+    End_Function
+
+    //> Close output channel iChannel
+    Procedure CloseOutput Integer iChannel
+        Close_Output channel iChannel
+        Send Seq_Release_Channel iChannel
+    End_Procedure
+
+    //> The function attempts to open the file fn# for sequential reading.
+    //> If it succeeds a channel number will be returned, if it fails -1
+    //> will be returned. If the function succeeds it is the responsability
+    //> of the caller to release the channel (by sending the CloseInput
+    //> message) when done with it.
+    Function DirectInput String sPath Returns Integer
+        Integer iChannel
+        Get Seq_New_Channel to iChannel
+        Move (ToAnsi(sPath)) to sPath
+        Direct_Input channel iChannel sPath
+        If (SeqEof) Begin
+            Send Seq_Release_Channel iChannel
+            Move -1 to iChannel
+        End
+        Function_Return iChannel
+    End_Function
+
+    Function DirectInputTableField Integer iTable Integer iField Returns Integer
+        Function_Return (DirectInput(Self,"DBMS:"+String(iTable)+","+String(iField)))
+    End_Function
+
+    //> Close input channel iChannel.
+    Procedure CloseInput Integer iChannel
+        Close_Input channel iChannel
+        Send Seq_Release_Channel iChannel
+    End_Procedure
+
+    //> Sometimes it's nice not to have to declare a variable just to read
+    //> a line in a file. Global indicator SeqEof will be False after calling
+    //> this function if an EOF has been reached. (What? I hope I mean True)
+    Function Readln Integer iChannel Returns String
+        String sRval
+        Readln channel iChannel sRval
+        Function_Return sRval
+    End_Function
+
+    //> Reads sequential channel liChannel until the value lsValue is found.
+    //> Return value True: Found!,  False : Value not found before end of file.
+    //> The function may be used to skip parts of a text file of a known format.
+    Function ReadLnUntilValue Integer iChannel String sValue Returns Boolean
+        String sLine
+        Repeat
+          Readln channel iChannel sLine
+          If (SeqEof) Function_Return False
+          If (sLine=sValue) Function_Return True
+        Loop
+    End_Function
+
+    //> Function ReadLnProbe reads a line from input channel iChannel without
+    //> affecting the current channel position of that channel. The return
+    //> value is of type string and will be the line read. The function sets
+    //> indicator SeqEof as a sideeffect.
+    Function ReadLnProbe Integer iChannel Returns String
+        Integer iPos
+        Boolean bSeqEof bSneakMode
+        String sRval sValue
+        Get_Channel_Position iChannel to iPos
+        Readln channel iChannel sRval
+        Move (SeqEof) to bSeqEof
+        Move (iPos>0) to bSneakMode
+        If bSneakMode Decrement iPos
+        Set_Channel_Position iChannel to iPos
+        If bSneakMode Read_Block channel iChannel sValue 1
+        indicate SeqEof as bSeqEof ne 0
+        Function_Return sRval
+    End_Function
+
+    //> This function reads a file (of whatever type) and returns its contents as a
+    //> String. If the file is larger than the max arg size currently Set by the
+    //> program, an error is declared.
+    Function FileAsString String sPath Returns String
+        Integer iChannel iArgSize
+        Number nSize
+        String sRval sError
+        tFileData strFileData
+
+        Move "" to sRval
+        If (ReadFileData(Self,sPath,&strFileData)) Begin
+            Move strFileData.nFileSize to nSize
+            Get_Argument_Size to iArgSize
+
+            If (iArgSize<nSize) begin
+                Move "File too big. Adjust max arg size. (File: # MAS: #)" to sError
+                Move (Replace("#",sError,string(nSize))) to sError
+                Move (Replace("#",sError,string(iArgSize))) to sError
+                Error 421 sError
+            end
+            Get DirectInput ("binary:"+sPath) to iChannel
+            If (iChannel>=0) Begin
+                Read_Block channel iChannel sRval nSize
+                Send CloseInput iChannel
+            End
+        End
+        Function_Return sRval
+    End_Function
+    
+    Function StringAsFile String sPath String sFileContent Returns Boolean
+        Integer iChannel
+        Number nLength
+        Move (Length(sFileContent)) to nLength
+        Get DirectOutput ("binary:"+sPath) to iChannel
+        If (iChannel>=0) Begin
+            Write channel iChannel sFileContent
+            Send CloseOutput iChannel
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Function SplitFile String sPath tFileInChops ByRef strFileInChops Integer iBlockSize Returns Boolean
+        Integer iChannel
+        Integer iIndex
+        Integer iBytesLeft
+        String sBlock
+        tFileInChops strEmpty
+        Move strEmpty to strFileInChops
+        Get DirectInput ("binary:"+sPath) to iChannel
+        If (iChannel>=0) Begin
+            Move sPath to strFileInChops.sPath
+            Move 0 to iIndex
+            Get FileSizeBytes sPath to iBytesLeft
+            While (iBytesLeft>0)
+                Move (iBytesLeft min iBlockSize) to iBlockSize
+                Read_Block channel iChannel sBlock iBlockSize
+                Move iBlockSize to strFileInChops.aSegments[iIndex].iLen
+                Move sBlock to strFileInChops.aSegments[iIndex].sContent
+                Move (iBytesLeft-iBlockSize) to iBytesLeft
+                Increment iIndex
+            Loop
+            Send CloseInput iChannel
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Function JoinFile String sPath tFileInChops strFileInChops Returns Boolean
+        Integer iChannel iIndex iMax
+        String sBlock
+        Get DirectOutput ("binary:"+sPath) to iChannel
+        If (iChannel>=0) Begin
+            Move (SizeOfArray(strFileInChops.aSegments)-1) to iMax
+            For iIndex from 0 to iMax
+                Move strFileInChops.aSegments[iIndex].sContent to sBlock
+                Write channel iChannel sBlock // strFileInChops.aSegments[iIndex].sContent
+            Loop
+            Send CloseOutput iChannel
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+
+    Function TextFileAsArray String sPath Returns String[]
+        Boolean bEof
+        Integer iLineCount iChannel
+        String sLine
+        String[] aValues
+        Get DirectInput sPath to iChannel
+        If (iChannel>=0) Begin
+            Move 0 to iLineCount
+            Repeat
+                Readln channel iChannel sLine
+                Move (SeqEof) to bEof
+                If (not(bEof)) Begin
+                    Move sLine to aValues[iLineCount]
+                    Increment iLineCount
+                End
+            Until (bEof)
+            Send CloseInput iChannel
+        End
+        Function_Return aValues
+    End_Function
+
+    Function FileSizeBytes String sPath Returns Number
+        tFileData sFileData
+        If (ReadFileData(Self,sPath,&sFileData)) Begin
+            Function_Return sFileData.nFileSize
+        End
+        Function_Return -1
+    End_Function
+
+            // (stolen from Wil van Antwerpen)
+            // Read about it here: http://msdn.microsoft.com/en-us/library/windows/desktop/bb762164(v=vs.85).aspx
+            // Remarks: You should Use fully qualified path names with this function. Using it with relative path names is not thread safe.
+            Function _FileOperation String sSource String sDestination Integer iOperation Integer iFlags Returns Integer
+                Integer iRval
+                _tFileOperation stOperation
+                
+                Move (ToAnsi(sSource)+Character(0)+Character(0)) to sSource // Double null termination
+                Move (ToAnsi(sDestination)+Character(0)+Character(0)) to sDestination // Double null termination
+                Move iOperation to stOperation.wFunc
+
+                Move (AddressOf(sSource)) to stOperation.pFrom
+                Move (AddressOf(sDestination)) to stOperation.pTo
+                Move iFlags to stOperation.fFlags
+
+                Move (ff_SHFileOperation(AddressOf(stOperation))) to iRval
+                If (stOperation.fAnyOperationsAborted<>0) begin
+                    Move 1 to iRval // Should be DE_OPCANCELLED really, but we haven't defined these constants anyway
+                End
+                Function_Return iRval
+            End_Function
+
+    Function CopyFileNew String sPath1 String sPath2 Returns Boolean
+        Integer iFlags iError
+        Move (C_NOCONFIRMMKDIR ior C_NOCONFIRMATION) to iFlags
+        #IFDEF Is$WebApp
+            Move (iFlags ior C_NOERRORUI ior C_SILENT) to iFlags // If webapp: No user interface!
+        #ENDIF
+        Get _FileOperation sPath1 sPath2 CFO_COPY iFlags to iError
+        Function_Return (iError=0)
+    End_Function
+
+    // Delete file or folder
+    Function DeleteFileNew String sPath Boolean bToBin Returns Boolean
+        Integer iFlags iError
+        Move (C_SILENT ior C_NOCONFIRMATION) to iFlags
+        If (bToBin) Move (iFlags ior C_ALLOWUNDO) to iFlags
+        #IFDEF Is$WebApp
+            Move (iFlags ior C_NOERRORUI) to iFlags // If webapp: No user interface!
+        #ENDIF
+        Get _FileOperation sPath "" CFO_DELETE iFlags to iError
+        Function_Return (iError=0)
+    End_Function
+
+    Function RenameFileNew String sFileName1 String sFileName2 Returns Boolean
+        Integer iFlags iError
+        Move (C_SILENT ior C_NOCONFIRMATION) to iFlags
+        #IFDEF Is$WebApp
+            Move (iFlags ior C_NOERRORUI) to iFlags // If webapp: No user interface!
+        #ENDIF
+        Get _FileOperation sFileName1 sFileName2 CFO_RENAME iFlags to iError
+        Function_Return (iError=0)
+    End_Function
+
+    Function MoveFileNew String sPath1 String sPath2 Returns Boolean
+        Integer iFlags iError
+        Move (C_NOCONFIRMMKDIR ior C_NOCONFIRMATION) to iFlags
+        #IFDEF Is$WebApp
+            Move (iFlags ior C_NOERRORUI) to iFlags // If webapp: No user interface!
+        #ENDIF
+        Get _FileOperation sPath1 sPath2 CFO_MOVE iFlags to iError
+        Function_Return (iError=0)
+    End_Function
+
+    // If sNewFolder already exists the function will return False (failure)
+    Function CreateFolderNew String sNewFolder Returns Boolean
+        Integer iRval
+        Move (ToAnsi(sNewFolder)) to sNewFolder
+        // http://msdn.microsoft.com/en-us/library/windows/desktop/aa363855(v=vs.85).aspx
+        Move (ff_CreateDirectory(AddressOf(sNewFolder),0)) to iRval
+        // If the Function succeeds, the return value is nonzero.
+        // If the Function fails, the return value is zero. 
+        // To get extended Error information, call GetLastError. 
+        Function_Return (iRval<>0)
+    End_Function
+    
+    //> Returns True on success
+    Function CreateFolderIfNotExist String sFolder Returns Boolean
+        Integer iExist
+        Boolean bExist
+        Get FileExists sFolder to iExist
+        Move (iExist=2) to bExist // Does folder exist?
+        If (not(bExist)) Begin
+            If (iExist=0) Begin // If not, and also no file of that name exists:
+                Move (CreateFolderNew(Self,sFolder)) to bExist
+                Get FileExists sFolder to iExist
+                Move (iExist=2) to bExist
+            End
+        End
+        Function_Return bExist
+    End_Function
+
+    // sRootFolder must already exist. Returns True if the sRootFolder\sSubFolderPath can be accessed after calling the function
+    Function CreateFolderMultiLevel String sRootFolder String sSubFolderPath Returns Boolean
+        Boolean bSuccess
+        Integer iFolderIndex iFolderMax iExists
+        String[] aFolderPath
+
+        If (FileExists(Self,sRootFolder)=2) Begin
+
+            Send SplitString of oStringFunctions sSubFolderPath "\" False True (&aFolderPath)
+            Move (SizeOfArray(aFolderPath)-1) to iFolderMax
+            Move True to bSuccess
+            For iFolderIndex from 0 to iFolderMax
+                If (bSuccess) Begin
+                    Get AppendPath sRootFolder aFolderPath[iFolderIndex] to sRootFolder
+                    Get FileExists sRootFolder to iExists
+                    If (iExists=0) Begin // Does not exist
+                        Get CreateFolderNew sRootFolder to bSuccess
+                    End
+                    If (iExists=1) Begin // It exists and it's a file (not good)
+                        Move False to bSuccess
+                        Error 821 ("Can't create folder ('"+sRootFolder+"' is a file)")
+                    End
+                    If (iExists=2) Begin // It Exists and it's a folder (fine)
+                        // Do nothing
+                    End
+                End
+            Loop
+        End
+        Else Begin
+            Move False to bSuccess
+        End
+        Function_Return bSuccess
+    End_Function
+
+    // Folder must be empty and have no sub-folders
+    Function DeleteFolderNew String sPath Returns Boolean
+        Integer iRval
+        Move (ToAnsi(sPath)) to sPath
+        Move (ff_RemoveDirectory(AddressOf(sPath))) to iRval // If the function succeeds, the return value is nonzero.
+        Function_Return (iRval<>0)
+    End_Function
+
+    Function DeleteAllFilesInFolderNew String sPath Returns Boolean
+        Integer iIndex iMax iFailure
+        String sFileName
+        tFileData[] aFileData
+        Send ReadFolder sPath "*" (&aFileData) 1 // 1 means files (and not folders)
+        Move (SizeOfArray(aFileData)-1) to iMax
+        Move 0 to iFailure
+        For iIndex from 0 to iMax
+            If (iFailure=0) Begin
+                Get AppendPath sPath aFileData[iIndex].sFileName to sFileName
+                If (not(DeleteFileNew(Self,sFileName,False))) Begin
+                    Error 392 ("Could not delete file "+sFileName)
+                End
+            End
+        Loop
+        Function_Return (iFailure=0)
+    End_Function
+
+    // Delete recursively all files and remove folders. SUPER POWERFUL AND THUS DANGEROUS!
+    Function DeleteFolderRecursiveNew String sPath Returns Boolean
+        Boolean bSuccess
+        Integer iIndex iMax
+        tFileData[] aFileData
+        String sSubFolder
+        // Get rid of all files
+        Get DeleteAllFilesInFolderNew sPath to bSuccess
+        If (bSuccess) Begin
+            Send ReadFolder sPath "*" (&aFileData) 2 // 2 means folders (and not files)
+            Move (SizeOfArray(aFileData)-1) to iMax
+            For iIndex from 0 to iMax
+                If (bSuccess and aFileData[iIndex].sFileName<>"." and aFileData[iIndex].sFileName<>"..") Begin
+                    Get AppendPath sPath aFileData[iIndex].sFileName to sSubFolder
+                    Get DeleteFolderRecursiveNew sSubFolder to bSuccess
+                    If (not(bSuccess)) Begin
+                        Error 392 ("Could not delete folder "+sSubFolder)
+                    End
+                End
+            Loop
+        End
+        If (bSuccess) Begin // Remove the folder
+            Get DeleteFolderNew sPath to bSuccess
+        End
+        Function_Return (bSuccess)
+    End_Function
+
+        Function _CopyFileDataArray tFileData[] aFileData String sSourceFolder String sTargetFolder Integer hMsg Integer hObj Returns Boolean
+            Boolean bSuccess
+            Integer iMax iIndex
+            String sSourceItem sTargetItem
+
+            If (CreateFolderIfNotExist(Self,sTargetFolder)) Begin
+                Move True to bSuccess
+                Move (SizeOfArray(aFileData)-1) to iMax
+                For iIndex from 0 to iMax
+                    If (bSuccess and not(aFileData[iIndex].bSelfReference)) Begin
+                        Get AppendPath sSourceFolder aFileData[iIndex].sFileName to sSourceItem
+                        Get AppendPath sTargetFolder aFileData[iIndex].sFileName to sTargetItem
+                        If (aFileData[iIndex].bIsFolder) Begin // Folder
+                            Get _CopyFileDataArray aFileData[iIndex].aFolderContent sSourceItem sTargetItem hMsg hObj to bSuccess
+                        End
+                        Else Begin // File
+                            Move (CopyFileNew(Self,sSourceItem,sTargetItem)) to bSuccess
+                        End
+                    End
+                Loop
+            End
+            Else Begin
+                Move False to bSuccess
+            End
+
+            Function_Return bSuccess
+        End_Function
+
+    // Returns True on success. I don't think hMSG and hObj are used for anything. Set to 0
+    Function CopyFileDataArray tFileData[] aFileData String sSourceFolder String sTargetFolder Integer hMsg Integer hObj Returns Boolean
+        Function_Return (_CopyFileDataArray(Self,aFileData,sSourceFolder,sTargetFolder,hMsg,hObj))
+    End_Function
+
+    Function LongPathName String sShortPath Returns String
+        Pointer lpszShortPath lpszLongPath
+        Integer iVoid
+        String sLongPath
+        ZeroString C_MAX_PATH to sLongPath
+        Move (ToANSI(sShortPath)) to sShortPath
+        GetAddress of sLongPath  to lpszLongPath
+        GetAddress of sShortPath to lpszShortPath
+        Move (ff_GetLongPathName(lpszShortPath,lpszLongPath,C_MAX_PATH)) to iVoid
+        Function_Return (Cstring(ToOEM(sLongPath)))
+    End_Function // IsLongPathName
+
+    // Returns the temp folder of the system
+    Function UserTempFolder Returns String // published by Clayton Schirmer, 22-03-2002 on NGs
+        String sPath
+        Pointer pPath
+        Integer iRet
+        Move (Repeat(Character(0),255)) to sPath
+        GetAddress of sPath to pPath
+        Move (ff_TempPath(255,pPath)) to iRet
+        Function_Return (LongPathName(Self,CString(ToOEM(sPath))))
+    End_Function
+
+    // Use this function to obtain Windows specific folder. Parameter iWinFolderId is one of the
+    // "CSIDL_" defined in the top of this file. Be aware that not all folders are defined on all windows
+    // systems.
+    Function WinFolderPath Integer iWinFolderId Returns String
+        // This function I found on WASP (by Frank Cheng).
+        Integer iVoid
+        String sPath
+        ZeroString C_MAX_PATH to sPath
+        Move (ff_SHGetSpecialFolderPath(0,AddressOf(sPath),iWinFolderID,1)) to iVoid
+        If (iVoid=0) Function_Return ""
+        Function_Return (ToOEM(CString(sPath)))
+    End_Function
+
+    Enum_List //> VDF Folder id's. Used as parameter for the VdfFolderPath function (iVdfFolderId parameter).
+        Define VDF_ROOT     //> Root of the VDF runtime, for example "C:\VDF12".
+        Define VDF_HTML     //> Path to the AppHtml folder of the current work space.
+        Define VDF_FILELIST //> Path to Filelist.cfg of the current work space
+        Define VDF_OPENPATH //> Path used when opening tables via Filelist.cfg
+        Define VDF_PROGRAM  //> Path to the folder of the current program
+        Define VDF_DDSRC    //> Path of the DD source folder (if present)
+        Define VDF_APPSRC   //> Path of the source folder (if present)
+        Define VDF_BITMAPS  //> Path of bitmaps folder
+        Define VDF_VDFXRAY  //> Folder for VDFXRay configuration
+        Define VDF_APPHTML  //> Folder to AppHtml folder
+    End_Enum_List
+
+    Function VdfFolderPath Integer iVdfFolderId Returns String
+        Integer hoWorkSpace
+        String sFolder sOpenPath
+        If (iVdfFolderId=VDF_ROOT) Begin
+            get_profile_string "Defaults" "VdfRootDir" to sFolder
+        End
+        If (iVdfFolderId=VDF_HTML) Begin
+            If (ghoApplication<>0) Begin
+                Get phoWorkspace of ghoApplication to hoWorkSpace
+                If (hoWorkSpace<>0) Begin
+                    Get psAppHtmlPath of hoWorkSpace to sFolder
+                End
+            End
+        End
+        If (iVdfFolderId=VDF_FILELIST) Begin
+            Get_Attribute DF_FILELIST_NAME to sFolder
+            If (sFolder contains "\") Begin
+                // Absolute path of filelist.cfg => we must strip the "filelist.cfg" to get the folder.
+                Get PathToFolder sFolder to sFolder
+            End
+            Else Begin
+                // Absolute path not specified => we must look for it along VDF's "open_path"
+                Get_Attribute DF_OPEN_PATH to sOpenPath  // This is the path we want dbquery to use
+                Get FindFile sFolder sOpenPath to sFolder
+            End
+        End
+        If (iVdfFolderId=VDF_OPENPATH) Begin
+            Get_Attribute DF_OPEN_PATH to sFolder
+        End
+        If (iVdfFolderId=VDF_PROGRAM) Begin
+            If (ghoApplication<>0) Begin
+                Get phoWorkspace of ghoApplication to hoWorkSpace
+                If (hoWorkSpace<>0) Begin
+                    Get psProgramPath of hoWorkSpace to sFolder
+                End
+            End
+        End
+        If (iVdfFolderId=VDF_BITMAPS) Begin
+            If (ghoApplication<>0) Begin
+                Get phoWorkspace of ghoApplication to hoWorkSpace
+                If (hoWorkSpace<>0) Begin
+                    Get psBitmapPath of hoWorkSpace to sFolder
+                    If (FileExists(Self,sFolder)=0) Begin
+                        Move "" to sFolder
+                    End
+                End
+            End
+        End
+        If (iVdfFolderId=VDF_APPHTML) Begin
+            If (ghoApplication<>0) Begin
+                Get phoWorkspace of ghoApplication to hoWorkSpace
+                If (hoWorkSpace<>0) Begin
+                    Get psAppHtmlPath of hoWorkSpace to sFolder
+                    If (FileExists(Self,sFolder)=0) Begin
+                        Move "" to sFolder
+                    End
+                End
+            End
+        End
+        If (iVdfFolderId=VDF_APPSRC) Begin
+            If (ghoApplication<>0) Begin
+                Get phoWorkspace of ghoApplication to hoWorkSpace
+                If (hoWorkSpace<>0) Begin
+                    Get psAppSrcPath of hoWorkSpace to sFolder
+                    If (FileExists(Self,sFolder)=0) Begin
+                        Move "" to sFolder
+                    End
+                End
+            End
+        End
+        If (iVdfFolderId=VDF_DDSRC) Begin
+            If (ghoApplication<>0) Begin
+                Get phoWorkspace of ghoApplication to hoWorkSpace
+                If (hoWorkSpace<>0) Begin
+                    Get psDdSrcPath of hoWorkSpace to sFolder
+                    If (FileExists(Self,sFolder)=0) Begin
+                        Move "" to sFolder
+                    End
+                End
+            End
+        End
+        If (iVdfFolderId=VDF_VDFXRAY) Begin
+            Get VdfFolderPath VDF_FILELIST to sFolder
+            Get PathToFolder sFolder to sFolder
+            Get AppendPath sFolder "VDFXRay_cfg" to sFolder
+            If (FileExists(Self,sFolder)<>2) Begin
+                If (_pbCreateVDFXRayFolderOnReq(Self)) Begin
+                    If (not(CreateFolderNew(Self,sFolder))) Begin
+                        Move "" to sFolder
+                    End
+                End
+                Else Begin
+                    Move "" to sFolder
+                End
+            End
+        End
+        Function_Return sFolder
+    End_Function
+    
+    Function CreateVDFXrayConfigurationFolder Returns Boolean
+        String sFolder
+        Set _pbCreateVDFXRayFolderOnReq to True
+        Get VdfFolderPath VDF_VDFXRAY to sFolder
+        Set _pbCreateVDFXRayFolderOnReq to False
+        Function_Return (sFolder<>"")
+    End_Function
+    
+    //> Translate absolute disk folder (or file) into relative HTML folder (or file).
+    Function DiskFolderToHtml String sDiskFolder Returns String
+        String sHtmlRootFolder sRelativeFolder
+        Get VdfFolderPath VDF_HTML to sHtmlRootFolder
+        Move (Lowercase(sDiskFolder)) to sDiskFolder
+        Move (Lowercase(sHtmlRootFolder)) to sHtmlRootFolder
+        Move (Replace(sHtmlRootFolder,sDiskFolder,"")) to sRelativeFolder
+
+        If (Left(sRelativeFolder,1)="\") Move (replace("\",sRelativeFolder,"")) to sRelativeFolder
+        Move (Replaces("\",sRelativeFolder,"/")) to sRelativeFolder
+        Function_Return sRelativeFolder
+    End_Function
+
+    //> Returns a string containing the drive letters that are valid for the system.
+    Function ValidDriveLetters Returns String
+        Integer iLen iPos
+        Boolean bErr
+        String sDrives sDrive sValidDrives
+        Move "ABCDEFGHIJKLMNOPQRSTUVWXYZ" to sDrives
+        Move "" to sValidDrives
+        Move (Length(sDrives)) to iLen
+        For iPos from 1 to iLen
+            Move (Mid(sDrives,1,iPos)) to sDrive
+            Valid_Drive sDrive bErr
+            If (not(bErr)) Move (sValidDrives+sDrive) to sValidDrives
+        Loop
+        Function_Return sValidDrives
+    End_Function
+
+    //> Function DataSubFolder returns the value of sSubFolderName appended to
+    //> the folder name in which filelist.cfg resides.
+    Function DataSubFolder String sSubFolderName Boolean bCreate Returns String
+        String sRval
+        Boolean bCreateTmp
+        If (num_arguments>1) Begin
+            Move bCreate to bCreateTmp
+        End
+        Else Begin
+            Move False to bCreateTmp
+        End
+        Get VdfFolderPath VDF_FILELIST to sRval
+        Get AppendPath sRval sSubFolderName to sRval
+        If (bCreateTmp) Begin
+            If (FileExists(Self,sRval)=0) Begin
+                Get CreateFolderNew sRval to bCreateTmp
+            End
+        End
+        Function_Return sRval
+    End_Function
+
+    Function DataSubFolderPersonal String sSubFolderName Boolean bCreate Returns String
+        String sFolder
+        Boolean bCreateTmp
+        If (num_arguments>1) Begin
+            Move bCreate to bCreateTmp
+        End
+        Else Begin
+            Move False to bCreateTmp
+        End
+        Get DataSubFolder sSubFolderName bCreateTmp to sFolder
+        Get AppendPath sFolder (NetworkUserName(oWindowsInfo)) to sFolder
+        If (bCreateTmp) Begin
+            If (FileExists(Self,sFolder)=0) Begin
+                Get CreateFolderNew sFolder to bCreateTmp
+            End
+        End
+        Function_Return sFolder
+    End_Function
+
+    Function DataSubFolderFindFile String sSubFolderName String sFileName Returns String
+        String sRval sFolder
+        Get DataSubFolderPersonal sSubFolderName to sFolder
+        Get AppendPath sFolder sFileName to sRval
+        If (FileExists(Self,sRval)<>1) Begin // Is it in the personal folder?
+            Get DataSubFolder sSubFolderName to sFolder
+            Get AppendPath sFolder sFileName to sRval
+            If (FileExists(Self,sRval)<>1) Begin
+                Move "" to sRval // Not found
+            End
+        End
+        Function_Return sRval
+    End_Function
+
+    Function ImageTextAsString Integer iImg Returns String
+        Integer iChannel
+        String sRval sLine sChar10
+        Boolean bSeqEof
+
+        Move "" to sRval
+        Move (Character(10)) to sChar10
+
+        Get DirectInput ("image:"+String(iImg)) to iChannel
+        If (iChannel>=0) Begin
+            Repeat
+                Readln sLine
+                Move (SeqEof) to bSeqEof
+                If (not(bSeqEof)) Begin
+                     Move (sRval+sLine+sChar10) to sRval
+                End
+            Until (bSeqEof)
+
+            Send CloseInput iChannel
+        End
+        Function_Return sRval
+    End_Function
+
+    Procedure WriteIntegerArray Integer[] aValues Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aValues)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aValues[iItem]
+        Loop
+    End_Procedure
+
+    Function ReadIntegerArray Integer iChannel Returns Integer[]
+        Integer iItem iItemMax
+        Integer[] aValues
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aValues[iItem]
+        Loop
+        Function_Return aValues
+    End_Function
+
+    Procedure WriteNumberArray Number[] aValues Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aValues)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aValues[iItem]
+        Loop
+    End_Procedure
+
+    Function ReadNumberArray Integer iChannel Returns Number[]
+        Integer iItem iItemMax
+        Number[] aValues
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aValues[iItem]
+        Loop
+        Function_Return aValues
+    End_Function
+
+    Procedure WriteStringArray String[] aValues Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aValues)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aValues[iItem]
+        Loop
+    End_Procedure
+
+    Function ReadStringArray Integer iChannel Returns String[]
+        Integer iItem iItemMax
+        String[] aValues
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aValues[iItem]
+        Loop
+        Function_Return aValues
+    End_Function
+
+    Procedure WriteBooleanArray Boolean[] aValues Integer iChannel
+        Integer iItem iItemMax
+        Move (SizeOfArray(aValues)-1) to iItemMax
+        Writeln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Writeln aValues[iItem]
+        Loop
+    End_Procedure
+
+    Function ReadBooleanArray Integer iChannel Returns Boolean[]
+        Integer iItem iItemMax
+        Boolean[] aValues
+        Readln channel iChannel iItemMax
+        For iItem from 0 to iItemMax
+            Readln aValues[iItem]
+        Loop
+        Function_Return aValues
+    End_Function
+
+    Function AreFilesIdentical String sFile1Name String sFile2Name Boolean bBinaryCompare Returns Boolean
+        Integer iPos iBlockSize
+        Boolean bIdentical
+        Integer iFile1Size iFile2Size
+        Integer iCh1 iCh2
+        String sBlock1 sBlock2
+
+        If (not(bBinaryCompare)) Begin
+            Error 666 "Text compare not implemented"
+        End
+
+        Move True to bIdentical
+        Get FileSizeBytes sFile1Name to iFile1Size
+        Get FileSizeBytes sFile2Name to iFile2Size
+        If (iFile1Size=iFile2Size) Begin
+            Get DirectInput ("binary:"+sFile1Name) to iCh1
+            Get DirectInput ("binary:"+sFile2Name) to iCh2
+            Move 0 to iPos
+            While (iPos<iFile1Size)
+                Move ((iFile1Size-iPos) min 8192) to iBlockSize
+                Read_Block channel iCh1 sBlock1
+                Read_Block channel iCh2 sBlock2
+                If (sBlock1<>sBlock2) Begin
+                    Move False to bIdentical
+                    Move 0 to iFile1Size // stop the loop
+                End
+                Move (iPos+iBlockSize) to iPos
+            Loop
+            Send CloseInput iCh1
+            Send CloseInput iCh2
+        End
+        Else Begin
+            Move False to bIdentical
+        End
+        Function_Return bIdentical
+    End_Function
+    
+    #IFNDEF Is$WebApp // If Windows application
+        // Nota bene! Parameter sStartFolder is ignored
+        Function BrowseFolder String sCaption String sStartFolder Returns String
+            Integer iFolderSelected iRval
+            Pointer lpItemIdList
+            String sFolder sRval
+            _tFileBrowseInfo stBrowseInfo
+
+            If (sCaption<>"") Begin
+                Move (ToAnsi(sCaption)) to sCaption // toAnsi
+                Move (AddressOf(sCaption)) to stBrowseInfo.lpszTitle
+            End
+
+            Move (Window_Handle(Focus(Desktop))) to stBrowseInfo.hWndOwner
+            Move (Repeat(" ",255)) to sFolder
+
+            // select folder
+            Move (ff_SHBrowseForFolder(AddressOf(stBrowseInfo))) to lpItemIdList
+            // get selected folder name
+            Move (ff_SHGetPathFromIDList(lpItemIdList, AddressOf(sFolder))) to iFolderSelected
+            // free memory and IDL
+            Move (ff_CoTaskMemFree(lpItemIdList)) to iRval
+
+            If (iFolderSelected<>0) begin
+                Move (CString(sFolder)) to sRval
+            End
+            Else begin
+                Move "" to sRval
+            End
+            Function_Return (ToOem(sRval))
+        End_Function
+
+        //> Popup standard save-as-dialog and return name of selected file. If dialog is cancelled
+        //> the empty string is returned.
+        Function BrowseFileSaveAs String sCaption String sStartFolder String sFilter String sDefaultFileName Returns String
+            Integer iObj
+            String sRval
+            Object oOpenFileDialog is a SaveAsDialog
+                If (sStartFolder<>"") begin
+                    Set Initial_Folder to sStartFolder
+                End
+                Set NoChangeDir_State to True
+                Set Dialog_Caption to sCaption
+                Set Filter_String to sFilter
+                Set FileMustExist_State to False
+                Set CreatePrompt_State to False
+                Set OverwritePrompt_State to True
+                If (sDefaultFileName<>"") Set File_Title to sDefaultFileName
+                Move Self to iObj
+            End_Object
+            If (Show_Dialog(iObj)) begin
+                Get File_Name of iObj to sRval
+            End
+            Else begin
+                Move "" to sRval
+            End
+            Send Destroy of iObj
+            Function_Return sRval
+        End_Function
+
+        //> Popup standard open-dialog and return name of selected file. If dialog is cancelled
+        //> the empty string is returned.
+        Function BrowseFileOpen String sCaption String sStartFolder String sFilter Returns String
+            Integer iObj
+            String sRval
+            Object oOpenFileDialog is a OpenDialog
+                If (sStartFolder<>"") begin
+                    Set Initial_Folder to sStartFolder
+                End
+                Set NoChangeDir_State to True
+                Set Dialog_Caption to sCaption
+                Set Filter_String to sFilter
+                Set FileMustExist_State to True
+                Set CreatePrompt_State to False
+                Move Self to iObj
+            End_Object
+            If (Show_Dialog(iObj)) begin
+                Get File_Name of iObj to sRval
+            End
+            Else begin
+                Move "" to sRval
+            End
+            Send Destroy of iObj
+            Function_Return sRval
+        End_Function
+
+#IF (FMAC_VERSION>15) // I don't know when MultiSelect_State etc was introduced. But it doesn't compile with 14.1
+        Function BrowseFileOpenMultiSelect String sCaption String sStartFolder String sFilter String[] ByRef aSelectedFiles Returns Boolean
+            Integer iObj
+            Boolean bSelect
+            Object oOpenFileDialog is a OpenDialog
+                If (sStartFolder<>"") begin
+                    Set Initial_Folder to sStartFolder
+                End
+                Set NoChangeDir_State to True
+                Set Dialog_Caption to sCaption
+                Set Filter_String to sFilter
+                Set FileMustExist_State to True
+                Set CreatePrompt_State to False
+                Set MultiSelect_State to True
+                Move Self to iObj
+            End_Object
+            If (Show_Dialog(iObj)) begin
+                Get Selected_Files of iObj to aSelectedFiles
+                Move True to bSelect
+            End
+            Else Begin
+                Move False to bSelect
+            End
+            Send Destroy of iObj
+            Function_Return bSelect
+        End_Function
+#ENDIF
+        //> Open document in Notepad
+        Procedure NotePad String sPath
+            Send ShellExecute "notepad" sPath
+        End_Procedure
+
+        //> Open document in application associated with extension of filename
+        Procedure ShellExecuteDocument String sPath
+            Integer iGrb
+            Handle hDC
+            Move (GetDesktopWindow()) to hDC // Defined in WinUser.pkg
+            Move (ff_ShellExecute(hDC,"OPEN",ToANSI(sPath),"","",1)) to iGrb
+        End_Procedure
+        
+        Procedure ShellCommandLine String sPath
+            Runprogram Background ("cmd /K CD "+sPath)
+        End_Procedure
+
+        //> Open document in application associated with extension of filename
+        Procedure ShellExecute String sPath String sParams String sWorkFolder
+            Integer iGrb
+            Handle hDC
+            String _sParams _sWorkFolder
+            If (num_arguments>=2) Begin
+                Move sParams to _sParams
+                Get ToANSI sParams to _sParams
+            End
+            Else Begin
+                Move "" to _sParams
+            End
+            If (num_arguments>=3) Begin
+                Get ToANSI sWorkFolder to _sWorkFolder
+            End
+            Else Begin
+                Move "" to _sWorkFolder
+            End
+            Move (GetDesktopWindow()) to hDC // Defined in WinUser.pkg
+            Move (ff_ShellExecute(hDC,"OPEN",ToANSI(sPath),_sParams,_sWorkFolder,1)) to iGrb
+            // Documentation: 
+            // msdn: Dev Center - Desktop > Docs > Desktop app development documentation > Windows Environment Development > The Windows Shell > Shell Reference > Shell Functions > ShellExecute
+        End_Procedure
+
+        //> Open folder in Explorer
+        Procedure ExploreFolder String sFolder
+            Send ShellExecute "explorer" sFolder
+        End_Procedure
+    #ENDIF
+End_Class
+
+//> Handle to the current cFileFunctions object.
+Global_Variable Integer oFileFunctions
+//> And this is an object
+Object _oFileFunctions is a cFileFunctions
+    Move Self to oFileFunctions
+End_Object
+
+//#IFNDEF Is$WebApp // If Windows application
+//Object oTest is a ModalPanel
+//    Set Size to 170 201
+//
+//    Object oTreeView1 is a TreeView
+//        Set Size to 147 172
+//        Set Location to 13 13
+//
+//        Procedure OnCreateTree
+//            // Add tree items here, via the AddTreeItem function.
+//
+//            // Get AddTreeItem sText hRoot iItemData iImage iSelImage To hItem
+//        End_Procedure
+//
+//    End_Object
+//    Function BrowseFolder String sCaption String sStartFolder Returns String 
+//    End_Function
+//End_Object
+//#ENDIF              
+
+//Enum_List
+//    Define cfoCopy
+//    Define cfoRename
+//    Define cfoDelete
+//    Define cfoMove
+//End_Enum_List
+//
+//Struct tFileOperation
+//    Integer eOperation
+//    Boolean bFolder // File or folder?
+//    String sSource
+//    String sTarget
+//End_Struct
+
+//Function CopyFile String sPath1 String sPath2 Returns Integer
+//Function DeleteFile String sPath Boolean bToBin Returns Integer
+//Function RenameFile String sFileName1 String sFileName2 Returns Integer
+//Function MoveFile String sPath1 String sPath2 Returns Integer
+//// Returns False on success. If sNewFolder already exists the function will return True (failure)
+//Function CreateFolder String sNewFolder Returns Boolean
+////> Returns True on success
+//Function CreateFolderIfNotExist String sFolder Returns Boolean
+//// sRootFolder must already exist. Returns True if the sRootFolder\sSubFolderPath can be accessed after calling the function
+//Function CreateFolderMultiLevel String sRootFolder String sSubFolderPath Returns Boolean
+//Function DeleteFolder String sPath Returns Integer
+//Function DeleteAllFilesInFolder String sPath Returns Integer
+//Function DeleteFolderRecursive String sPath Returns Integer
+//    

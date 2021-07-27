@@ -1,0 +1,248 @@
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use DfAllEnt.pkg
+
+Global_Variable Integer oFormFunctions
+Global_Variable Integer gbTestingForCaretPosition
+Move False to gbTestingForCaretPosition
+
+Object _oFormFunctions is a cObject
+    Move Self to oFormFunctions
+    
+    // Set/Get CaretPosition is used to access the caret position in a (db)Form (or (db)Grid, haven't tested).
+    //
+    //
+
+    Function CaretPosition Integer hForm Integer iItem Returns Integer
+        Integer hWin iGrb iPos
+        Integer iCurrentLength iPrevLength
+        String sBefore sAfter
+        
+        Move True to gbTestingForCaretPosition
+        
+        Get form_Window_Handle of hForm iItem to hWin
+        Get Value of hForm iItem to sBefore // Push value
+        Move (Length(sBefore)) to iCurrentLength
+        
+        // Delete character from the current positione on at a time, until til length doesn't change 
+        // anymore. The length of the value at that time is identical to the position we seek.
+        Repeat 
+            Move iCurrentLength to iPrevLength
+            Move (SendMessage(hWin,WM_KEYDOWN,VK_DELETE,EXTKEY)) to iGrb
+            Move (Length(Value(hForm,iItem))) to iCurrentLength
+        Until (iCurrentLength=iPrevLength)
+
+        Get Value of hForm iItem to sAfter
+        Move (Length(sAfter)) to iPos
+        Set Value of hForm iItem to sBefore
+        Set CaretPosition hForm iItem to iPos // Restore caret position
+        Move False to gbTestingForCaretPosition
+        Function_Return iPos
+    End_Function
+    
+    Procedure Set CaretPosition Integer hForm Integer iItem Integer iPos
+        Integer hWin iRval
+        Move True to gbTestingForCaretPosition
+
+        Get form_Window_Handle of hForm iItem to hWin
+        Move (SendMessage(hWin,WM_KEYDOWN,VK_HOME,EXTKEY)) to iRval
+        While (iPos>0)
+            Move (SendMessage(hWin,WM_KEYDOWN,VK_RIGHT,EXTKEY)) to iRval
+            Decrement iPos
+        Loop
+        Move False to gbTestingForCaretPosition
+    End_Procedure
+    
+End_Object
+
+Class dbFormSture is a dbForm
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean pbCanCut True
+        Property Boolean pbCanPaste True
+        Property Boolean _pbCanEdit True
+        Property Boolean _pbCanFind True
+        Property Integer _pbCanFind_PromptModePush 
+    End_Procedure
+    
+    Function pbCanFind Returns Boolean
+        Function_Return (_pbCanFind(Self))
+    End_Function
+    
+    Procedure Set pbCanFind Boolean bState
+        If (bState and not(pbCanFind(Self))) Begin
+            Set Prompt_Button_Mode to (_pbCanFind_PromptModePush(Self))
+        End
+        If (not(bState) and pbCanFind(Self)) Begin
+            Set _pbCanFind_PromptModePush to (Prompt_Button_Mode(Self))
+            Set Prompt_Button_Mode to PB_PromptOff
+        End
+        Set _pbCanFind to bState
+    End_Procedure
+    
+    
+    Procedure Prompt
+        If (pbCanFind(Self)) Begin
+            Forward Send Prompt
+        End
+    End_Procedure
+    
+    Procedure Request_Clear // Clears items, and changes focus to first item in this Object If auto_top_panel_state is True 
+        If (pbCanFind(Self)) Begin
+            Forward Send Prompt
+        End
+    End_Procedure
+    Procedure Request_Clear_All // Clears items, and changes focus to first item in this Object If auto_top_panel_state is True 
+        If (pbCanFind(Self)) Begin
+            Forward Send Request_Clear_All
+        End
+    End_Procedure
+    Procedure Request_Find Integer iMode Integer entUpdtFlag
+        If (pbCanFind(Self)) Begin
+            Forward Send Request_Find iMode entUpdtFlag
+        End
+    End_Procedure
+    Procedure Request_Superfind Integer iMode
+        If (pbCanFind(Self)) Begin
+            Forward Send Request_Superfind iMode
+        End
+    End_Procedure
+
+    Function pbCanEdit Returns Boolean
+        Function_Return (_pbCanEdit(Self))
+    End_Function
+
+    Procedure Set pbCanEdit Boolean bState
+        Set pbCanCut to bState
+        Set pbCanPaste to bState
+        Set Skip_State to (not(bState))
+        Set Entry_State to bState
+        If (bState) Begin
+            On_Key kDelete_Character    Send Delete_Char
+            On_Key kBack_Space          Send None // ?
+            On_Key kErase_End_Of_Line   Send None // ?
+            On_Key kInsert              Send Insert
+            On_Key Key_Ctrl+Key_V       Send Paste
+            On_Key kCut                 Send Cut
+            On_Key Key_Ctrl+Key_X       Send Cut
+        End
+        Else Begin
+            On_Key kDelete_Character    Send None
+            On_Key kBack_Space          Send None
+            On_Key kErase_End_Of_Line   Send None
+            On_Key kInsert              Send None
+            On_Key Key_Ctrl+Key_V       Send None
+            On_Key kCut                 Send None
+            On_Key Key_Ctrl+Key_X       Send None
+        End
+        Set _pbCanEdit to bState
+    End_Procedure
+   
+    Function CanCut Returns Boolean
+        Boolean bRval
+        If (pbCanCut(Self)) Begin
+            Forward Get CanCut to bRval
+        End
+        Else Begin
+            Move False to bRval
+        End
+        Function_Return bRval
+    End_Function
+
+    Function CanPaste Returns Boolean
+        Boolean bRval
+        If (pbCanPaste(Self)) Begin
+            Forward Get CanPaste to bRval
+        End
+        Else Begin
+            Move False to bRval
+        End
+        Function_Return bRval
+    End_Function
+   
+    Procedure Key Integer iKeyValue Returns Integer
+        If (not(Skip_State(Self)) or iKeyValue > 127) Begin
+           Forward Send Key iKeyValue
+       End
+    End_Procedure
+
+    Procedure End_Construct_Object
+//        Forward Send End_Construct_Object
+//        Set Shadow_State to False   // Must be done here so that it 
+//                                    // follows any entry_item commands
+    End_Procedure
+
+End_Class                
+
+Class FormSture is a Form
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean pbCanCut True
+        Property Boolean pbCanPaste True
+        Property Boolean _pbCanEdit True
+    End_Procedure
+    
+    Function pbCanEdit Returns Boolean
+        Function_Return (_pbCanEdit(Self))
+    End_Function
+
+    Procedure Set pbCanEdit Boolean bState
+        Set pbCanCut to bState
+        Set pbCanPaste to bState
+        Set Skip_State to (not(bState))
+        Set Entry_State to bState
+        If (bState) Begin
+            On_Key kDelete_Character    Send Delete_Char
+            On_Key kBack_Space          Send None // ?
+            On_Key kErase_End_Of_Line   Send None // ?
+            On_Key kInsert              Send Insert
+            On_Key Key_Ctrl+Key_V       Send Paste
+            On_Key kCut                 Send Cut
+            On_Key Key_Ctrl+Key_X       Send Cut
+        End
+        Else Begin
+            On_Key kDelete_Character    Send None
+            On_Key kBack_Space          Send None
+            On_Key kErase_End_Of_Line   Send None
+            On_Key kInsert              Send None
+            On_Key Key_Ctrl+Key_V       Send None
+            On_Key kCut                 Send None
+            On_Key Key_Ctrl+Key_X       Send None
+        End
+        Set _pbCanEdit to bState
+    End_Procedure
+   
+    Function CanCut Returns Boolean
+        Boolean bRval
+        If (pbCanCut(Self)) Begin
+            Forward Get CanCut to bRval
+        End
+        Else Begin
+            Move False to bRval
+        End
+        Function_Return bRval
+    End_Function
+
+    Function CanPaste Returns Boolean
+        Boolean bRval
+        If (pbCanPaste(Self)) Begin
+            Forward Get CanPaste to bRval
+        End
+        Else Begin
+            Move False to bRval
+        End
+        Function_Return bRval
+    End_Function
+    
+    Procedure Key Integer iKeyValue Returns Integer
+        If (not(Skip_State(Self)) or iKeyValue > 127) Begin
+           Forward Send Key iKeyValue
+       End
+    End_Procedure
+
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+//        Set Shadow_State to False   // Must be done here so that it 
+//                                    // follows any entry_item commands
+    End_Procedure
+
+End_Class

@@ -1,0 +1,449 @@
+// Use StackFunctions.pkg // Define oStackFunctions object
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+Global_Variable Integer oStackFunctions
+
+Object _oStackFunctions is a cObject
+    Move Self to oStackFunctions
+
+    // Boolean interface:
+    Procedure BooleanPush Boolean bValue Boolean[] ByRef aValues
+        Move bValue to aValues[SizeOfArray(aValues)]
+    End_Procedure
+    Function BooleanPop Boolean[] ByRef aValues Returns Boolean
+        Boolean bRval
+        Integer iSize
+        Move (SizeOfArray(aValues)) to iSize
+        Move aValues[iSize-1] to bRval
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+        Function_Return bRval
+    End_Function
+    Function BooleanCopy Boolean[] aValues Returns Boolean
+        Function_Return aValues[SizeOfArray(aValues)-1]
+    End_Function
+    Function BooleanIsEmpty Boolean[] aValues Returns Boolean
+        Function_Return (SizeOfArray(aValues)=0)
+    End_Function
+    Function BooleanIsOnStack Boolean bValue Boolean[] aValues Returns Boolean
+        Integer iSearchItem
+        Move (SearchArray(bValue,aValues)) to iSearchItem
+        Function_Return (iSearchItem<>-1)
+    End_Function
+    Procedure BooleanDrop Boolean[] ByRef aValues
+        Integer iSize
+        Move (SizeOfArray(aValues)) to iSize
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+    End_Procedure
+
+    // Integer interface:
+    Procedure IntegerPush Integer iValue Integer[] ByRef aValues
+        Move iValue to aValues[SizeOfArray(aValues)]
+    End_Procedure
+    Function IntegerPop Integer[] ByRef aValues Returns Integer
+        Integer iRval iSize
+        Move (SizeOfArray(aValues)) to iSize
+        Move aValues[iSize-1] to iRval
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+        Function_Return iRval
+    End_Function
+    Function IntegerCopy Integer[] aValues Returns Integer
+        Function_Return aValues[SizeOfArray(aValues)-1]
+    End_Function
+    Function IntegerIsEmpty Integer[] aValues Returns Boolean
+        Function_Return (SizeOfArray(aValues)=0)
+    End_Function
+    Function IntegerIsOnStack Integer iValue Integer[] aValues Returns Boolean
+        Integer iSearchItem
+        Move (SearchArray(iValue,aValues)) to iSearchItem
+        Function_Return (iSearchItem<>-1)
+    End_Function
+    Procedure IntegerDrop Integer[] ByRef aValues
+        Integer iSize
+        Move (SizeOfArray(aValues)) to iSize
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+    End_Procedure
+
+#IF (FMAC_VERSION<15)
+    Function _IntegerRemoveFromArray Integer[] aValues Integer iPos Returns Integer[]
+        Integer iMax iIndex
+        Integer[] aReturnValues
+        Move (SizeOfArray(aValues)-1) to iMax
+        For iIndex from 0 to iMax
+            If (iIndex<>iPos) Begin
+                Move aValues[iIndex] to aReturnValues[SizeOfArray(aReturnValues)]
+            End
+        Loop
+        Function_Return aReturnValues
+    End_Function
+#ENDIF
+
+    Procedure IntegerRemoveDoublettes Integer[] ByRef aValues //> aValues must be sorted!
+        Integer iLengthMinusOne iPos
+        Move (SizeOfArray(aValues)-2) to iLengthMinusOne
+        Move 0 to iPos
+        While (iPos<iLengthMinusOne)
+            If (aValues[iPos]=aValues[iPos+1]) Begin
+#IF (FMAC_VERSION<15)
+                Get _IntegerRemoveFromArray aValues (iPos+1) to aValues
+#ELSE
+                Move (RemoveFromArray(aValues,iPos+1)) to aValues
+#ENDIF
+            End
+            Else Begin
+                Increment iPos
+            End
+        Loop
+    End_Procedure
+
+//    Procedure IntegerTopDrop Integer[] ByRef aValues
+//        Move (RemoveFromArray(aValues,SizeOfArray(aValues)-1)) to aValues
+//    End_Procedure
+//    Function IntegerTopDrop Integer[] aValues Returns Integer[]
+//        Function_Return (RemoveFromArray(aValues,SizeOfArray(aValues)-1))
+//    End_Function
+
+    // WHAT HAVE WE HERE? That's not a stack function!
+    // iOpCode=0: Logical AND,   1:Logical OR,   2: In Set1 but NOT in Set2
+    Function IntegerLogicalOperationSets Integer iOpCode Integer[] aValue1 Integer[] aValue2 Returns Integer[]
+        Integer iMax1 iMax2 iIndex1 iIndex2 iResultItem
+        Integer[] aResult
+
+        Move 0 to iIndex1
+        Move 0 to iIndex2
+        Move 0 to iResultItem
+        Move (SortArray(aValue1)) to aValue1
+        Move (SortArray(aValue2)) to aValue2
+        Move (SizeOfArray(aValue1)) to iMax1
+        Move (SizeOfArray(aValue2)) to iMax2
+
+        While (iIndex1<iMax1 or iIndex2<iMax2)
+            If (iIndex1<iMax1 and iIndex2<iMax2 and aValue1[iIndex1]=aValue2[iIndex2]) Begin // It occurs in both
+                If (iOpCode<>2) Begin
+                    Move aValue1[iIndex1] to aResult[iResultItem]
+                    Increment iResultItem
+                End
+                Increment iIndex1
+                Increment iIndex2
+            End
+            Else If (iIndex2=iMax2 or (iIndex1<iMax1 and aValue1[iIndex1]<aValue2[iIndex2])) Begin // It's only in array 1.
+                If (iOpCode<>0) Begin
+                    Move aValue1[iIndex1] to aResult[iResultItem]
+                    Increment iResultItem
+                End
+                Increment iIndex1
+            End
+            Else Begin // It's only in array 2.
+                If (iOpCode=1) Begin
+                    Move aValue2[iIndex2] to aResult[iResultItem]
+                    Increment iResultItem
+                End
+                Increment iIndex2
+            End
+        Loop
+
+        Function_Return aResult
+    End_Function
+
+    Function IntegerAddToSet Integer[] ByRef aSet Integer iMember Returns Boolean
+        Integer iMax iIndex
+        Move (SizeOfArray(aSet)-1) to iMax
+        For iIndex from 0 to iMax
+            If (iMember=aSet[iIndex]) Begin
+                Function_Return False
+            End
+        Loop
+        Move iMember to aSet[SizeOfArray(aSet)]
+        Function_Return True
+    End_Function
+
+    Function IntegerIsMember Integer[] aSet Integer iValue Returns Boolean
+        Integer iMax iIndex
+        Move (SizeOfArray(aSet)-1) to iMax
+        For iIndex from 0 to iMax
+            If (iValue=aSet[iIndex]) Begin
+                Function_Return True
+            End
+        Loop
+        Function_Return False
+    End_Function
+
+    Procedure IntegerIncrement Integer[] ByRef aArray Integer iIndex
+        If (iIndex>=SizeOfArray(aArray)) Begin
+            Move (ResizeArray(aArray,iIndex+1)) to aArray
+        End
+        Increment aArray[iIndex]
+    End_Procedure
+
+
+    // Number interface:
+    Procedure NumberPush Number nValue Number[] ByRef aValues
+        Move nValue to aValues[SizeOfArray(aValues)]
+    End_Procedure
+    Function NumberPop Number[] ByRef aValues Returns Number
+        Integer iSize
+        Number nRval 
+        Move (SizeOfArray(aValues)) to iSize
+        Move aValues[iSize-1] to nRval
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+        Function_Return nRval
+    End_Function
+    Function NumberCopy Number[] aValues Returns Number
+        Function_Return aValues[SizeOfArray(aValues)-1]
+    End_Function
+    Function NumberIsEmpty Number[] aValues Returns Boolean
+        Function_Return (SizeOfArray(aValues)=0)
+    End_Function
+
+    Function NumberIsOnStack Number nValue Number[] aValues Returns Boolean
+        Integer iSearchItem
+        Move (SearchArray(nValue,aValues)) to iSearchItem
+        Function_Return (iSearchItem<>-1)
+    End_Function
+
+    Function NumberAddToSet Number[] ByRef aSet Number nMember Returns Boolean
+        Integer iMax iIndex
+        Move (SizeOfArray(aSet)-1) to iMax
+        For iIndex from 0 to iMax
+            If (nMember=aSet[iIndex]) Begin
+                Function_Return False
+            End
+        Loop
+        Move nMember to aSet[SizeOfArray(aSet)]
+        Function_Return True
+    End_Function
+
+    Procedure NumberDrop Number[] ByRef aValues
+        Integer iSize
+        Move (SizeOfArray(aValues)) to iSize
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+    End_Procedure
+
+#IF (FMAC_VERSION<15)
+    Function _NumberRemoveFromArray Number[] aValues Integer iPos Returns Number[]
+        Integer iMax iIndex
+        Number[] aReturnValues
+        Move (SizeOfArray(aValues)-1) to iMax
+        For iIndex from 0 to iMax
+            If (iIndex<>iPos) Begin
+                Move aValues[iIndex] to aReturnValues[SizeOfArray(aReturnValues)]
+            End
+        Loop
+        Function_Return aReturnValues
+    End_Function
+#ENDIF
+
+    Procedure NumberRemoveDoublettes Number[] ByRef aValues //> aValues must be sorted!
+        Integer iLengthMinusOne iPos
+        Move (SizeOfArray(aValues)-2) to iLengthMinusOne
+        Move 0 to iPos
+        While (iPos<iLengthMinusOne)
+            If (aValues[iPos]=aValues[iPos+1]) Begin
+#IF (FMAC_VERSION<15)
+                Get _NumberRemoveFromArray aValues (iPos+1) to aValues
+#ELSE
+                Move (RemoveFromArray(aValues,iPos+1)) to aValues
+#ENDIF
+            End
+            Else Begin
+                Increment iPos
+            End
+        Loop
+    End_Procedure
+
+//    Procedure NumberTopDrop Number[] ByRef aValues
+//        Move (RemoveFromArray(aValues,SizeOfArray(aValues)-1)) to aValues
+//    End_Procedure
+//    Function NumberTopDrop Number[] aValues Returns Number[]
+//        Function_Return (RemoveFromArray(aValues,SizeOfArray(aValues)-1))
+//    End_Function
+
+    // WHAT HAVE WE HERE? That's not a stack function!
+    // iOpCode=0: Logical AND,   1:Logical OR,   2: In Set1 but NOT in Set2
+    Function NumberLogicalOperationSets Integer iOpCode Number[] aValue1 Number[] aValue2 Returns Number[]
+        Integer iMax1 iMax2 iIndex1 iIndex2 iResultItem
+        Number[] aResult
+
+        Move 0 to iIndex1
+        Move 0 to iIndex2
+        Move 0 to iResultItem
+        Move (SortArray(aValue1)) to aValue1
+        Move (SortArray(aValue2)) to aValue2
+        Move (SizeOfArray(aValue1)) to iMax1
+        Move (SizeOfArray(aValue2)) to iMax2
+
+        While (iIndex1<iMax1 or iIndex2<iMax2)
+            If (iIndex1<iMax1 and iIndex2<iMax2 and aValue1[iIndex1]=aValue2[iIndex2]) Begin // It occurs in both
+                If (iOpCode<>2) Begin
+                    Move aValue1[iIndex1] to aResult[iResultItem]
+                    Increment iResultItem
+                End
+                Increment iIndex1
+                Increment iIndex2
+            End
+            Else If (iIndex2=iMax2 or (iIndex1<iMax1 and aValue1[iIndex1]<aValue2[iIndex2])) Begin // It's only in array 1.
+                If (iOpCode<>0) Begin
+                    Move aValue1[iIndex1] to aResult[iResultItem]
+                    Increment iResultItem
+                End
+                Increment iIndex1
+            End
+            Else Begin // It's only in array 2.
+                If (iOpCode=1) Begin
+                    Move aValue2[iIndex2] to aResult[iResultItem]
+                    Increment iResultItem
+                End
+                Increment iIndex2
+            End
+        Loop
+
+        Function_Return aResult
+    End_Function
+
+    Function NumberAddToSet Number[] ByRef aSet Number nValue Returns Boolean
+        Integer iMax iIndex
+        Move (SizeOfArray(aSet)-1) to iMax
+        For iIndex from 0 to iMax
+            If (nValue=aSet[iIndex]) Begin
+                Function_Return False
+            End
+        Loop
+        Move nValue to aSet[SizeOfArray(aSet)]
+        Function_Return True
+    End_Function
+
+    Function NumberIsMember Number[] aSet Number nValue Returns Boolean
+        Integer iMax iIndex
+        Move (SizeOfArray(aSet)-1) to iMax
+        For iIndex from 0 to iMax
+            If (nValue=aSet[iIndex]) Begin
+                Function_Return True
+            End
+        Loop
+        Function_Return False
+    End_Function
+
+
+    Function StringAddToSet String[] ByRef aSet String sMember Returns Boolean
+        Integer iMax iIndex
+        Move (SizeOfArray(aSet)-1) to iMax
+        For iIndex from 0 to iMax
+            If (sMember=aSet[iIndex]) Begin
+                Function_Return False
+            End
+        Loop
+        Move sMember to aSet[SizeOfArray(aSet)]
+        Function_Return True
+    End_Function
+    
+    Function StringRemoveFromSet String[] ByRef aSet String sMember Returns Boolean
+        Integer iMax iIndex
+        Move (SizeOfArray(aSet)-1) to iMax
+        For iIndex from 0 to iMax
+            If (sMember=aSet[iIndex]) Begin
+                Move (RemoveFromArray(aSet,iIndex)) to aSet
+                Function_Return True
+            End
+        Loop
+        Function_Return False
+    End_Function
+
+
+    // String interface
+    Procedure StringPush String sValue String[] ByRef aValues
+        Move sValue to aValues[SizeOfArray(aValues)]
+    End_Procedure
+    Function StringPop String[] ByRef aValues Returns String
+        Integer iSize
+        String sRval
+        Move (SizeOfArray(aValues)) to iSize
+        Move aValues[iSize-1] to sRval
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+        Function_Return sRval
+    End_Function
+    Function StringCopy String[] aValues Returns String
+        Function_Return aValues[SizeOfArray(aValues)-1]
+    End_Function
+    Function StringIsEmpty String[] aValues Returns Boolean
+        Function_Return (SizeOfArray(aValues)=0)
+    End_Function
+    Function StringIsOnStack String sValue String[] aValues Returns Boolean
+        Integer iSearchItem
+        Move (SearchArray(sValue,aValues)) to iSearchItem
+        Function_Return (iSearchItem<>-1)
+    End_Function
+    Procedure StringDrop String[] ByRef aValues
+        Integer iSize
+        Move (SizeOfArray(aValues)) to iSize
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+    End_Procedure
+    
+#IF (FMAC_VERSION<15)
+    Function _StringRemoveFromArray String[] aValues Integer iPos Returns String[]
+        Integer iMax iIndex
+        String[] aReturnValues
+        Move (SizeOfArray(aValues)-1) to iMax
+        For iIndex from 0 to iMax
+            If (iIndex<>iPos) Begin
+                Move aValues[iIndex] to aReturnValues[SizeOfArray(aReturnValues)]
+            End
+        Loop
+        Function_Return aReturnValues
+    End_Function
+#ENDIF
+
+    Procedure StringRemoveDoublettes String[] ByRef aValues //> aValues must be sorted!
+        Integer iLengthMinusOne iPos
+        Move (SizeOfArray(aValues)-2) to iLengthMinusOne
+        Move 0 to iPos
+        While (iPos<iLengthMinusOne)
+            If (aValues[iPos]=aValues[iPos+1]) Begin
+#IF (FMAC_VERSION<15)
+                Get _StringRemoveFromArray aValues (iPos+1) to aValues
+#ELSE
+                Move (RemoveFromArray(aValues,iPos+1)) to aValues
+#ENDIF
+            End
+            Else Begin
+                Increment iPos
+            End
+        Loop
+    End_Procedure
+
+    
+//    Procedure StringTopDrop String[] ByRef aValues
+//        Move (RemoveFromArray(aValues,SizeOfArray(aValues)-1)) to aValues
+//    End_Procedure
+//    Function StringTopDrop String[] aValues Returns String[]
+//        Function_Return (RemoveFromArray(aValues,SizeOfArray(aValues)-1))
+//    End_Function
+
+    // Handle interface
+    Procedure HandlePush Handle hValue Handle[] ByRef aValues
+        Move hValue to aValues[SizeOfArray(aValues)]
+    End_Procedure
+    Function HandlePop Handle[] ByRef aValues Returns Handle
+        Integer iSize
+        Handle hRval
+        Move (SizeOfArray(aValues)) to iSize
+        Move aValues[iSize-1] to hRval
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+        Function_Return hRval
+    End_Function
+    Function HandleCopy Handle[] aValues Returns Handle
+        Function_Return aValues[SizeOfArray(aValues)-1]
+    End_Function
+    Function HandleIsEmpty Handle[] aValues Returns Boolean
+        Function_Return (SizeOfArray(aValues)=0)
+    End_Function
+    Function HandleIsOnStack Handle hValue Handle[] aValues Returns Boolean
+        Integer iSearchItem
+        Move (SearchArray(hValue,aValues)) to iSearchItem
+        Function_Return (iSearchItem<>-1)
+    End_Function
+    Procedure HandleDrop Handle[] ByRef aValues
+        Integer iSize
+        Move (SizeOfArray(aValues)) to iSize
+        Move (ResizeArray(aValues,iSize-1)) to aValues
+    End_Procedure
+End_Object

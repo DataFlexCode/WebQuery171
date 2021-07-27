@@ -1,0 +1,9 @@
+#REPLACE FILE1004 FtsPhras
+#REPLACE FtsPhras.Recnum |FN1004,0
+#REPLACE FtsPhras.Article_Id |FN1004,1
+#REPLACE FtsPhras.Word_Id |FN1004,2
+#REPLACE FtsPhras.Word_Id_s1 |FN1004,3
+#REPLACE FtsPhras.Word_Id_s2 |FN1004,4
+#REPLACE FtsPhras.Word_Id_s3 |FN1004,5
+#REPLACE FtsPhras.Word_Id_s4 |FN1004,6
+#REPLACE FtsPhras.Word_Id_s5 |FN1004,7

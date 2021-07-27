@@ -1,0 +1,312 @@
+//> From the point of view of the URL string manipulation functions an URL
+//> is composed of the following items:
+//>
+//>    * Protocol      "http:"
+//>    * User ID       "sture"
+//>    * Password      "headset"
+//>    * Host          "www.sture.dk"
+//>    * Port          80
+//>    * Path          "/Images/EDUC2001"
+//>    * Type          "type=xml"
+//>
+//> function URL_ParseURL global string sUrl returns integer
+//>
+//> To have a URL decomposed into the items above use the URL_ParseURL
+//> function. The function returns TRUE if a host could be identidfied
+//> as part of the sUrl string and FALSE if not.
+//>
+//>
+//> function URL_Value global integer liSegment returns string
+//>
+//> After having used the URL_ParseURL to decompose an URL you should use
+//> the URL_Value function to obtain the value of each component in the
+//> URL. For example, to obtain the 'Path' part of the URL you would write
+//>
+//>   get URL_Value URL_SEGMENT_PATH to lsPath
+//>
+//> The URL_SEGMENT_PATH symbol is a constant defined by the URL.nui package.
+//> You may pass the following segment identifiers to the function:
+//>
+//>    URL_SEGMENT_PROTOCOL, URL_SEGMENT_USER, URL_SEGMENT_PASSWORD,
+//>    URL_SEGMENT_HOST, URL_SEGMENT_PORT, URL_SEGMENT_PATH and
+//>    URL_SEGMENT_TYPE
+//>
+//> These symbols may also be used as arguments to a the 'set URL_Value'
+//> procedure anabling you to set the value of each individual before
+//> calling this function:
+//>
+//> function URL_Compose global returns string
+//>
+//> This function combines all the segments setup via the 'set URL_Value'
+//> procedure (and possebly leftovers from the most recent call to
+//> URL_ParseURL) and returns a URL.
+//>
+//>
+//> Note that the URL functions decribed here are merely string manipulations.
+//> They do not interact with any internet componenents locally on the machine
+//> or on the internet itself.
+//>
+//> pkg.doc.end
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use StringFunctions.pkg // Define oStringFunctions object
+
+Struct tUrl
+    String sProtocol //> Protocol
+    String sUser     //> User identification
+    String sPassword //> Password
+    String sHost     //> Host
+    String sPort     //> Port
+    String sPath     //> Path
+    String sType     //> Type
+End_Struct
+
+Global_Variable Integer oUrlFunctions
+
+Class cUrlFunctions is a cObject
+
+        // Private
+        Function _FindUrlToken String sToken String sValue Returns Integer
+            Integer iPos iLen iTokenLen
+            String sString
+            Move (length(sToken)) to iTokenLen
+            Move (length(sValue)) to iLen
+            For iPos from 1 to iLen
+                Move (left(sValue,iPos)) to sString
+                If (right(sString,iTokenLen)=sToken) Function_Return iPos
+            Loop
+            Function_Return 0
+        End_Function
+
+    //> ftp://<user>:<password>@<host>:<port>/<url-path>;type=<typecode>
+    //> If the Host member of the returns value is empty, the decoding was unsuccessful.
+    Function Decompose String sUrl Returns tUrl
+        Integer iPos
+        String sValue sValue2 sHost
+        tUrl sStructUrl
+
+        Get _FindUrlToken ("/"+"/") sUrl to iPos // Protokol?
+        If iPos Begin // Protokol
+            Move (left(sUrl,iPos)) to sValue
+            Move (replace(sValue,sUrl,"")) to sUrl
+            Get rRemove of oStringFunctions sValue 2 to sStructUrl.sProtocol
+        End
+
+        Get _FindUrlToken "@" sUrl to iPos // User ?
+        If iPos Begin // User
+            Move (left(sUrl,iPos)) to sValue
+            Move (replace(sValue,sUrl,"")) to sUrl
+            Get _FindUrlToken ":" sValue to iPos
+            If iPos Begin // User and Password
+                Move (left(sValue,iPos)) to sValue2
+                Get rRemove of oStringFunctions sValue2 1 to sStructUrl.sUser
+                Move (replace(sValue2,sValue,"")) to sValue
+                Get rRemove of oStringFunctions sValue 1 to sStructUrl.sPassword
+            End
+            Else Begin // User without password
+                Get rRemove of oStringFunctions sValue 1 to sStructUrl.sUser
+            End
+        End
+
+        //   ftp://<user>:<password>@<host>:<port>/<url-path>;type=<typecode>
+
+        Get _FindUrlToken ";" sUrl to iPos // Type ?
+        If iPos Begin // Type!
+            Move (left(sUrl,iPos)) to sValue
+            Move (replace(sValue,sUrl,"")) to sUrl
+            Move sUrl to sStructUrl.sType
+            Get rRemove of oStringFunctions sValue 1 to sValue
+            Get _FindUrlToken "/" sValue to iPos // Path ?
+            If iPos Begin // Path! www.dataaccess.dk:80/magicpath/Images
+                Move (left(sValue,iPos-1)) to sValue2
+                Move (replace(sValue2,sValue,"")) to sStructUrl.sPath
+                Move sValue2 to sValue
+            End
+            Get _FindUrlToken ":" sValue to iPos // Port ?
+            If iPos Begin // Port !  Dataaccess.kn:80
+                Move (left(sValue,iPos)) to sHost
+                Move (rRemove(oStringFunctions,sHost,1)) to sStructUrl.sHost
+                Move (replace(sHost,sValue,"")) to sStructUrl.sPort
+            End
+            Else Move sValue to sStructUrl.sHost
+        End
+        Else Begin
+            Get _FindUrlToken "/" sUrl to iPos // Path ?
+            If iPos Begin
+                Move sUrl to sValue
+
+                If iPos Begin // Path! www.dataaccess.dk:80/magicpath/Images
+                    Move (left(sValue,iPos-1)) to sValue2
+                    Move (replace(sValue2,sValue,"")) to sStructUrl.sPath
+                    Move sValue2 to sValue
+                End
+                Get _FindUrlToken ":" sValue to iPos // Port ?
+                If iPos Begin // Port!  Dataaccess.kn:80
+                    Move (left(sValue,iPos)) to sHost
+                    Move (rRemove(oStringFunctions,sHost,1)) to sStructUrl.sHost
+                    Move (replace(sHost,sValue,"")) to sStructUrl.sPort
+                End
+                Else Move sValue to sStructUrl.sHost
+            End
+            Else Begin
+                Get _FindUrlToken ":" sUrl to iPos // Port?
+                If iPos Begin
+                    Move (left(sUrl,iPos)) to sValue
+                    Move (replace(sValue,sUrl,"")) to sUrl
+                    Move (rRemove(oStringFunctions,sValue,1)) to sStructUrl.sHost
+                    Move sUrl to sStructUrl.sPort
+                End
+                Else Begin
+                    Move sUrl to sStructUrl.sHost
+                End
+            End
+        End
+        Function_Return sStructUrl
+    End_Function
+
+    Function Compose tUrl sStructUrl Returns String
+        String sRval
+        If (sStructUrl.sProtocol<>"") Begin
+            Move (sStructUrl.sProtocol+"//") to sRval
+        End
+
+        If (sStructUrl.sUser<>"") Begin
+            Move (sRval+sStructUrl.sUser) to sRval
+            If (sStructUrl.sPassword<>"") Move (sRval+":"+sStructUrl.sPassword) to sRval
+            Move (sRval+"@") to sRval
+        End
+        Move (sRval+sStructUrl.sHost) to sRval
+        If (sStructUrl.sPort<>0) begin
+            Move (sRval+":"+String(sStructUrl.sPort)) to sRval
+        End
+        If (sStructUrl.sPath<>"") Begin
+            If (left(sStructUrl.sPath,1)="/") Move (sRval+sStructUrl.sPath) to sRval
+            Else Move (sRval+"/"+sStructUrl.sPath) to sRval
+        End
+        If (sStructUrl.sType<>"") Move (sRval+";"+sStructUrl.sType) to sRval
+        Function_Return sRval
+    End_Function
+
+    Function UrlCharacterEncode String sUrl Returns String
+        Integer iLen iPos
+        String sChar sHex sRval sOk
+        Move "0123456789" to sOk
+        Move (sOk+"abcdefghijklmnopqrstuvwxyz") to sOk
+        Move (sOk+"ABCDEFGHIJKLMNOPQRSTUVWXYZ") to sOk
+        Move (sOk+".-:;/+&#=?_") to sOk
+        Move (Length(sUrl)) to iLen
+        Move "" to sRval
+        For iPos from 1 to iLen
+            Move (Mid(sUrl,1,iPos)) to sChar
+            If not (sOk contains sChar) Begin
+                Get ByteToHex of oStringFunctions (Ascii(sChar)) to sChar
+                Move ("%"+sChar) to sChar
+            End
+            Move (sRval+sChar) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+    //>
+    Function UrlCharacterDecode String sUrl Returns String
+        Integer iLen iPos
+        String sChar sHex sRval
+        Move (Length(sUrl)) to iLen
+        Move "" to sRval
+        Move 1 to iPos
+        While (iPos<=iLen)
+            Move (Mid(sUrl,1,iPos)) to sChar
+            Increment iPos
+            If (sChar="%") Begin
+                Move (Mid(sUrl,2,iPos)) to sHex
+                If (IsHex(oStringFunctions,sHex)) Begin
+                    Move (character(HexToByte(oStringFunctions,sHex))) to sChar
+                    Move (iPos+2) to iPos
+                End
+            End
+            Move (sRval+sChar) to sRval
+        Loop
+        Function_Return sRval
+    End_Function
+
+    Function FileNameToUrl String sPath Returns String
+        Integer iItem iMax
+        String[] asPath
+        String sRval
+        Send SplitString of oStringFunctions sPath "\" True False (&asPath)
+        Move (SizeOfArray(asPath)) to iMax
+        If iMax Begin
+            Move asPath[0] to sRval // Should be the server
+            Decrement iMax
+            For iItem from 1 to iMax
+                If (iItem<>iMax) begin
+                    Move (sRval+"/"+asPath[iItem]) to sRval
+                End
+                Else begin
+                    Move (sRval+"/"+HexToString(oStringFunctions,asPath[iItem])) to sRval
+                End
+            Loop
+        End
+        If (iMax<=0) begin
+            Move "" to sRval // There MUST be something more than the server
+        End
+        Function_Return sRval
+    End_Function
+
+    Function UrlToFileName String sUrl Returns String
+        tUrl stUrl
+        Integer iItem iMax
+        String[] asPath
+        String sRval
+        // First remove, protocol, user, pw and port
+        Get Decompose sUrl to stUrl
+        Move "" to stUrl.sProtocol
+        Move "" to stUrl.sPassword
+        Move "" to stUrl.sUser
+        Move "" to stUrl.sPort
+        Move "" to stUrl.sType
+        Get Compose stUrl to sUrl
+        // Then split value according to "/"'s
+        Send SplitString of oStringFunctions sUrl "/" True False (&asPath)
+        Move (SizeOfArray(asPath)) to iMax
+        If iMax Begin
+            Move asPath[0] to sRval // Should be the server
+            Decrement iMax
+            For iItem from 1 to iMax
+                If (iItem<>iMax) begin
+                    Move (sRval+"\"+asPath[iItem]) to sRval
+                End
+                Else begin
+                    Move (sRval+"\"+StringToHex(oStringFunctions,asPath[iItem])) to sRval
+                End
+            Loop
+        End
+        If (iMax=0) begin
+            Move "" to sRval // There MUST be something more than the server
+        End
+        Function_Return sRval
+    End_Function
+
+    Function SetOfUrls_IsMember String sUrl String[] aSetOfUrls Returns Integer
+        Integer iMax iUrl
+        Move (lowercase(sUrl)) to sUrl
+        Move (SizeOfArray(aSetOfUrls)) to iMax
+        Decrement iMax
+        For iUrl from 0 to iMax
+            If (sUrl=lowercase(aSetOfUrls[iUrl])) Begin
+                Function_Return iUrl
+            End
+        Loop
+        Function_Return -1 // not found
+    End_Function
+
+    Procedure SetOfUrls_AddMember String sUrl String[] ByRef aSetOfUrls
+        If (SetOfUrls_IsMember(Self,sUrl,aSetOfUrls)<>-1) Begin
+            Move sUrl to aSetOfUrls[SizeOfArray(aSetOfUrls)]
+        End
+    End_Procedure
+End_Class
+
+Object _oUrlFunctions is a cUrlFunctions
+    Move Self to oUrlFunctions
+End_Object

@@ -1,0 +1,128 @@
+Use cWebView.pkg
+Use cWebPanel.pkg
+Use cWebForm.pkg 
+Use cWebHtmlBox.pkg
+Use cWebTabContainer.pkg
+Use cWebTabPage.pkg
+
+Register_Object oWebQuery
+
+Object oIntroduction is a cWebView
+    Set piWidth to 800
+    Set psCaption to "Introduction to WebQuery"
+    
+    Delegate Set phoDefaultView to Self
+
+    Object oWebMainPanel is a cWebPanel
+        Set pbFillHeight to True
+        
+        Object oWebTabContainer1 is a cWebTabContainer
+            
+            Object oIntroPage is a cWebTabPage
+                Set psCaption to "Introduction"
+                Set pbFillHeight to True
+                
+                Object oIntro is a cWebIFrame
+                    Set pbFillHeight to True
+                    Set psUrl to "WebQueryIntro.html"
+                End_Object
+                
+            End_Object
+            
+            Object oFeaturePage is a cWebTabPage
+                Set psCaption to "Features"
+                Set pbFillHeight to True
+                
+                Object oFeatures is a cWebIFrame
+                    Set pbFillHeight to True
+                    Set psUrl to "WebQueryfeatures.html"
+                End_Object
+                
+            End_Object
+            
+            Object oUsagePage is a cWebTabPage
+                Set psCaption to "Usage"
+                
+                Object oUsage is a cWebIFrame
+                    Set psUrl        to "WebQueryUsage.html"
+                    Set pbFillHeight to True
+                End_Object                
+                
+            End_Object
+            
+            Object oAPIPage is a cWebTabPage
+                Set psCaption    to "API"
+                Set pbFillHeight to True
+                
+                Object oAPI is a cWebIFrame
+                    Set psUrl        to "WebQueryAPI.html"
+                    Set pbFillHeight to True
+                End_Object
+        
+            End_Object
+                    
+            Object oHelpPage is a cWebTabPage
+                Set psCaption to "Help"
+                
+                Object oHelp is a cWebIFrame
+                    Set pbFillHeight to True
+                    Set psUrl        to "WebQueryHelp.html"
+                End_Object
+                
+            End_Object
+            
+            Object oOtherPage is a cWebTabPage
+                Set psCaption to "Other"
+                
+                Object oOther is a cWebIFrame
+                    Set pbFillHeight to True
+                    Set psUrl        to "WebQueryOther.html"
+                End_Object
+                
+            End_Object
+            
+            Object oBugsPage is a cWebTabPage
+                Set psCaption to "Bug List"
+                
+                Object oBugList is a cWebIFrame
+                    Set psUrl        to "http://ec2-54-200-89-112.us-west-2.compute.amazonaws.com/WebQueryBugList.html"
+                    Set pbFillHeight to True
+                End_Object
+                
+            End_Object
+            
+            Object oReadMePage is a cWebTabPage
+                Set psCaption to "Read Me"
+                
+                Object oReadMe is a cWebIFrame
+                    Set psUrl        to "ReadMe.html"
+                    Set pbFillHeight to True
+                End_Object
+                
+            End_Object
+            
+            Object oReleasePage is a cWebTabPage
+                Set psCaption to "History"
+                
+                Object oRelHist is a cWebIFrame
+                    Set psUrl        to "WebQueryReleaseHistory.html"
+                    Set pbFillHeight to True
+                End_Object
+                
+            End_Object
+            
+            Object oLicencePage is a cWebTabPage
+                Set psCaption to "Licence"
+                
+                Object oRelHist is a cWebIFrame
+                    Set psUrl        to "WebQueryLicence.html"
+                    Set pbFillHeight to True
+                End_Object
+                
+            End_Object
+            
+        End_Object
+
+    End_Object 
+
+End_Object

@@ -1,0 +1,150 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebGrid.pkg
+Use cWebColumn.pkg
+
+Object oWqSelectionList is a cWebModalDialog
+    Set psCaption to "Selection in List"
+    Set piMinWidth to 400
+    Set piMinHeight to 300
+    Set pbServerOnSubmit to True
+    Set pbServerOnShow   to True
+    
+    { WebProperty=True }
+    Property String  wpsList
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oValueList is a cWebGrid
+            Set pbShowLabel         to True
+            Set peLabelPosition     to lpTop
+            Set peLabelAlign        to alignLeft
+            Set pbDataAware         to False
+            Set pbOfflineEditing    to True
+            Set psLabel             to ":"
+            Set pbFillHeight        to True
+            Set pbAllowAppendRow    to True
+                        
+            Object oValueCol is a cWebColumn
+                Set psCaption to "Values"
+            End_Object
+            
+            Procedure OnManualLoadData tWebRow[] ByRef aTheRows String ByRef sCurrentRowID
+                String  sList sVal
+                Integer i iPos iType
+                
+                WebGet wpsList of oWqSelectionList to sList
+                WebGet peDataType of oValueCol     to iType
+                Move 0 to i
+                
+                Repeat
+                    Move (Trim(sList)) to sList
+                    If (sList = "") Break
+                    
+                    Move (Pos(";", sList)) to iPos
+                    
+                    If (iPos > 0) Begin
+                        Move (Left(sList, (iPos - 1))) to sVal
+                        Move (Right(sList, (Length(sList) - iPos))) to sList
+                    End
+                    Else If (sList <> "") Move sList to sVal
+                    
+                    If (iType = typeDate) Move (Date2MilDate(ghoWQF, sVal)) to sVal
+                    
+                    If (sVal <> "") Begin
+                        Move i    to aTheRows[i].aValues[0]
+                        Move sVal to aTheRows[i].aValues[1]
+                        Increment i
+                    End
+                    
+                Until (iPos < 1)
+                
+            End_Procedure
+            
+            Procedure OnProcessDataSet tWebRow[] aData Integer eOperation Integer iSelectedRowIndex
+                Integer i iType
+                String  sData sItem
+                
+                Move "" to sData
+                WebGet peDataType of oValueCol to iType
+                
+                For i from 0 to (SizeOFArray(aData) - 1)
+                    If (i > 0) Move (sData + "; ") to sData
+                    Move aData[i].aValues[1] to sItem
+                    If (iType = typeDate) Move (MilDate2Date(ghoWQF, sItem)) to sItem
+                    Move (sData + sItem) to sData
+                Loop
+                
+                WebSet wpsList of oWqSelectionList to sData
+                Send OK
+            End_Procedure
+            
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 4
+
+            Procedure OnClick
+                Send ProcessDataSet of oValueList 0
+            End_Procedure
+            
+        End_Object
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object
+        
+    End_Object 
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        Forward Send Ok
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure OnShow
+        Send GridRefresh  of oValueList
+    End_Procedure
+
+    Procedure PopupGetList Handle hoRetObj String sField String sOp String sCurVal Integer iType
+        Integer iPos
+        
+        WebSet psLabel of oValueList to (sField * "is one of:")
+        WebSet peDataType of oValueCol to iType
+        If (iType = typeASCII) Move (StrDelQuotes(ghoWQF, sCurVal)) to sCurVal
+        WebSet wpsList to sCurVal
+        Send Popup hoRetObj
+    End_Procedure
+    
+    Function ListSelected Returns String
+        String  sVals
+        
+        WebGet wpsList to sVals
+        Function_Return sVals
+    End_Function
+
+End_Object

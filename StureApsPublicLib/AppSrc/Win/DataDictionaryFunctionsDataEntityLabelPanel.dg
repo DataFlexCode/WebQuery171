@@ -1,0 +1,65 @@
+Use Windows.pkg
+Use Win\cfreeYellowText.pkg
+
+/oDataDictionaryFunctionsDataEntityLabelPanelText
+Create a log entry for the current record of the Main_DD table. Data of the record itself and all of the relating child table records (multiple levels) will be recorded.
+
+Use VDFXray to view the values as they change between the log entries.
+/*
+
+Object oDataDictionaryFunctionsDataEntityLabelPanel is a ModalPanel
+    Set Size to 151 229
+    Set Label to "Create Data Entity log entry"
+    Set piMinSize to 89 211
+    Set Locate_Mode to CENTER_ON_PANEL
+    Set Border_Style to Border_Normal
+    On_Key kCancel Send Close_Panel
+    Property Boolean _pbOk
+    
+    Object oLabel is a Form
+        Set Size to 13 219
+        Set Location to 107 7
+        Set Label to "Optionally enter label to identify data-entity log entry:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+    End_Object
+    
+    Object oText is a cfreeYellowText
+        Set Size to 88 219
+        Set Location to 5 5
+        Set piTextImage to oDataDictionaryFunctionsDataEntityLabelPanelText.N
+    End_Object
+    
+    Procedure Close_Panel_Ok
+        Set _pbOk to True
+        Send Close_Panel
+    End_Procedure
+
+    Object oOK_Btn is a Button
+        Set Label    to "OK"
+        Set Location to 133 120
+        Set peAnchors To anBottomRight
+        Procedure OnClick
+            Send Close_Panel_Ok
+        End_Procedure
+    End_Object
+
+    Object oCancel_Btn is a Button
+        Set Label    to "Cancel"
+        Set Location to 133 175
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+
+    Function PopupPanel String ByRef sLabel Returns Boolean
+        Set _pbOk to False
+        Set Value of oLabel to sLabel
+        Send Popup
+        If (_pbOk(Self)) Begin
+            Get Value of oLabel to sLabel        
+        End
+        Function_Return (_pbOk(Self))
+    End_Function
+End_Object

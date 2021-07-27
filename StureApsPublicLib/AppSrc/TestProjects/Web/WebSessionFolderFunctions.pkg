@@ -1,0 +1,62 @@
+Use VdfBase.pkg
+Use WebAppGlobalObjectHandles.pkg // Define ghoWebSessionManager
+
+Use FileFunctions.pkg
+
+Class cWebSessionFolderFunctions is a cObject
+    
+    Function _OpenSessionFolder String ByRef sFolder Returns Boolean
+        String sSessionKey
+        Get psSessionKey of ghoWebSessionManager to sSessionKey
+        Get DataSubFolder of oFileFunctions sSessionKey True to sFolder
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        Function_Return (FileExists(oFileFunctions,sFolder)=2) 
+    End_Function
+    
+    Function DirectOutput String sFileName String sVersionCheck Returns Integer
+        Integer iChannel
+        String sSessionFolder
+        Move -1 to iChannel
+        If (_OpenSessionFolder(Self,&sSessionFolder)) Begin
+            Get AppendPath of oFileFunctions sSessionFolder sFileName to sFileName
+            Get DirectOutput of oFileFunctions ("binary:"+sFileName) to iChannel
+            If (iChannel>=0) Begin
+                Writeln channel iChannel sVersionCheck
+            End
+        End
+        Function_Return iChannel
+    End_Function
+    
+    Procedure CloseOutput Integer iChannel
+        Send CloseOutput of oFileFunctions iChannel
+    End_Procedure
+    
+    Function DirectInput String sFileName String sVersionCheck Returns Integer
+        Integer iChannel
+        String sSessionFolder sTmp
+        Move -1 to iChannel
+        If (_OpenSessionFolder(Self,&sSessionFolder)) Begin
+            Get AppendPath of oFileFunctions sSessionFolder sFileName to sFileName
+            Get DirectInput of oFileFunctions ("binary:"+sFileName) to iChannel
+            If (iChannel>=0) Begin
+                Readln channel iChannel sTmp
+                If (sTmp<>sVersionCheck) Begin
+                    Send CloseInput iChannel
+                    Move -1 to iChannel
+                End
+            End
+        End
+        Function_Return iChannel
+    End_Function
+    
+    Procedure CloseInput Integer iChannel
+        Send CloseInput of oFileFunctions iChannel
+    End_Procedure
+    
+End_Class
+
+Global_Variable Integer oWebSessionFolderFunctions
+
+Object _oWebSessionFolderFunctions is a cWebSessionFolderFunctions
+    Move Self to oWebSessionFolderFunctions
+End_Object

@@ -1,0 +1,85 @@
+Use VdfBase.pkg
+
+Use ErrorEventHandlerClass.pkg
+Use DateFunctions.pkg
+
+Struct tWStError
+    Integer iErrorCode
+    String sErrorText
+End_Struct
+
+Struct tWStMeta                              
+    tWStError[] aErrors
+    String[] aLog
+    String sMandAc // Mandatory action
+    String sStatus // "ok", "err" (if aErrors<>0), "mandac" (if sMandac<>"")
+End_Struct
+
+
+Global_Variable Integer oWebServiceFunctions
+Object _oWebServiceFunctions is a cObject
+    Move Self to oWebServiceFunctions
+    
+    Property tSystemTimeMS pstrTimeOfMetaMemberInitialize
+
+    Object oErrorHandlerWS is a cErrorEventHandler
+    End_Object
+
+    //> Send this message to add an error message to the aErrors member of the strMeta variable
+    Procedure AddErrorToMeta tWStMeta ByRef strMeta Integer iErrCode String sErrorText
+        Integer iIndex
+        Move (SizeOfArray(strMeta.aErrors)) to iIndex
+        Move iErrCode to strMeta.aErrors[iIndex].iErrorCode
+        Move sErrorText to strMeta.aErrors[iIndex].sErrorText 
+    End_Procedure
+    
+    //> Activate error handler and initialize the strMeta parameter to a "no errors" state
+    Procedure MetaMemberInitialize tWStMeta ByRef strMeta
+        Send Activate of oErrorHandlerWS // This resets its internal array of error events
+        Move (ResizeArray(strMeta.aErrors,0)) to strMeta.aErrors
+        Move "" to strMeta.sStatus
+        Set pstrTimeOfMetaMemberInitialize to (SystemTimeMilliSeconds(oDateFunctions))
+    End_Procedure
+    
+    Function TimeSinceMetaMemberInitialize Returns Number
+        Number nMS
+        Get SystemTimeMilliSecondsElapsed of oDateFunctions (pstrTimeOfMetaMemberInitialize(Self)) to nMS
+        Function_Return nMS
+    End_Function
+    
+    //> Deactivate error handler and append errors (if any) to the meta member.
+    Procedure MetaMemberFinalize tWStMeta ByRef strMeta
+        Integer iErrorIndex iErrorMax
+        String sError
+        tErrorEvent strError
+
+        Send Deactivate of oErrorHandlerWS
+        Get ErrorEventCount of oErrorHandlerWS to iErrorMax
+
+        If (iErrorMax>0) Begin
+            Move "error" to strMeta.sStatus
+        End
+        Else Begin
+            Move "ok" to strMeta.sStatus
+        End
+        
+//        If (pbReturnErrorsToClient(Self)) Begin
+        Decrement iErrorMax
+        For iErrorIndex from 0 to iErrorMax
+            Get ErrorEvent of oErrorHandlerWS iErrorIndex to strError
+            Move ("Error " + String(strError.iError) + " on line " + String(strError.iErrorLine) + ": " + Trim(strError.sErrorText)) to sError
+            Send AddErrorToMeta (&strMeta) strError.iError sError 
+        Loop
+//        End
+        If (strMeta.sStatus="ok" and strMeta.sMandAc<>"") Begin
+            Move "mandac" to strMeta.sStatus
+        End
+    End_Procedure
+    
+    Procedure LogAppend tWStMeta ByRef strMeta String sValue
+        Move sValue to strMeta.aLog[SizeOfArray(strMeta.aLog)]
+    End_Procedure
+    
+End_Object
+
+                       

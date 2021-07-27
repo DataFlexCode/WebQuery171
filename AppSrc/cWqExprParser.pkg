@@ -1,0 +1,156 @@
+Use cExpressionParser.pkg
+
+Class cWqExprParser is a cExpressionParser
+
+    // Overridden _fAnd and _fOr to allow for booleans - Sture will probably fix soon
+    Function _fAnd tXPValue[] aParameters Returns tXPValue
+        tXPValue strRval strParameter1 strParameter2
+        Number nVal1 nVal2
+        Move aParameters[0] to strParameter1
+        Move aParameters[1] to strParameter2
+        If ((strParameter1.iValueType=XP_Integer or strParameter1.iValueType=XP_Numeric) and (strParameter2.iValueType=XP_Integer or strParameter2.iValueType=XP_Numeric)) Begin
+            Move XP_Boolean to strRval.iValueType
+            Move strParameter1.sValue to nVal1
+            Move strParameter2.sValue to nVal2
+            Move (nVal1<>0 and nVal2<>0) to strRval.sValue
+        End
+        Else Begin
+            Move XP_Error to strRval.iValueType
+            Error DFERR_OPERATOR "ExprParser: Illegal parameter passed to 'and'"
+        End
+        Function_Return strRval
+    End_Function
+    
+    Function _fOr tXPValue[] aParameters Returns tXPValue
+        tXPValue strRval strParameter1 strParameter2
+        Number nVal1 nVal2
+        Move aParameters[0] to strParameter1
+        Move aParameters[1] to strParameter2
+        If ((strParameter1.iValueType=XP_Integer or strParameter1.iValueType=XP_Numeric) and (strParameter2.iValueType=XP_Integer or strParameter2.iValueType=XP_Numeric)) Begin
+            Move XP_Boolean to strRval.iValueType
+            Move strParameter1.sValue to nVal1
+            Move strParameter2.sValue to nVal2
+            Move (nVal1<>0 or nVal2<>0) to strRval.sValue
+        End
+        Else Begin
+            Move XP_Error to strRval.iValueType
+            Error DFERR_OPERATOR "ExprParser: Illegal parameter passed to 'or'"
+        End
+        Function_Return strRval
+    End_Function
+    // End overrides
+    
+    Function _fInteger tXPValue[] aParameters Returns tXPValue
+        tXPValue strRval
+        
+        Move (Integer(aParameters[0].sValue)) to strRval.sValue
+        Move XP_Integer                       to strRval.iValueType
+        Function_Return strRval
+    End_Function
+
+    Function _fString tXPValue[] aParameters Returns tXPValue
+        tXPValue strRval
+        
+        Move (String(aParameters[0].sValue)) to strRval.sValue
+        Move XP_String                       to strRval.iValueType
+        Function_Return strRval
+    End_Function
+
+    Function _fNumber tXPValue[] aParameters Returns tXPValue
+        tXPValue strRval
+        
+        Move (Number(aParameters[0].sValue)) to strRval.sValue
+        Move XP_Numeric                      to strRval.iValueType
+        Function_Return strRval
+    End_Function
+
+    Function _fDate tXPValue[] aParameters Returns tXPValue
+        tXPValue strRval
+        
+        Move (Date(aParameters[0].sValue)) to strRval.sValue
+        Move XP_Date                       to strRval.iValueType
+        Function_Return strRval
+    End_Function
+    
+    Function _fConcat tXPValue[] aParameters Returns tXPValue
+        tXPValue strRval
+        
+        Move (String(aParameters[0].sValue) + String(aParameters[1].sValue)) to strRval.sValue
+        Move XP_String to strRval.iValueType
+        Function_Return strRval
+    End_Function
+    
+    Function _fAmp tXPValue[] aParameters Returns tXPValue
+        tXPValue tRet
+        
+        Move (String(aParameters[0].sValue) + String(aParameters[1].sValue)) to tRet.sValue
+        Move XP_String to tRet.iValueType
+        
+        Function_Return tRet
+    End_Function
+    
+    Function _fDateAsTextEU tXPValue[] aParameters Returns tXPValue
+        tXPValue tRetVal
+        
+        Get DateToText of oDateFunctions aParameters[0].sValue "#D #MN #Y4" to tRetVal.sValue
+        Move XP_String to tRetVal.iValueType
+        Function_Return tRetVal
+    End_Function
+    
+    Function _fDateAsTextUS tXPValue[] aParameters Returns tXPValue
+        tXPValue tRetVal
+        
+        Get DateToText of oDateFunctions aParameters[0].sValue "#MN #D #Y4" to tRetVal.sValue
+        Move XP_String to tRetVal.iValueType
+        Function_Return tRetVal
+    End_Function
+    
+    Function _fDateFormatText tXPValue[] aParameters Returns tXPValue
+        tXPValue tRetVal
+        
+        Get DateToText of oDateFunctions aParameters[0].sValue aParameters[1].sValue to tRetVal.sValue
+        Move XP_String to tRetVal.iValueType
+        Function_Return tRetVal
+    End_Function
+    
+    Function _fFirstDayInMonth tXPValue[] aParameters Returns tXPValue
+        tXPValue tRetVal
+        Date     dDate
+        
+        Move aParameters[0].sValue        to dDate
+        Move (Date(DateSetDay(dDate, 1))) to tRetVal.sValue
+        Move XP_Date                      to tRetVal.iValueType
+        Function_Return tRetVal
+    End_Function
+    
+    // ToDo: Ensure that all WebQuery functions are defined and working
+    
+    // Augmented OnDefineFunctions to add in the extras we want.
+    // Take them (and any implementations above) out as and when they
+    // become available in Sture's cExpressionParser
+    Procedure OnDefineFunctions tXPGrammar ByRef strGrammar 
+        Forward Send OnDefineFunctions (&strGrammar)
+        
+        Send DefineFunction (&strGrammar) "DateAsTextEU"      1 XP_Date    (RefFunc(_fDateAsTextEU))
+        Send DefineFunction (&strGrammar) "DateAsTextUS"      1 XP_Date    (RefFunc(_fDateAsTextUS))
+        Send DefineFunction (&strGrammar) "DateFormatText"  2 XP_Date    (RefFunc(_fDateFormatText))
+        Send DefineFunction (&strGrammar) "Integer"         1 XP_Integer (RefFunc(_fInteger))
+        Send DefineFunction (&strGrammar) "String"          1 XP_String  (RefFunc(_fString))
+        Send DefineFunction (&strGrammar) "Number"          1 XP_Numeric (RefFunc(_fNumber))
+        Send DefineFunction (&strGrammar) "Date"            1 XP_Date    (RefFunc(_fDate))
+        Send DefineFunction (&strGrammar) "Concat"          2 XP_String  (RefFunc(_fConcat))
+//        Send DefineFunction (&strGrammar) "DateIncrement"   3 XP_Date    (RefFunc(_fDateIncrement))
+        Send DefineFunction (&strGrammar) "FirstDayInMonth" 1 XP_Date    (RefFunc(_fFirstDayInMonth))
+//        Send DefineFunction (&strGrammar) "If_Int"          3 XP_Boolean (RefFunc(_fIf_Int))
+//        Send DefineFunction (&strGrammar) "If_Num"          3 XP_Boolean (RefFunc(_fIf_Num))
+//        Send DefineFunction (&strGrammar) "If_Str"          3 XP_Boolean (RefFunc(_fIf_Str))
+//        Send DefineFunction (&strGrammar) "If_Dat"          3 XP_Boolean (RefFunc(_fIf_Dat))
+    End_Procedure
+    
+    Procedure OnDefineOperators tXPGrammar byref strGrammar
+        Forward Send OnDefineOperators (&strGrammar)
+        
+        Send DefineOperator (&strGrammar) "&" 2 0 0 (RefFunc(_fAmp))
+    End_Procedure
+
+End_Class

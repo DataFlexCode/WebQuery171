@@ -1,0 +1,791 @@
+// To do:
+
+// Add function to determine primary index of a table:  Function PrimaryIndex integer iTable Returns Integer
+// Then based on that, add a function that calculates the record identity columns: Function RecordIdentityColumns integer iTable Returns Integer[]
+// Then based on that, add a function that sorts an array of child records
+
+// Check _OverlapColumnFunctions
+
+Use VdfBase.pkg
+
+Use TableQueryFunctions.pkg // Define oTableQueryFunctions object
+Use Compare.pkg
+Use IndexFunctions.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+Use DateFunctions.pkg // Define oDateFunctions object
+Use GlobalAttributes.pkg
+
+Struct tDataEntityRecord
+    Integer iTable
+    String sRowID
+    String[] aColumnValues
+    tDataEntityRecord[][] aaChildRecords
+End_Struct
+
+Struct tDataEntityScanStruct
+    Integer iTable
+    Integer iScanIndex
+    tDataEntityScanStruct[] aChildScans
+End_Struct
+
+Struct tDataEntityResult
+    Integer iTable
+    String sRowID
+    Boolean bChanged
+    String[] aOldColumnValues
+    String[] aNewColumnValues
+    tDataEntityResult[][] aaChildResults
+End_Struct
+
+Global_Variable Integer oDataEntityLoggingFunctions
+
+// These guys are instantiated to compare two sets of records and
+// are then destroyed dynamically.
+Class cChildRecordsCompare is a cItemCompare
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer piTable
+        Property tDataEntityRecord[] paChildRecords1
+        Property tDataEntityRecord[] paChildRecords2
+        Property tDataEntityResult pstResult
+        Property Integer piResultChildPointer
+        Property tDataEntityScanStruct pstScanStruct
+//        Set piStrategy to COMPARE_UNORDERED
+    End_Procedure
+    
+    //> Return TRUE if the items match. Must be augmented.
+    Function CompareItems Integer iItem1 Integer iItem2 Returns Boolean
+        tDataEntityRecord[] aChildRecords1 aChildRecords2
+        Get paChildRecords1 to aChildRecords1
+        Get paChildRecords2 to aChildRecords2
+        Function_Return (aChildRecords1[iItem1].sRowID=aChildRecords2[iItem2].sRowID)
+    End_Function
+    
+    Procedure OnBeforeMatchOrNot 
+//        tDataEntityResult stEmpty
+//        Set pstResult to stEmpty
+    End_Procedure
+    
+    Procedure AddChildResult tDataEntityResult stChildResult
+        Integer iTableIndex iRecordIndex
+        tDataEntityResult stResult
+        tDataEntityResult[] aEmptyResults
+        
+        Get pstResult to stResult
+        Get _FindChildTableIndexResult of oDataEntityLoggingFunctions stResult stChildResult.iTable to iTableIndex
+        
+        If (iTableIndex=-1) Begin
+            Move (SizeOfArray(stResult.aaChildResults)) to iTableIndex
+            Move aEmptyResults to stResult.aaChildResults[iTableIndex]
+        End
+        Move (SizeOfArray(stResult.aaChildResults[iTableIndex])) to iRecordIndex
+        Move stChildResult to stResult.aaChildResults[iTableIndex][iRecordIndex]
+        If (stChildResult.bChanged) Begin
+            Move True to stResult.bChanged
+        End
+        Set pstResult to stResult
+    End_Procedure
+
+    //> This is sent when items are found to be identical. Should be augmented.
+    Procedure OnItemsMatched Integer iItem1 Integer iItem2
+        Integer iTable
+        tDataEntityRecord[] aChildRecords1 aChildRecords2
+        tDataEntityResult stResult
+        tDataEntityScanStruct stScanStruct
+
+        Get paChildRecords1 to aChildRecords1
+        Get paChildRecords2 to aChildRecords2
+        Get piTable to iTable
+//        Get pstResult to stResult
+        Get pstScanStruct to stScanStruct
+        Send _CompareEntities of oDataEntityLoggingFunctions aChildRecords1[iItem1] aChildRecords2[iItem2] (&stResult) stScanStruct
+        Send AddChildResult stResult
+//        Set pstResult to stResult
+    End_Procedure
+
+    //> This is sent when an item cannot be matched.
+    //> Means iItem on the left side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the right side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched1 Integer iItem Integer iInfo
+        tDataEntityRecord[] aChildRecords1 
+        tDataEntityRecord stEmpty
+        tDataEntityResult stResult
+        tDataEntityScanStruct stScanStruct
+
+//        Get pstResult to stResult
+        Get paChildRecords1 to aChildRecords1
+        Get pstScanStruct to stScanStruct
+        Send _CompareEntities of oDataEntityLoggingFunctions aChildRecords1[iItem] stEmpty (&stResult) stScanStruct
+        Send AddChildResult stResult
+//        Set pstResult to stResult
+    End_Procedure
+
+    //> This is sent when an item cannot be matched
+    //> Means iItem on the right side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the left side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched2 Integer iItem Integer iInfo
+        tDataEntityRecord[] aChildRecords2
+        tDataEntityResult stResult stChilResult
+        tDataEntityRecord stEmpty
+        tDataEntityScanStruct stScanStruct
+
+//        Get pstResult to stResult
+        Get paChildRecords2 to aChildRecords2
+        Get pstScanStruct to stScanStruct
+        Send _CompareEntities of oDataEntityLoggingFunctions stEmpty aChildRecords2[iItem] (&stResult) stScanStruct
+        Send AddChildResult stResult
+        
+//        Set pstResult to stResult
+    End_Procedure
+
+    Procedure CompareChildRecords Integer iTable ;
+                                  tDataEntityRecord[] aOldChildRecords ;
+                                  tDataEntityRecord[] aNewChildRecords ;
+                                  tDataEntityResult ByRef stResult ;
+                                  tDataEntityScanStruct stScanStruct
+        Set piTable to iTable
+        Set paChildRecords1 to aOldChildRecords
+        Set paChildRecords2 to aNewChildRecords
+        Set pstResult to stResult
+        Set pstScanStruct to stScanStruct
+        Set piResultChildPointer to 0
+        Send RunCompare 0 (SizeOfArray(aOldChildRecords)-1) 0 (SizeOfArray(aNewChildRecords)-1) 0 False // False means that the items are not in any particular sequence
+        Get pstResult to stResult
+    End_Procedure
+    
+End_Class
+
+Global_Variable tDataEntityScanStruct[] _gaScanstructsByRelation
+Use GlobalAttributes.pkg
+
+Object _oDataEntityLoggingFunctions is a cObject
+    Move Self to oDataEntityLoggingFunctions
+    
+                        Global_Variable Boolean[] __gaScanstructInfRecursionCheck
+                        Procedure _AddChildScans tDataEntityScanStruct ByRef stScanStruct
+                            Integer iItem iMax
+                            tDataEntityScanStruct stEmpty stTemp
+                            If (not(__gaScanstructInfRecursionCheck[stScanStruct.iTable])) Begin
+                                Move True to __gaScanstructInfRecursionCheck[stScanStruct.iTable]
+                                Move (SizeOfArray(gaTableRelations)-1) to iMax
+                                For iItem from 0 to iMax
+                                    If (gaTableRelations[iItem].iToTable=stScanStruct.iTable) Begin
+                                        Move stEmpty to stTemp
+                                        Move gaTableRelations[iItem].iFromTable to stTemp.iTable
+                                        Send _AddChildScans (&stTemp)
+//                                        If (SizeOfArray(stTemp.aChildScans)>0) Begin
+                                            Move stTemp to stScanStruct.aChildScans[SizeOfArray(stScanStruct.aChildScans)]
+//                                        End
+                                    End
+                                Loop
+                            End
+                        End_Procedure
+                
+        Function ScanStructureFromRelations Integer iTable Returns tDataEntityScanStruct
+            tDataEntityScanStruct stScanStruct
+            If (SizeOfArray(_gaScanstructsByRelation)>iTable) Begin
+                Move _gaScanstructsByRelation[iTable] to stScanStruct
+            End
+            If (stScanStruct.iTable=0) Begin
+                Send ReadAllIfEmpty of oGlobalAttrFunctions
+                Move (ResizeArray(__gaScanstructInfRecursionCheck,4096,False)) to __gaScanstructInfRecursionCheck
+                Move iTable to stScanStruct.iTable
+                Send _AddChildScans (&stScanStruct) 
+                Move stScanStruct to _gaScanstructsByRelation[iTable] // Update our proxy
+            End
+
+            Function_Return stScanStruct
+        End_Function
+        
+            Procedure _ScanStructToArray tDataEntityScanStruct stScanStruct Integer[] ByRef aFiles
+                Integer iMax iItem
+                Move stScanStruct.iTable to aFiles[SizeOfArray(aFiles)]
+                Move (SizeOfArray(stScanStruct.aChildScans)-1) to iMax
+                For iItem from 0 to iMax
+                    Send _ScanStructToArray stScanStruct.aChildScans[iItem] (&aFiles)
+                Loop
+            End_Procedure
+        
+        Function ScanStructToArray tDataEntityScanStruct stScanStruct Returns Integer[]
+            Integer[] aFiles
+            Send _ScanStructToArray stScanStruct (&aFiles)
+            Function_Return aFiles
+        End_Function
+        
+        Function ScanStructFindChildTableArrayIndex tDataEntityScanStruct stScanStruct Integer iTable Returns Integer
+            Integer iMax iItem
+            Move (SizeOfArray(stScanStruct.aChildScans)-1) to iMax
+            For iItem from 0 to iMax
+                If (stScanStruct.aChildScans[iItem].iTable=iTable) Begin
+                    Function_Return iItem
+                End
+            Loop
+            Function_Return -1
+        End_Function
+    
+        Function _FindChildTableIndex tDataEntityRecord stRecord Integer iTable Returns Integer
+            Integer iMax iIndex
+            Move (SizeOfArray(stRecord.aaChildRecords)-1) to iMax
+            For iIndex from 0 to iMax
+                If (iTable=stRecord.aaChildRecords[iIndex][0].iTable) Begin
+                    Function_Return iIndex
+                End
+            Loop
+            Function_Return -1
+        End_Function
+        
+        Function _FindChildTableIndexResult tDataEntityResult stResult Integer iTable Returns Integer
+            Integer iMax iIndex
+            Move (SizeOfArray(stResult.aaChildResults)-1) to iMax
+            For iIndex from 0 to iMax
+                If (SizeOfArray(stResult.aaChildResults[iIndex])>0) Begin
+                    If (iTable=stResult.aaChildResults[iIndex][0].iTable) Begin
+                        Function_Return iIndex
+                    End
+                End
+            Loop
+            Function_Return -1
+        End_Function
+        
+        Procedure _RecordBufferRead tDataEntityRecord ByRef stRecord Integer iTable
+            Integer iColumnIndex iColumnMax iType
+            String sValue
+            Move iTable to stRecord.iTable
+            Move (SerializeRowId(GetRowID(iTable))) to stRecord.sRowID
+            Move (ResizeArray(stRecord.aColumnValues,0)) to stRecord.aColumnValues
+            Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iColumnMax
+            For iColumnIndex from 1 to iColumnMax
+                Get_Attribute DF_FIELD_TYPE of iTable iColumnIndex to iType
+                If (iType<>DF_OVERLAP) Begin
+                    Get_Field_Value iTable iColumnIndex to sValue
+                    If (iType=DF_ASCII) Begin
+                        Move (Rtrim(sValue)) to sValue
+                    End
+                    Move sValue to stRecord.aColumnValues[iColumnIndex]
+                End
+            Loop
+        End_Procedure
+    
+    //> stScanStruct is passed by reference because information about what indices was used for 
+    //> the different scans are stored back to the stScanStruct value.
+    Procedure ReadEntityFromRecordBuffer tDataEntityScanStruct ByRef stScanStruct tDataEntityRecord ByRef stRecord 
+        Integer iMax iIndex iChildTable iChildTableIndex iChildTableRecordIndex iTable
+        tDataEntityRecord stChildRecord stEmpty
+        tTableQuery stQuery
+        Move stScanStruct.iTable to iTable
+        Send _RecordBufferRead (&stRecord) iTable
+        Move (SizeOfArray(stScanStruct.aChildScans)-1) to iMax
+        For iIndex from 0 to iMax
+            Move stScanStruct.aChildScans[iIndex].iTable to iChildTable
+            Get _FindChildTableIndex stRecord iChildTable to iChildTableIndex
+            If (iChildTableIndex=-1) Begin
+                Move (SizeOfArray(stRecord.aaChildRecords)) to iChildTableIndex
+            End
+            Move 0 to iChildTableRecordIndex
+            Get NewQuery of oTQ iChildTable to stQuery
+            Send AddFilterRelate of oTQ (&stQuery) stScanStruct.iTable 
+            If (_CompileQuery(oTQ,&stQuery)) Begin 
+                While (FindRecord(oTQ,&stQuery))
+                    Move stEmpty to stChildRecord
+                    Send ReadEntityFromRecordBuffer (&stScanStruct.aChildScans[iIndex]) (&stChildRecord) 
+                    Move stChildRecord to stRecord.aaChildRecords[iChildTableIndex][iChildTableRecordIndex]
+                    Increment iChildTableRecordIndex
+                Loop
+            End
+            Move stQuery._strCompiled.iIndex to stScanStruct.iScanIndex
+        Loop
+    End_Procedure
+    
+            Function _EntityRecordsByTableNumber tDataEntityRecord[][] aaRecords Integer iTable Returns tDataEntityRecord[]
+                Integer iIndex iMax
+                tDataEntityRecord[] aEmptyChildTableRecords
+                Move (SizeOfArray(aaRecords)-1) to iMax
+                For iIndex from 0 to iMax
+                    If (aaRecords[iIndex][0].iTable=iTable) Begin
+                        Function_Return aaRecords[iIndex]
+                    End
+                Loop
+                Function_Return aEmptyChildTableRecords
+            End_Function
+
+        Procedure _DoTheDirtyBit Integer iTable ;
+                                 tDataEntityRecord[] aOldChildRecords ;
+                                 tDataEntityRecord[] aNewChildRecords ;
+                                 tDataEntityResult ByRef stResult ;
+                                 tDataEntityScanStruct stScanStruct
+            Integer hObj
+            Get Create U_cChildRecordsCompare to hObj
+            Send CompareChildRecords of hObj iTable aOldChildRecords aNewChildRecords (&stResult) stScanStruct
+            Send Destroy of hObj
+        End_Procedure
+        
+        Procedure _CompareChildTableScans tDataEntityRecord[][] aaOldChildRecords ;
+                                          tDataEntityRecord[][] aaNewChildRecords ;
+                                          tDataEntityResult ByRef stResult ;
+                                          tDataEntityScanStruct stScanStruct
+            Integer iIndex iMax
+            Integer iTable iTableIndex iTableIndex2
+            tDataEntityRecord[] aOldChildRecords
+            tDataEntityRecord[] aNewChildRecords
+            tDataEntityResult[] aEmptyResults
+            tDataEntityResult stChildResult stEmpty
+            
+            Move (SizeOfArray(stScanStruct.aChildScans)-1) to iMax
+            For iIndex from 0 to iMax // For each table in the subscan set
+
+                Move stScanStruct.aChildScans[iIndex].iTable to iTable
+
+                Get _EntityRecordsByTableNumber aaOldChildRecords iTable to aOldChildRecords
+                Get _EntityRecordsByTableNumber aaNewChildRecords iTable to aNewChildRecords
+
+                Move stEmpty to stChildResult
+                Move iTable to stChildResult.iTable
+                Send _DoTheDirtyBit iTable aOldChildRecords aNewChildRecords (&stChildResult) stScanStruct.aChildScans[iIndex]
+                If (stChildResult.bChanged) Begin
+                     Move True to stResult.bChanged
+                End
+
+                Get _FindChildTableIndexResult stResult iTable to iTableIndex
+                If (iTableIndex=-1) Begin
+                    Move (SizeOfArray(stResult.aaChildResults)) to iTableIndex
+                    Move aEmptyResults to stResult.aaChildResults[iTableIndex]
+                End
+                
+                If (stChildResult.iTable<>0) Begin // 
+                    Get _FindChildTableIndexResult stChildResult iTable to iTableIndex2
+                    If (iTableIndex2>=0) Begin
+                        Move stChildResult.aaChildResults[iTableIndex2] to stResult.aaChildResults[iTableIndex] //[iTableIndex][SizeOfArray(stResult.aaChildResults[iTableIndex])] 
+                    End
+                End
+            Loop
+                                          
+        End_Procedure
+        
+            Function _IsEmpty tDataEntityRecord stRecord Returns Boolean
+                Function_Return (stRecord.iTable=0)
+            End_Function
+
+        Procedure _CompareEntities tDataEntityRecord stOldRecord ;
+                                   tDataEntityRecord stNewRecord ;
+                                   tDataEntityResult ByRef stResult ;
+                                   tDataEntityScanStruct stScanStruct
+            Integer iColumnIndex iColumnMax iType iTable
+            Integer iChildEntity iChildEntities
+            String sOldValue sNewValue
+            tDataEntityResult stEmpty
+            tDataEntityRecord[][] aaEmptyRecords
+            
+            Move stEmpty to stResult
+            Move stScanStruct.iTable to stResult.iTable
+            Move False to stResult.bChanged
+//            Move stResult.
+            
+            If (_IsEmpty(Self,stOldRecord) and not(_IsEmpty(Self,stNewRecord))) Begin // Record created
+                // New record: stNewRecord
+                Move True to stResult.bChanged
+                Move stNewRecord.iTable to stResult.iTable
+                Move stNewRecord.sRowID to stResult.sRowID
+                Move stNewRecord.aColumnValues to stResult.aNewColumnValues
+                Send _CompareChildTableScans aaEmptyRecords stNewRecord.aaChildRecords (&stResult) stScanStruct
+            End
+            Else If (not(_IsEmpty(Self,stOldRecord)) and _IsEmpty(Self,stNewRecord)) Begin // Record deleted
+                // Deleted record: stOldRecord
+                Move True to stResult.bChanged
+                Move stOldRecord.iTable to stResult.iTable
+                Move stOldRecord.sRowID to stResult.sRowID
+                Move stOldRecord.aColumnValues to stResult.aOldColumnValues
+                Send _CompareChildTableScans stOldRecord.aaChildRecords aaEmptyRecords (&stResult) stScanStruct
+            End
+            Else If (stOldRecord.iTable=stNewRecord.iTable) Begin // Record edited (or not)
+                
+                // Compare column values
+                Move stNewRecord.iTable to stResult.iTable
+                Move stNewRecord.sRowID to stResult.sRowID // If records are not matched by rowID (elsewhere) we're mistaken here
+                Move stOldRecord.aColumnValues to stResult.aOldColumnValues
+                Move stNewRecord.aColumnValues to stResult.aNewColumnValues
+                
+                // Calculate changed state
+                Move (SizeOfArray(stNewRecord.aColumnValues)-1) to iColumnMax
+                For iColumnIndex from 0 to iColumnMax
+                    Move stOldRecord.aColumnValues[iColumnIndex] to sOldValue
+                    Move stNewRecord.aColumnValues[iColumnIndex] to sNewValue
+                    If (sOldValue<>sNewValue) Begin
+                        Move True to stResult.bChanged
+                    End
+                Loop
+                
+                // Examine child table scans:
+                Send _CompareChildTableScans stOldRecord.aaChildRecords stNewRecord.aaChildRecords (&stResult) stScanStruct
+                
+            End
+            Else Begin
+                Error 313 "Cannot compare apples to bananas"
+            End
+        End_Procedure
+        
+    //> Callback procedure must be defined like this:
+    //> Procedure HandleCompare integer iCode integer iTable tDataEntityRecord stOldRecord tDataEntityRecord stNewRecord 
+    Function CompareEntities tDataEntityRecord stOldRecord ;
+                             tDataEntityRecord stNewRecord ;
+                             tDataEntityScanStruct stScanStruct ;
+                             Returns tDataEntityResult
+        tDataEntityResult stResult
+        Send _CompareEntities stOldRecord stNewRecord (&stResult) stScanStruct
+        Function_Return stResult
+    End_Function
+    
+    Procedure RobustWrite Integer iChannel String sValue
+        Writeln channel iChannel (Length(sValue))
+        Write sValue
+    End_Procedure
+    
+    Function RobustRead Integer iChannel Returns String
+        Integer iLen
+        String sValue
+        Readln channel iChannel iLen
+        Read_Block sValue iLen
+        Function_Return sValue
+    End_Function
+
+//Struct tDataEntityRecord
+//    Integer iTable
+//    String sRowID
+//    String[] aColumnValues
+//    tDataEntityRecord[][] aChildRecords
+//End_Struct
+    
+    Procedure WriteEntityChannel tDataEntityRecord stRecord Integer iChannel 
+        Integer iMax iIndex iMax2 iIndex2
+        
+        Send RobustWrite iChannel stRecord.iTable
+        Send RobustWrite iChannel stRecord.sRowID
+        
+        Move (SizeOfArray(stRecord.aColumnValues)-1) to iMax
+        Send RobustWrite iChannel iMax
+        
+        For iIndex from 0 to iMax
+            Send RobustWrite iChannel stRecord.aColumnValues[iIndex]
+        Loop
+        
+        Move (SizeOfArray(stRecord.aaChildRecords)-1) to iMax
+        Send RobustWrite iChannel iMax
+        For iIndex from 0 to iMax
+            
+            Move (SizeOfArray(stRecord.aaChildRecords[iIndex])-1) to iMax2
+            Send RobustWrite iChannel iMax2
+            For iIndex2 from 0 to iMax2
+                Send WriteEntityChannel stRecord.aaChildRecords[iIndex][iIndex2] iChannel
+            Loop
+        Loop
+    End_Procedure
+    
+    Function ReadEntityChannel Integer iChannel Returns tDataEntityRecord
+        Integer iMax iIndex iMax2 iIndex2
+        tDataEntityRecord stRecord
+        Get RobustRead iChannel to stRecord.iTable
+        Get RobustRead iChannel to stRecord.sRowID
+        Get RobustRead iChannel to iMax
+        For iIndex from 0 to iMax
+            Get RobustRead iChannel to stRecord.aColumnValues[iIndex]
+        Loop
+        
+        Get RobustRead iChannel to iMax
+        For iIndex from 0 to iMax
+            Get RobustRead iChannel to iMax2
+            For iIndex2 from 0 to iMax2
+                Get ReadEntityChannel iChannel to stRecord.aaChildRecords[iIndex][iIndex2]
+            Loop
+        Loop
+        Function_Return stRecord
+    End_Function
+
+    Procedure WriteEntityFile String sFileName tDataEntityRecord stRecord String sLabel
+        Integer iChannel
+        Get DirectOutput of oFileFunctions ("binary:"+sFileName) to iChannel
+        If (iChannel>=0) Begin
+            Writeln channel iChannel sLabel
+            Send WriteEntityChannel stRecord iChannel
+            Send CloseOutput of oFileFunctions iChannel
+        End
+    End_Procedure
+
+    Function LogDataFileName Integer iTable String sRecordName DateTime dtLogTime Returns String
+        String sFileName sDataFolder sSubFolder sFolder sDateTime
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sDataFolder
+        Get EntitySubFolderRootName iTable to sSubFolder // will return "DataDebugLog\<Table name>\"
+        Get AppendPath of oFileFunctions sDataFolder sSubFolder to sFolder
+        Get AppendPath of oFileFunctions sFolder sRecordName to sFolder
+        Get DateTimeToString of oDateFunctions dtLogTime DF_DATE_MILITARY True "" to sDateTime
+        Move (Replaces(":",sDateTime,"")) to sDateTime
+        Move (sDateTime+".snap") to sDateTime
+        Get AppendPath of oFileFunctions sFolder sDateTime to sFileName
+        Function_Return sFileName
+    End_Function
+    
+    Function LogDataLabel Integer iTable String sRecordName DateTime dtLogTime Returns String
+        Integer iChannel
+        String sFileName sLabel
+        Get LogDataFileName iTable sRecordName dtLogTime to sFileName
+        Get DirectInput of oFileFunctions sFileName to iChannel
+        If (iChannel>=0) Begin
+            Readln channel iChannel sLabel
+            Send CloseInput of oFileFunctions iChannel
+        End
+        Function_Return sLabel
+    End_Function
+    
+    Function ReadEntityFileName String sFileName tDataEntityRecord ByRef stRecord String ByRef sLabel Returns Boolean
+        Integer iChannel 
+        tDataEntityRecord stEmpty
+        Move stEmpty to stRecord
+        Get DirectInput of oFileFunctions ("binary:"+sFileName) to iChannel
+        If (iChannel>=0) Begin
+            Readln channel iChannel sLabel
+            Get ReadEntityChannel iChannel to stRecord
+            Send CloseInput of oFileFunctions iChannel
+            Function_Return True
+        End
+        Function_Return False
+    End_Function
+    
+    Function ReadEntityFile Integer iTable String sRecordName DateTime dtLogTime tDataEntityRecord ByRef stRecord String ByRef sLabel Returns Boolean
+        String sFileName
+        Get LogDataFileName iTable sRecordName dtLogTime to sFileName
+        Function_Return (ReadEntityFileName(Self,sFileName,&stRecord,&sLabel))
+    End_Function
+    
+    //> The 'snapshots' generated by calling
+    Function EntitySubFolderRootName Integer iTable Returns String
+        String sFolder sTableName 
+        Get_Attribute DF_FILE_LOGICAL_NAME of iTable to sTableName
+        Get AppendPath of oFileFunctions "DataDebugLog" sTableName to sFolder
+        Function_Return sFolder
+    End_Function
+    
+    Function RecordBufferFileName Integer iTable Returns String
+//        Integer iIndex iItem iMax
+//        Integer[] aColumns
+          String sValue
+//        Get Primary_Key of oIndexFunctions iTable to iIndex
+//        If (iIndex=0) Begin
+//            Get ShortestUniqueIndex of oIndexFunctions iTable to iIndex
+//        End
+//        If (iIndex>0) Begin
+//            Get IndexSortValueFileNameFormat of oIndexFunctions iTable iIndex to sValue
+//        End
+//        Else Begin // If no index we'll just use the records ID
+            Move (SerializeRowID(GetRowID(iTable))) to sValue
+//        End
+        Function_Return sValue
+    End_Function
+    
+    Function EntityTime Returns String
+        String sFileName
+        DateTime stNow
+        Get SystemDateTime of oDateFunctions to stNow
+        Get DateTimeToString of oDateFunctions stNow DF_DATE_MILITARY True "" to sFileName
+        Move (Replaces(":",sFileName,"")) to sFileName
+        Function_Return sFileName
+    End_Function
+    
+    Function EntityRootFolder Returns String
+        String sFolder
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sFolder
+        Get AppendPath of oFileFunctions sFolder "DataDebugLog" to sFolder
+        Function_Return sFolder
+    End_Function
+    
+    Function TableFolder Integer iTable Returns String
+        String sSubFolder sDataFolder sTableFolder
+        If (iTable>0) Begin
+            Get VdfFolderPath of oFileFunctions VDF_FILELIST to sDataFolder
+            Get EntitySubFolderRootName iTable to sSubFolder // will return "DataDebugLog\<Table name>\"
+            Get AppendPath of oFileFunctions sDataFolder sSubFolder to sTableFolder
+        End
+        Function_Return sTableFolder
+    End_Function
+
+    Procedure SaveEntitySnapshot tDataEntityScanStruct stScanStruct String ByRef sFileNameSaved String sLabel
+        Integer iTable iPrimKey
+        String sDataFolder sSubFolder sPrimKeyValue sEntityTime sFileName
+        tDataEntityRecord stRecord
+        
+        Send ReadEntityFromRecordBuffer (&stScanStruct) (&stRecord) 
+        Move stScanStruct.iTable to iTable
+    
+        Get EntitySubFolderRootName iTable to sSubFolder // will return "DataDebugLog\<Table name>\"
+        Get RecordBufferFileName iTable to sPrimKeyValue // will return something resembling an index value (may be long)
+        Get AppendPath of oFileFunctions sSubFolder sPrimKeyValue to sSubFolder // "DataDebugLog\<Table name>\<Index value>\"
+
+        Get VdfFolderPath of oFileFunctions VDF_FILELIST to sDataFolder
+        If (CreateFolderMultiLevel(oFileFunctions,sDataFolder,sSubFolder)) Begin
+            Get AppendPath of oFileFunctions sDataFolder sSubFolder to sSubFolder // Now absolute
+            Get EntityTime to sEntityTime // 201106242254
+            Get AppendPath of oFileFunctions sSubFolder sEntityTime to sFileName
+            Move (sFileName+".snap") to sFileName
+
+            Move sFileName to sFileNameSaved
+            Send WriteEntityFile sFileName stRecord sLabel
+        End
+        Else Begin
+            Error 343 "Could not create snapshot file"
+        End
+    End_Procedure
+    
+    Function SaveEntitySnapshotAutoOpenTables Integer iTable RowID riRowID String ByRef sFileNameSaved String sLabel Returns Boolean
+        Boolean bOpened bSuccess
+        Integer[] aTables
+        tDataEntityScanStruct stScanStruct
+        tTableOpenState[] aTablesPrior
+
+        Move True to bSuccess
+
+        Get ScanStructureFromRelations iTable to stScanStruct
+        Get ScanStructToArray of oDataEntityLoggingFunctions stScanStruct to aTables
+        
+        Get TableOpenStates of oTableAccessFunctions to aTablesPrior
+        
+        Get OpenTables of oTableAccessFunctions aTables DF_SHARE to bOpened
+        If (bOpened) Begin
+            If (FindByRowID(iTable,riRowID)) Begin
+                Send SaveEntitySnapshot stScanStruct (&sFileNameSaved) sLabel
+            End
+            Else Begin
+                Send UserError "Entity snapshot could not be saved" "Record not found"
+                Move False to bSuccess
+            End
+        End
+        Else Begin
+            Send UserError "Entity snapshot could not be saved" "Tables could not be opened"
+            Move False to bSuccess
+        End
+        
+        Send CloseAll of oTableAccessFunctions
+        Get SetTableOpenStates of oTableAccessFunctions aTablesPrior False False to bOpened
+
+        Function_Return bSuccess
+    End_Function
+
+    Procedure DeleteEntityFiles Integer iTable
+    End_Procedure
+    
+    Procedure DeleteAllEntityFiles
+    End_Procedure
+    
+    Procedure OnNewFilelistSelected String sSwsFile
+        tDataEntityScanStruct[] aEmpty
+        Move aEmpty to _gaScanstructsByRelation
+    End_Procedure
+
+Struct tDataEntityTable
+    Integer iTable
+    DateTime dtMostRecentActivity
+End_Struct
+
+Struct tDataEntityTableRecord
+    String sRecordName
+    DateTime dtMostRecentActivity
+End_Struct
+
+//Struct tDataEntityTableRecordLog
+//    String sFileName
+//    DateTime[] aLogs
+//    DateTime dtMostRecentActivity
+//End_Struct
+
+    Function TableRecordLogs Integer iTable String sRecordName Returns DateTime[]
+        Integer iItem iMax 
+        DateTime dtValue
+        String sFolder sFile
+        String sRval
+        tFileData[] aFiles
+        DateTime[] aDateTimes
+        Get TableFolder iTable to sFolder
+        Get AppendPath of oFileFunctions  sFolder sRecordName to sFolder
+        Send ReadFolder of oFileFunctions sFolder "*" (&aFiles) 1 // 1:Files only
+        Move (SizeOfArray(aFiles)-1) to iMax
+        For iItem from 0 to iMax
+            Move aFiles[iItem].sFileName to sFile
+            If (PathToType(oFileFunctions,sFile)="snap") Begin
+                Get PathStripType of oFileFunctions sFile to sFile
+                Get StringToDateTime of oDateFunctions sFile DF_DATE_MILITARY to dtValue
+                Move dtValue to aDateTimes[SizeOfArray(aDateTimes)]
+            End
+        Loop
+        Move (SortArray(aDateTimes)) to aDateTimes
+        Function_Return aDateTimes
+    End_Function
+
+    Function TableRecordsWithLogginData Integer iTable Returns tDataEntityTableRecord[]
+        Integer iItem iMax iDateTimeMax
+        String sFolder sRecordName
+        DateTime[] aDateTimes
+        tDataEntityTableRecord stTableRecord
+        tDataEntityTableRecord[] aTableRecords
+        tFileData[] aFolders
+        Get TableFolder iTable to sFolder
+        Send ReadFolder of oFileFunctions sFolder "*" (&aFolders) 2 // 2:Folders
+        Move (SizeOfArray(aFolders)-1) to iMax
+        For iItem from 0 to iMax
+            Move aFolders[iItem].sFileName to sRecordName //
+            If (not(aFolders[iItem].bSelfReference)) Begin
+                If (iTable>0) Begin
+                    Get TableRecordLogs iTable sRecordName to aDateTimes
+                    Move (SizeOfArray(aDateTimes)-1) to iDateTimeMax
+                    If (iDateTimeMax>=0) Begin
+                        Move aDateTimes[iDateTimeMax] to stTableRecord.dtMostRecentActivity
+                        Move sRecordName to stTableRecord.sRecordName
+                        Move stTableRecord to aTableRecords[SizeOfArray(aTableRecords)]
+                    End
+                End
+            End
+        Loop
+        Function_Return aTableRecords
+    End_Function
+    
+    Function _CompareRecords tDataEntityTableRecord stRecord1 tDataEntityTableRecord stRecord2 Returns Integer
+        If (stRecord1.dtMostRecentActivity>stRecord2.dtMostRecentActivity) Function_Return (GT)
+        If (stRecord1.dtMostRecentActivity<stRecord2.dtMostRecentActivity) Function_Return (LT)
+        Function_Return (EQ)
+    End_Function
+    
+    // This function does not require open tables. Therefore it can be used from within VDFXRay
+    Function TableFoldersWithLoggingData Returns tDataEntityTable[]
+        Integer iItem iMax iTable iTableMax
+        String sFolder 
+        tFileData[] aFolders
+        tDataEntityTableRecord[] aRecords
+        tDataEntityTable stRecord
+        tDataEntityTable[] aTables
+        Get EntityRootFolder to sFolder
+        Send ReadFolder of oFileFunctions sFolder "*" (&aFolders) 2 // 2:Folders
+        Move (SizeOfArray(aFolders)-1) to iMax
+        For iItem from 0 to iMax // 
+            If (not(aFolders[iItem].bSelfReference)) Begin
+                Move aFolders[iItem].sFileName to sFolder
+                Get TableNameToNumber of oAttributeFunctions gstFilelist.aTables sFolder to iTable
+                If (iTable>0) Begin
+                    Get TableRecordsWithLogginData iTable to aRecords // aRecords
+                    Move (SizeOfArray(aRecords)-1) to iTableMax
+                    If (iTableMax>=0) Begin
+                        Move (SortArray(aRecords,Self,GET__CompareRecords)) to aRecords
+                        Move iTable to stRecord.iTable
+                        Move aRecords[iTableMax].dtMostRecentActivity to stRecord.dtMostRecentActivity
+                        Move stRecord to aTables[SizeOfArray(aTables)]
+                    End
+                End
+            End
+        Loop
+        Function_Return aTables
+    End_Function
+End_Object
+
+

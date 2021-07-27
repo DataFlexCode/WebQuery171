@@ -1,0 +1,43 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Web Query</title>
+<link rel="shortcut icon" href="favicon.ico" sizes="48x48" />
+
+<!-- DataFlex Engine -->
+<script>
+//  Uncomment the following line to optimize the initialization (make sure that the right theme is set)
+//var sDfPreloadTheme = "Df_Web_Creme";
+</script>
+
+<script src="DfEngine/df-include.js"></script>
+
+<!-- DataFlex Custom Controls (do not remove this line, used for automatic insertion) -->
+<script src="Custom/wqWebApp.js"></script>
+<script src="Custom/wqWebEdit.js"></script>
+<link rel="stylesheet" type="text/css" href="Custom/WebQuery.css" />
+
+
+<!-- Initialization of the WebApp -->
+<script>
+var oWebApp = new df.wqWebApp("WebServiceDispatcher.wso");
+
+oWebApp.displayApp("#viewport");
+</script>
+
+<style>
+html, body{
+    height: 100%;
+}
+</style>
+</head>
+
+<body>
+
+<div id="viewport" style="width: 100%; height: 100%;">
+
+</div>
+</body>
+</html>

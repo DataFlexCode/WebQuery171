@@ -1,0 +1,12 @@
+SessionId
+FirstUserId
+MultiUserSess
+StartDate
+StartTime
+EndDate
+EndTime
+WinUserName
+ApplicationName
+ApplicationDate
+ApplicationTime
+C_S

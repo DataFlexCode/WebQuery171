@@ -1,0 +1,127 @@
+
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebQueryFunctions.pkg
+
+Object oWqSelectionRanges is a cWebModalDialog
+    Set psCaption to "Selection Range"
+    Set piMinWidth to 400
+    Set piMinHeight to 100
+    Set pbServerOnSubmit to True
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oStartRange is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to "from:"
+            Set peLabelAlign to alignRight
+            Set piLabelOffset to 180
+        End_Object
+
+        Object oEndRange is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to "to:"
+            Set peLabelAlign to alignRight
+            Set piLabelOffset to 180
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 4
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object 
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object
+        
+    End_Object
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        Forward Send Ok
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure PopupGetRange Handle hoRetObj String sField String sOp String sCurVal Integer iType
+        Integer iPos
+        String  sStR sEndR
+        
+        WebSet psLabel of oStartRange to (sField * "(" + sOp + ") - from:")
+        
+        Move (Replace(" (both incl)", sCurVal, ""))  to sCurVal
+        Move (Replace("No limitation", sCurVal, "")) to sCurVal
+        Move (Pos("-", sCurVal)) to iPos
+        
+        If iPos Begin
+            Move (Left(sCurVal, (iPos - 2)))                    to sStR
+            Move (Right(sCurVal, (Length(sCurVal) - iPos - 1))) to sEndR
+        End
+        
+        WebSet peDataType of oStartRange to iType
+        WebSet peDataType of oEndRange   to iType
+        
+        If (iType = typeASCII) Begin
+            Move (StrDelQuotes(ghoWQF, sStR))  to sStR
+            Move (StrDelQuotes(ghoWQF, sEndR)) to sEndR
+        End
+        
+        If (iType = typeDate) Begin
+            Get Date2MilDate of ghoWQF sStR  to sStR
+            Get Date2MilDate of ghoWQF sEndR to sEndR
+        End
+        
+        WebSet psValue of oStartRange to sStR
+        WebSet psValue of oEndRange   to sEndR
+        
+        Send Popup hoRetObj
+    End_Procedure
+    
+    Function RangeSelected Returns String
+        String  sStR sEndR sSep
+        Integer iType iDateF
+        
+        WebGet psValue    of oStartRange to sStR
+        WebGet psValue    of oEndRange   to sEndR
+        WebGet peDataType of oStartRange to iType
+        
+        If (iType = typeASCII) Move (StrAddQuotes(ghoWQF, sStR))    to sStR
+        If (iType = typeASCII) Move (StrAddQuotes(ghoWQF, sEndR))   to sEndR
+        
+        // Seems to return dates in military format, so...
+        If (iType = typeDate) Begin
+            Get MilDate2Date of ghoWQF sStR  to sStR
+            Get MilDate2Date of ghoWQF sEndR to sEndR
+        End
+            
+        Function_Return (sStR + " - " + sEndR + " (both incl)")
+    End_Function
+    
+End_Object

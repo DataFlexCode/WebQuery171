@@ -1,0 +1,16 @@
+Use Windows.pkg
+
+Class cDisplayHandler is a cIdleHandler
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Boolean pbDisplayDirty True
+    End_Procedure
+    Procedure OnUpdateDisplay
+    End_Procedure
+    Procedure OnIdle
+        If (pbDisplayDirty(Self)) Begin
+            Send OnUpdateDisplay
+            Set pbDisplayDirty to False
+        End
+    End_Procedure
+End_Class

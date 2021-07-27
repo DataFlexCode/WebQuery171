@@ -1,0 +1,116 @@
+
+//> This package contains functions to manipulate RGB colors.
+//> The RGB color model is an additive color model in which red, green, and blue light are combined in various ways
+//> to create other colors. The very idea for the model itself and the abbreviation "RGB" come from the three primary
+//> colors in additive light models (http://www.wordiq.com/definition/RGB).
+//> pkg.doc.end
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and web)
+
+Use StringFunctions.pkg // Define oStringFunctions object
+
+Class cRgbFunctions is a cObject
+    Procedure Construct_Object
+        Integer[] aColors
+        Forward Send Construct_Object
+        Property Integer[] paBrightColors
+        Get Brighten clRed 80 to aColors[0]
+        Get Brighten clGreen 80 to aColors[1]
+        Get Brighten clBlue 80 to aColors[2]
+        Get Brighten clYellow 80 to aColors[3]
+        Get Brighten clGray 80 to aColors[4]
+        Set paBrightColors to aColors
+    End_Procedure
+
+    Function BrightColor Integer iColor Returns Integer
+        Integer[] aColors
+        get paBrightColors to aColors
+        If (iColor=clRed) Function_Return aColors[0]
+        If (iColor=clGreen) Function_Return aColors[1]
+        If (iColor=clBlue) Function_Return aColors[2]
+        If (iColor=clYellow) Function_Return aColors[3]
+        If (iColor=clGray) Function_Return aColors[4]
+    End_Function
+
+    //> Return a RGB color composed from red, green and blue components (each of a value between 0 and 255)
+    Function Compose Integer iRed Integer iGreen Integer iBlue Returns Integer
+        Function_Return (iBlue*256+iGreen*256+iRed)
+    End_Function
+
+    //> Brighten a RGB color by a percentage.
+    Function Brighten Integer iColor Integer iPercent Returns Integer
+        Integer iRed iGreen iBlue
+        Move (iColor iand $0000FF) to iRed
+        Move (iColor iand $00FF00/256) to iGreen
+        Move (iColor iand $FF0000/65536) to iBlue
+        Move (255-iRed*iPercent/100+iRed) to iRed
+        Move (255-iGreen*iPercent/100+iGreen) to iGreen
+        Move (255-iBlue*iPercent/100+iBlue) to iBlue
+        Function_Return (iBlue*256+iGreen*256+iRed)
+    End_Function
+
+    //> Darken a RGB color by a percentage.
+    Function Darken Integer iColor Integer iPercent Returns Integer
+        Integer iRed iGreen iBlue
+        Move (iColor iand $0000FF) to iRed
+        Move (iColor iand $00FF00/256) to iGreen
+        Move (iColor iand $FF0000/65536) to iBlue
+        Move (-iRed*iPercent/100+iRed) to iRed
+        Move (-iGreen*iPercent/100+iGreen) to iGreen
+        Move (-iBlue*iPercent/100+iBlue) to iBlue
+        Function_Return (iBlue*256+iGreen*256+iRed)
+    End_Function
+
+    //> Blend two RGB colors weighing color1 by a percentage.
+    Function Blend Integer iColor1 Integer iColor2 Integer iPercent1 Returns Integer
+        Integer iRed1 iGreen1 iBlue1
+        Integer iRed2 iGreen2 iBlue2
+        Move (iColor1 iand $0000FF) to iRed1
+        Move (iColor1 iand $00FF00/256) to iGreen1
+        Move (iColor1 iand $FF0000/65536) to iBlue1
+        Move (iColor2 iand $0000FF) to iRed2
+        Move (iColor2 iand $00FF00/256) to iGreen2
+        Move (iColor2 iand $FF0000/65536) to iBlue2
+        Move (iRed1*iPercent1+(100-iPercent1*iRed2)/100) to iRed1
+        Move (iGreen1*iPercent1+(100-iPercent1*iGreen2)/100) to iGreen1
+        Move (iBlue1*iPercent1+(100-iPercent1*iBlue2)/100) to iBlue1
+        Function_Return (iBlue1*256+iGreen1*256+iRed1)
+    End_Function
+
+    //> Negate a RGB color
+    Function Negate Integer iColor Returns Integer
+        Integer iRed iGreen iBlue
+        Move (iColor iand $0000FF) to iRed
+        Move (iColor iand $00FF00/256) to iGreen
+        Move (iColor iand $FF0000/65536) to iBlue
+        Move (255-iRed) to iRed
+        Move (255-iGreen) to iGreen
+        Move (255-iBlue) to iBlue
+        Function_Return (iBlue*256+iGreen*256+iRed)
+    End_Function
+
+    //> Translate a RGB color to HTML syntax.
+    Function ToHTML Integer iColor Returns String
+        Integer iRed iGreen iBlue
+        Move (iColor iand $0000FF) to iRed
+        Move (iColor iand $00FF00/256) to iGreen
+        Move (iColor iand $FF0000/65536) to iBlue
+        Function_Return ("#"+ByteToHex(oStringFunctions,iRed)+ByteToHex(oStringFunctions,iGreen)+ByteToHex(oStringFunctions,iBlue))
+    End_Function
+
+    Function HTMLToRgb String sColor Returns Integer
+        Integer iRed iGreen iBlue
+        Move (Uppercase(Replace("#",sColor,""))) to sColor
+        Get HexToByte of oStringFunctions (Mid(sColor,2,1)) to iRed
+        Get HexToByte of oStringFunctions (Mid(sColor,2,3)) to iGreen
+        Get HexToByte of oStringFunctions (Mid(sColor,2,5)) to iBlue
+        Function_Return (Compose(Self,iRed,iGreen,iBlue))
+    End_Function
+    
+End_Class // cRgbFunctions
+
+Global_Variable Integer oRgbFunctions
+
+Object _oRgbFunctions is a cRgbFunctions
+    Move Self to oRgbFunctions
+End_Object

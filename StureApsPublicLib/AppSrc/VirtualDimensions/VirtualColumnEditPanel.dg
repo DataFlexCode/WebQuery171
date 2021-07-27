@@ -1,0 +1,261 @@
+Use Windows.pkg
+Use cCJGrid.pkg
+Use cCJGridColumn.pkg
+Use VirtualDimensions\cVirtualColumns.pkg
+Use Win\PanelFunctions.pkg
+Use Win\CJGridFunctions.pkg
+Use DFPostMessage.pkg
+
+Object oVirtualColumnEditPanel is a ModalPanel
+    Set Location to 4 11
+    Set Size to 315 327
+    Set Label to "Dimension"
+    Set Border_Style to Border_Thick
+    Set Locate_Mode to CENTER_ON_PANEL
+    On_Key kCancel Send Close_Panel
+    
+    Property tvdMaster pstrMaster
+    Property Integer _phObj
+    
+    Object oIdlehandler is a cDisplayHandler
+        Procedure OnUpdateDisplay
+            Send SetShadowStates
+        End_Procedure
+    End_Object
+    
+    Procedure Activating
+       Forward Send Activating
+       Set pbEnabled of oIdlehandler to True
+    End_Procedure
+
+    // disable the idle handler when the button is deactivated
+    Procedure Deactivating
+       Set pbEnabled of oIdlehandler to False
+       Forward Send DeActivating
+    End_Procedure
+
+    Property Integer piVirtialColumnObject
+
+    Object oColumnName is a Form
+        Set Size to 13 168
+        Set Location to 15 94
+        Set Label to "Dimension name:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Right
+    End_Object
+
+    Object oColumnLabel is a Form
+        Set Size to 13 168
+        Set Location to 34 94
+        Set Label to "Label:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Right
+    End_Object
+    
+    Object oMandatory is a CheckBox
+        Set Location to 57 95
+        Set Label to "Mandatory"
+    End_Object
+
+    Object oSelectOptionsGrid is a cfreeCJGrid
+        Set Size to 198 302
+        Set Location to 77 13
+        Set peAnchors to anAll
+        Set pbAutoAppend to True
+        Set pbAllowRowSwapUpDown to True
+        
+        Procedure AutoCloseEmptyRow
+            Boolean bOk
+            String sID sLabel
+            Get SelectedRowValue of oValueColumn to sID
+            Get SelectedRowValue of oLabelColumn to sLabel
+            If (Trim(sID*sLabel)="") Begin
+                Get DeleteSelectedRow to bOk
+            End
+        End_Procedure
+        
+        Function OnRowChanging Integer iCurrentSelectedRow Integer iNewRow Returns Boolean
+            Send AutoCloseEmptyRow
+            Function_Return False
+        End_Function
+        
+        Object oValueColumn is a cCJGridColumn
+            Set piWidth to 162
+            Set psCaption to "Value stored"
+            Procedure OnEndEdit String sOldValue String sNewValue
+            End_Procedure
+            Function OnValidating Returns Boolean
+                String sValue
+                Get SelectedRowValue to sValue
+                If (sValue="") Begin
+//                    Send Info_Box "Blank value not allowed" "Blank value not allowed" 
+                End
+                Function_Return (sValue="")
+            End_Function
+        End_Object
+
+        Object oLabelColumn is a cCJGridColumn
+            Set piWidth to 233
+            Set psCaption to "Display label"
+        End_Object
+
+        Object oNoSelectColumn is a cCJGridColumn
+            Set piWidth to 58
+            Set psCaption to "No select"
+            Set pbCheckbox to True
+        End_Object
+
+        Object oRowIDColumn is a cCJGridColumn
+            Set piWidth to 100
+            Set psCaption to "RowID"
+            Set pbVisible to False
+        End_Object
+        
+        Function DataSource tvdSelectOption[] aOptions Returns tDataSourceRow[]
+            Integer hVirtialColumnObject
+            Integer iItem iMax
+            tDataSourceRow[] aDataSource
+            Move (SizeOfArray(aOptions)-1) to iMax
+            For iItem from 0 to iMax
+                Move aOptions[iItem].sValue to aDataSource[iItem].sValue[0]
+                Move aOptions[iItem].sLabel to aDataSource[iItem].sValue[1]
+                Move aOptions[iItem].bNoSelect to aDataSource[iItem].sValue[2]
+                Move (SerializeRowID(aOptions[iItem].riRow)) to aDataSource[iItem].sValue[3]
+            Loop
+            Function_Return aDataSource
+        End_Function
+
+        Procedure Set SelectOptions tvdSelectOption[] aOptions
+            tDataSourceRow[] aDataSource
+            Get DataSource aOptions to aDataSource
+            Send InitializeData aDataSource
+        End_Procedure
+        
+        Function SelectOptions Returns tvdSelectOption[] 
+            Integer iMax iItem
+            Handle hoDataSource
+            String sRowID
+            tDataSourceRow[] aDataSource
+            tvdSelectOption[] aOptions
+
+            Get phoDataSource to hoDataSource
+            Get DataSource of hoDataSource to aDataSource
+            
+            Move (SizeOfArray(aDataSource)-1) to iMax
+            For iItem from 0 to iMax
+                Move aDataSource[iItem].sValue[0] to aOptions[iItem].sValue
+                Move aDataSource[iItem].sValue[1] to aOptions[iItem].sLabel
+                Move aDataSource[iItem].sValue[2] to aOptions[iItem].bNoSelect
+                Move aDataSource[iItem].sValue[3] to sRowID
+                Move (DeserializeRowID(sRowID)) to aOptions[iItem].riRow
+                Move iItem to aOptions[iItem]._iSortOrder
+            Loop
+            
+            Function_Return aOptions
+        End_Function
+
+    End_Object
+
+    Property Boolean pbAccept
+
+    Set piMinSize to 315 327
+    
+    Procedure Close_Panel_OK
+        Set pbAccept to True
+        Send Close_Panel
+    End_Procedure
+    
+    Object oResetBtn is a Button
+        Set Size to 14 68
+        Set Label    to "Reset changes"
+        Set Location to 293 113
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send ResetData
+        End_Procedure
+    End_Object
+
+    Object oOK_Btn is a Button
+        Set Label    to "OK"
+        Set Location to 293 213
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel_OK
+        End_Procedure
+    End_Object
+
+    Object oCancel_Btn is a Button
+        Set Label    to "Cancel"
+        Set Location to 293 268
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+
+    Procedure SetShadowStates
+    End_Procedure
+    
+    Procedure Set MasterValue tvdMaster strMaster
+        Set Value of oColumnName to strMaster.sID
+        Set Value of oColumnLabel to strMaster.sLabel
+        Set Checked_State of oMandatory to strMaster.bMandatory
+        
+        Set SelectOptions of oSelectOptionsGrid to strMaster.aSelectOptions
+        
+        Set Enabled_State of oColumnName to (Value(oColumnName)="")
+    End_Procedure
+    
+    Procedure MasterValueEnrich tvdMaster ByRef strMaster
+        Get Value of oColumnName to strMaster.sID
+        Get Value of oColumnLabel to strMaster.sLabel
+        Get Checked_State of oMandatory to strMaster.bMandatory
+        Get SelectOptions of oSelectOptionsGrid to strMaster.aSelectOptions
+        Function_Return strMaster
+    End_Function
+
+    Object oIdlePanelhandler is a cDisplayHandler
+    End_Object
+
+    Object oTextBox1 is a TextBox
+        Set Size to 10 50
+        Set Location to 278 13
+        Set Label to 'Use ctrl+up/dn to alter the sequence of the list items'
+        Set peAnchors to anBottomLeft
+    End_Object
+    
+    Procedure MasterValueXX
+        tvdMaster strMaster
+        Get pstrMaster to strMaster
+        Set MasterValue to strMaster
+    End_Procedure
+    
+    Procedure ResetData
+        tvdMaster strMaster 
+        Get pstrMaster to strMaster
+        Set MasterValue to strMaster
+    End_Procedure
+
+    Function PopupMaster tvdMaster ByRef strMaster Integer hVirtialColumnObject Returns Boolean
+        Boolean bAccept
+        Set piVirtialColumnObject to hVirtialColumnObject
+        Set pbAccept to False
+        
+        If (strMaster.sID="") Begin // New column
+            Move False to strMaster.bMandatory
+        End
+        
+        Set pstrMaster to strMaster
+        Set _phObj to hVirtialColumnObject
+//        Set MasterValue to strMaster
+        Send DFPostMessage MSG_MasterValueXX Self
+        
+        Send Popup
+        Get pbAccept to bAccept
+        If (bAccept) Begin
+            Send MasterValueEnrich (&strMaster)
+        End
+        Function_Return bAccept
+    End_Function
+            
+End_Object

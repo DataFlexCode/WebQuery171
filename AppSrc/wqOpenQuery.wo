@@ -1,0 +1,473 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebTreeView.pkg
+Use cWebCombo.pkg
+Use seq_chnl.pkg
+Use wqCreateDirectory.wo
+
+Enum_List
+    Define C_wqOpenQuery for 1
+    Define C_wqSaveQuery
+End_Enum_List
+
+Object oWqOpenQuery is a cWebModalDialog
+    { WebProperty=True }
+    Property Integer wpiMode
+    { WebProperty=True }
+    Property String  wpsSelection
+    { WebProperty=True }
+    Property String  wpsDefault
+    { WebProperty=True }
+    Property Integer wpiNextID
+    
+    Set psCaption           to "Open Query"
+    Set piMinWidth          to 500
+    Set piMinHeight         to 400
+    Set pbServerOnSubmit    to True
+    Set pbServerOnShow      to True
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oDirectories is a cWebTreeView
+            Set piColumnSpan to 0
+            Set pbServerOnSelect to True
+            
+            Function OnLoadChildNodes String sId String sValue Integer iLevel Returns tWebTreeItem[]
+                tWebTreeItem[] aItems
+                wqDir[] aContents
+                Integer i iID
+                String  sFilter
+                
+                If (iLevel = 0) Begin
+                    Move "1d"                       to aItems[0].sId
+                    Move sId                        to aItems[0].sParentId
+                    Move "Public Queries"           to aItems[0].sName
+                    Move True                       to aItems[0].bLoadChildren
+                    Move True                       to aItems[0].bFolder
+                    Move (PublicPath(ghoWQF))       to aItems[0].sValue
+                    
+                    If (PrivatePath(ghoWQF) <> "") Begin
+                        Move "2d"                   to aItems[1].sId
+                        Move sId                    to aItems[1].sParentId
+                        Move "My Queries"           to aItems[1].sName
+                        Move True                   to aItems[1].bLoadChildren
+                        Move True                   to aItems[1].bFolder
+                        Move (PrivatePath(ghoWQF))  to aItems[1].sValue
+                        WebSet wpiNextID of oWqOpenQuery   to 3
+                    End
+                    Else WebSet wpiNextID of oWqOpenQuery to 2
+                    
+                End
+                Else Begin
+                    WebGet psValue        of oFileType              to sFilter
+                    Get DirectoryContents of ghoWQF sValue sFilter  to aContents
+                    WebGet wpiNextID of oWqOpenQuery                to iID
+                    
+                    For i from 0 to (SizeOfArray(aContents) - 1)
+                        Move (String(iID) + If(aContents[i].bDir, "d", "f"))    to aItems[i].sId
+                        Move sID                                                to aItems[i].sParentId
+                        Move aContents[i].sName                                 to aItems[i].sName
+                        Move aContents[i].bDir                                  to aItems[i].bLoadChildren
+                        Move aContents[i].bDir                                  to aItems[i].bFolder
+                        If (not(aContents[i].bDir) and (Right(aContents[i].sName, 4) = ".wqr")) ;
+                            Move "Custom/report.png"                            to aItems[i].sIcon
+                        Move (sValue + "\" + aContents[i].sName)                to aItems[i].sValue
+                        Increment iID
+                    Loop
+                    
+                    WebSet wpiNextID of oWqOpenQuery to iID
+                End
+                
+                Function_Return aItems
+            End_Function
+            
+            Procedure OnSelect String sId String sValue Integer iLevel
+                Integer iMode
+                String  sFile
+                Boolean bDir
+                
+                Move (Right(sId, 1) = "d") to bDir
+                WebSet pbEnabled of oDeleteButton to (iLevel > 1)
+                WebSet pbEnabled of oCreateButton to (iLevel > 0)
+                WebGet wpiMode of oWqOpenQuery to iMode
+                
+                If (iMode = C_wqOpenQuery) Begin
+                    If bDir Procedure_Return
+                    
+                    WebSet wpsSelection of oWqOpenQuery     to sValue
+                    Get FilenameFromPath of ghoWQF sValue   to sFile
+                    WebSet psValue of oFileName             to sFile
+                End
+                Else Begin
+                    If bDir WebSet wpsSelection of oWqOpenQuery to (sValue + "\")
+                    Else    WebSet wpsSelection of oWqOpenQuery to sValue
+                End
+                
+            End_Procedure
+            
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oFileName is a cWebForm
+            Set piColumnSpan to 5
+            Set psLabel to "File name:"
+        End_Object
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object 
+
+        Object oFileType is a cWebCombo
+            Set pbServerOnChange to True
+            Set piColumnSpan to 5
+            Set psLabel to "Files of type:"
+            
+            Procedure OnFill
+                Send AddComboItem "*.wqr" "Web Query Files (*.wqr)"
+                Send AddComboItem "*.*" "All Files (*.*)"
+            End_Procedure
+            
+            Procedure OnChange String sNewValue String sOldValue
+                
+                If (sNewValue <> sOldValue) Begin
+                    Send FullRefresh of oDirectories
+                    WebSet pbEnabled of oDeleteButton to False
+                    WebSet pbEnabled of oCreateButton to False
+                End
+                
+            End_Procedure
+            
+        End_Object
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object 
+
+        Object oCreateButton is a cWebButton
+            Set piColumnSpan  to 2
+            Set piColumnIndex to 3 
+            Set psCaption     to "Create Directory"
+            Set pbEnabled     to False
+        
+            Procedure OnClick
+                Send CreateDirectory
+            End_Procedure
+            
+        End_Object
+        
+        Object oDeleteButton is a cWebButton
+            Set piColumnSpan  to 0
+            Set psCaption     to "Delete"
+            Set piColumnSpan  to 1
+            Set piColumnIndex to 5
+            Set pbEnabled     to False
+        
+            Procedure OnClick
+                Send DeleteQuery
+            End_Procedure
+            
+        End_Object
+
+    End_Object 
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure OverwriteCallback Integer eConfMode
+        If (eConfMode = cmYes) Forward Send Ok
+    End_Procedure
+    
+    WebPublishProcedure OverwriteCallback
+    
+    Procedure DeleteCallback Integer eConfMode
+        Boolean bExist
+        String  sFile
+        
+        If (eConfMode = cmYes) Begin
+            WebGet psSelectedValue of oDirectories to sFile
+            File_Exist sFile bExist
+            If bExist EraseFile sFile
+            Set pbEnabled of oDeleteButton to False
+            Set pbEnabled of oCreateButton to False
+            Send FullRefresh of oDirectories
+        End
+        
+    End_Procedure
+
+    WebPublishProcedure DeleteCallback
+    
+    Procedure RemoveCallBack Integer eConfMode
+        String  sFile
+        Boolean bExist
+        wqDir[] aContents
+        
+        If (eConfMode = cmYes) Begin
+            WebGet psSelectedValue of oDirectories to sFile
+            File_Exist sFile bExist
+            If not bExist Procedure_Return
+            Get DirectoryContents of ghoWQF sFile "*"  to aContents
+            If (SizeOfArray(aContents) > 0) Procedure_Return            
+            Remove_Directory sFile
+            Set pbEnabled of oDeleteButton to False
+            Set pbEnabled of oCreateButton to False
+            Send FullRefresh of oDirectories
+        End        
+                
+    End_Procedure
+    
+    WebPublishProcedure RemoveCallBack
+    
+    Procedure DeleteQuery
+        Boolean bExist bPub
+        String  sFile sName sPath sDir sID
+        Integer iPos
+        wqDir[] aContents
+        
+        WebGet psSelectedValue of oDirectories to sFile
+        WebGet psSelectedId    of oDirectories to sID
+        
+        If (Right(sID, 1) = "d") Begin
+            File_Exist sFile bExist
+            
+            If bExist Begin
+                Get StorePath of ghoWQF             to sPath
+                Move (Replace(sPath, sFile, ""))    to sName
+                Move (Pos("\", sName, 2))           to iPos
+                
+                If iPos Begin
+                    Move (Left(sName, (iPos - 1)))              to sDir
+                    Move (sDir = C_wqPublicDir)                 to bPub
+                    Move (Right(sName, (Length(sName) - iPos))) to sName
+                End
+                
+                Get DirectoryContents of ghoWQF sFile "*"  to aContents
+                
+                If (SizeOfArray(aContents) > 0) Begin
+                    Send ShowInfoBox ;
+                        ("Cannot remove" * If(bPub, "public", "private") * ;
+                         "directory <<" *  sName * ">> as it has contents.\n\r" + ;
+                         "Delete the contents first.") ;
+                         "Cannot Remove"
+                    Procedure_Return
+                End
+                Else Begin
+                    Send ShowYesNo Self ;
+                        (RefProc(RemoveCallBack)) ;
+                        ("Do you wish to REMOVE the" * If(bPub, "public", "private") * ;
+                        'directory <<' + sName + '>>?') "Remove directory?"
+                End
+                
+            End
+            
+        End
+        Else Begin
+        
+            File_Exist sFile bExist
+            
+            If bExist Begin
+                // ToDo: This approach might not work with queries in subdirectories...
+                
+                Get StorePath of ghoWQF             to sPath
+                Move (Replace(sPath, sFile, ""))    to sName
+                Move (Pos("\", sName, 2))           to iPos
+                
+                If iPos Begin
+                    Move (Left(sName, (iPos - 1)))              to sDir
+                    Move (sDir = C_wqPublicDir)                 to bPub
+                    Move (Right(sName, (Length(sName) - iPos))) to sName
+                End
+                
+                Send ShowYesNo Self (RefProc(DeleteCallback)) ;
+                                    ("Do you wish to DELETE the" * If(bPub, "public", "private") * 'saved query <<' + sName + '>>?') ;
+                                    "Delete?"
+            End
+            
+        End
+        
+    End_Procedure
+    
+    Function CurrentPath Returns String
+        String  sPath sID
+        Integer iPos
+        
+        WebGet psSelectedValue of oDirectories to sPath
+        WebGet psSelectedId    of oDirectories to sId
+        
+        If (Right(sId, 1) = "d") Begin
+            If (Right(sPath, 1) <> "\") Move (sPath + "\") to sPath
+        End
+        Else Begin
+            Move (rPos(oStringFunctions, "\", sPath)) to iPos
+            If iPos Move (Left(sPath, iPos)) to sPath
+        End
+        
+        Function_Return sPath
+    End_Function
+    
+    Procedure CreateDirectory
+        String  sPath
+        
+        Get CurrentPath to sPath
+        Send DoPopup of oWqCreateDirectory Self sPath
+    End_Procedure
+    
+    Procedure DoCreateDirectory
+        String  sName sPath
+        
+        Get EnteredName of oWqCreateDirectory to sName
+        Get CurrentPath                       to sPath
+        Make_Directory (sPath + sName)
+        Set pbEnabled of oDeleteButton to False
+        Set pbEnabled of oCreateButton to False
+        Send FullRefresh of oDirectories
+    End_Procedure
+    
+    Procedure OnCloseModalDialog Handle hoMD
+        If (hoMD = oWqCreateDirectory) Send DoCreateDirectory
+    End_Procedure
+    
+    Procedure Ok
+        Integer iMode
+        String  sFile sSel sId sPath
+        Boolean bExist
+        
+        WebGet wpiMode                          to iMode
+        WebGet psSelectedValue  of oDirectories to sSel
+        WebGet psSelectedId     of oDirectories to sID
+        WebGet psValue          of oFileName    to sFile
+        
+        If (sId = "") Begin
+            Send ShowInfoBox "No directory selected" "Select directory"
+            Procedure_Return
+        End
+        
+        If (iMode = C_wqOpenQuery) Begin
+            
+            If (Right(sId, 1) = "d") Begin
+                Move (sSel + "\" + sFile)   to sPath
+                
+                File_Exist sPath bExist
+                
+                If bExist Begin
+                    WebSet wpsSelection to sPath
+                    Forward Send Ok
+                End
+                Else Begin
+                    Send ShowInfoBox "No file selected" "Select file"
+                    Procedure_Return
+                End
+                
+            End
+            Else Begin
+                File_Exist sSel bExist
+                
+                If bExist Begin
+                    WebSet wpsSelection to sSel
+                    Forward Send Ok
+                End
+                Else Begin
+                    Send ShowInfoBox "No file selected" "Select file"
+                    Procedure_Return
+                End
+                
+            End
+
+        End
+        Else Begin
+            
+            If (Right(sId, 1) = "d") Begin
+                
+                If (sFile = "") Begin
+                    Send ShowInfoBox "No filename entered" "Enter filename"
+                    Procedure_Return
+                End
+                
+                Move (sSel + "\" + sFile) to sPath
+            End
+            Else Move sSel to sPath
+            
+            File_Exist sPath bExist
+            WebSet wpsSelection to sPath
+            
+            If bExist ;
+                Send ShowYesNo Self (RefProc(OverwriteCallback)) ;
+                                    ("File" * sFile * "already exists - do you wish to overwrite it?") ;
+                                    "Overwrite?"
+            Else Forward Send Ok
+            
+        End
+                
+    End_Procedure
+    
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure OnShow
+        Integer iMode
+        String  sDefault sFilename
+        
+        Send FullRefresh of oDirectories
+        WebSet pbEnabled of oDeleteButton to False
+        WebSet pbEnabled of oCreateButton to False
+        WebSet psValue   of oFileName     to ""
+        
+        WebGet wpiMode to iMode
+        
+        If (iMode = C_wqSaveQuery) Begin
+            WebGet psValue of oFileName to sFilename
+            WebGet wpsDefault to sDefault
+            If (sFilename = "") WebSet psValue of oFileName to (sDefault + ".wqr")
+        End
+            
+    End_Procedure
+    
+    Procedure PopupDialog Handle hoObj Integer iMode String sDefault
+        
+        If (iMode = C_wqOpenQuery) WebSet psCaption to "Open Query"
+        If (iMode = C_wqSaveQuery) WebSet psCaption to "Save Query"
+        
+        Send MakeDirectories of ghoWQF
+        WebSet wpiMode    to iMode
+        WebSet wpsDefault to sDefault
+        WebSet wpiNextID  to 0
+        Send Popup hoObj
+    End_Procedure
+    
+    Function FileOpened Returns String
+        String  sFile
+        
+        WebGet wpsSelection to sFile
+        
+        Function_Return sFile
+    End_Function
+    
+    Procedure Clear
+        WebSet psValue of oFileName to ""
+        WebSet psValue of oFileType to "*.wqr"
+    End_Procedure
+    
+End_Object

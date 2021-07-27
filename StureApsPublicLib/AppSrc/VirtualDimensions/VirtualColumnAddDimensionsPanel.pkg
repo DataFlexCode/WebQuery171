@@ -1,0 +1,113 @@
+Use Windows.pkg
+
+Use TableQueryFunctions.pkg
+Use VirtualDimensions\cVirtualColumns.pkg
+Use StackFunctions.pkg
+Use win\GridFunctions.pkg
+
+Object oVirtualColumnAddDimensionsPanel is a ModalPanel
+    Set Size to 196 194
+    Set Label to "Add new dimension(s)"
+    Set piMinSize to 89 194
+    Set Locate_Mode to CENTER_ON_PANEL
+    Set Border_Style to Border_Thick
+    On_Key kCancel Send Close_Panel
+    Property Boolean pbOk
+    Property Handle phHandler // 
+
+    Object oGrid is a cfreeGrid
+        Set Location to 10 9
+        Set Size to 159 179
+        Set Line_Width to 2 0 // size and Line_width MUST be set before any column properties
+        Set Form_Width    0 to 47
+        Set Header_Label  0 to "Add"
+        Set Form_Width 1 to 121
+        Set Header_Label  1 to "Dimensions"
+        Set peAnchors to anAll
+        Set Select_Mode to Multi_Select
+        Set pbFirstColumnSelect to True
+
+        Procedure FillList String[] aNotDims
+            String sColumnID
+            Handle hHandler
+            Integer iBase iDimMasterTable
+            Boolean bIsInArray
+            tTableQuery strQ
+            
+            Get phHandler to hHandler
+            Get piTableDimensionMaster of hHandler to iDimMasterTable
+            
+            Send Delete_Data
+            Set Dynamic_Update_State to False
+          
+            Get NewQuery of oTQ iDimMasterTable to strQ
+            Send AddOrderBy of oTQ (&strQ) iDimMasterTable 1 False False
+            While (FindRecord(oTQ,&strQ))
+                Get_Field_Value iDimMasterTable 1 to sColumnID
+                Move (Rtrim(sColumnID)) to sColumnID
+                Get StringIsOnStack of oStackFunctions sColumnID aNotDims to bIsInArray
+                If (not(bIsInArray)) Begin
+                    Get Item_Count to iBase
+                    Send AddCheckBoxItem of oGridFunctions Self False
+                    Send Add_Item MSG_NONE sColumnID
+                End
+            Loop
+            Send SetEntryState of oGridFunctions Self False
+            Set Dynamic_Update_State to True
+        End_Procedure
+
+        Function SelectedDimensions Returns String[]
+            Integer iRow iMax iBase
+            String sValue
+            String[] aValues
+            Get RowCount of oGridFunctions Self to iMax
+            Decrement iMax
+            For iRow from 0 to iMax
+                If (RowSelectState(oGridFunctions,Self,iRow)) Begin
+                    Get RowBaseItem of oGridFunctions Self iRow to iBase
+                    Get Value (iBase+1) to sValue
+                    Move sValue to aValues[SizeOfArray(aValues)]
+                End
+            Loop
+            Function_Return aValues
+        End_Function
+    End_Object
+
+
+    Procedure Close_Panel_Ok
+        Set pbOK to True
+        Send Close_Panel
+    End_Procedure
+
+    Object oOK_Btn is a Button
+        Set Size to 14 75
+        Set Label    to "Add dimensions(s)"
+        Set Location to 176 58
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel_Ok
+        End_Procedure
+    End_Object
+
+    Object oCancel_Btn is a Button
+        Set Label    to "Cancel"
+        Set Location to 176 138
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+
+    Function AddDimensions Handle hHandler String[] aNotDims String[] ByRef aDims Returns Boolean
+        Set phHandler to hHandler
+        Set pbOk to False
+        Move (ResizeArray(aDims,0)) to aDims
+        Send FillList of oGrid aNotDims
+        Send Popup
+        If (pbOk(Self)) Begin
+            Get SelectedDimensions of oGrid to aDims
+        End
+        Function_Return (pbOk(Self))
+    End_Function
+
+End_Object

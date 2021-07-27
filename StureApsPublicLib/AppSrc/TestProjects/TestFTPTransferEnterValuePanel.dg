@@ -1,0 +1,53 @@
+Use Windows.pkg
+
+Object oTestFTPTransferEnterValuePanel is a ModalPanel
+    Set Size to 89 211
+    Set Label to "Create"
+    Set Locate_Mode to CENTER_ON_PANEL
+    Set Border_Style to Border_Normal
+    Property Boolean pbAccept
+    On_Key kCancel Send Close_Panel
+
+    Object oForm is a Form
+        Set Size to 13 130
+        Set Location to 33 41
+        Set Label to "Enter remote folder name:"
+        Set Label_Col_Offset to 0
+        Set Label_Justification_Mode to JMode_Top
+        On_Key kEnter Send KeyAction of oOK_Btn
+    End_Object
+    
+    Object oOK_Btn is a Button
+        Set Label    to "OK"
+        Set Location to 71 102
+        Set peAnchors To anBottomRight
+        Procedure OnClick
+            Set pbAccept to True
+            Send Close_Panel
+        End_Procedure
+    End_Object
+
+    Object oCancel_Btn is a Button
+        Set Label    to "Cancel"
+        Set Location to 71 157
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+
+    Function EnterValue String sLabel1 String sLabel2 String sInitialValue Returns String
+        Set pbAccept to False
+        Set Label to sLabel1
+        Get Label of oForm to sLabel2
+        Set Value of oForm to sInitialValue
+        Send Popup
+        If (pbAccept(Self)) Begin
+            Get Value of oForm to sInitialValue
+        End
+        Else Begin
+            Move "" to sInitialValue
+        End
+        Function_Return sInitialValue
+    End_Function
+End_Object

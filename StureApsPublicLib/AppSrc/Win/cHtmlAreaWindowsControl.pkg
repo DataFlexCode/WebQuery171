@@ -1,0 +1,477 @@
+Use Windows.pkg
+Use cComWebBrowser.pkg
+
+Use XmlBuilder.pkg
+Use FileFunctions.pkg
+
+
+Class cXmlBuilderForHtmlAreaWindowsControl is a cXmlBuilder
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set pbScriptException to True
+    End_Procedure
+    Procedure AddElement String sElement String sValue
+        Forward Send AddElement (ToANSI(sElement)) (ToANSI(sValue))
+    End_Procedure
+    Procedure AddOpenElement String sElement
+        Forward Send AddOpenElement (ToANSI(sElement))
+    End_Procedure
+    Procedure AddAttribute String sAttr String sValue
+        Forward Send AddAttribute (ToANSI(sAttr)) (ToANSI(sValue))
+    End_Procedure
+End_Class
+
+Register_Object oHtmlBuilder
+
+Struct _tHtmlAreaWindowsControlHeaderItem
+    String sValue1
+    String sValue2
+End_Struct
+
+Class cHtmlAreaWindowsControl is a cComWebBrowser
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property _tHtmlAreaWindowsControlHeaderItem[] paCssInternal
+        Property _tHtmlAreaWindowsControlHeaderItem[] paCssExternal
+        Property _tHtmlAreaWindowsControlHeaderItem[] paScriptInternal
+        Property _tHtmlAreaWindowsControlHeaderItem[] paScriptExternal
+        Object oHtmlBuilder is a cXmlBuilderForHtmlAreaWindowsControl
+        End_Object
+        Property String psHtmlRootFolder (AppendPath(oFileFunctions,VdfFolderPath(oFileFunctions,VDF_PROGRAM),"HtmlAppRootFolder"))
+    End_Procedure
+
+    Procedure _DoesAnyoneNeedThis_
+        Send AddCssClass 'div.author{text-align:right; font-style:italic;}'
+        Send AddCssClass '.linkarea:hover{background-color:rgb(192,192,255);}'
+        Send AddCssClass 'a{text-decoration:none;color:black;}'
+        Send AddCssClass 'h1,h2{font-family:"Verdana", Arial, sans-serif;font-size:1.0em;}'
+        Send AddCssClass 'h2{font-size:0.8em;}'
+    End_Procedure
+    
+    // Rename to AddCssInternal
+    Procedure AddCssClass String sCss String sMedia
+        // media       used for
+        // ----------- -----------------------------------------
+        // all         all media type devices
+        // aural       speech and sound synthesizers
+        // braille     braille tactile feedback devices
+        // embossed    paged braille printers
+        // handheld    small or handheld devices
+        // Print       printers
+        // projection  projected presentations, like slides
+        // screen      computer screens
+        // tty         media using a fixed-pitch character grid, like teletypes and terminals
+        // tv          television-type devices
+        Integer iIndex
+        _tHtmlAreaWindowsControlHeaderItem[] aValues
+        
+        If (sMedia<>"") Begin
+            If (not("|all|aural|braille|embossed|handheld|print|projection|screen|tty|tv|" contains ("|"+sMedia+"|"))) Begin
+                Error DFERR_PROGRAM "Unknown 'media' type"
+            End
+        End
+        
+        Get paCssInternal to aValues
+        Move (SizeOfArray(aValues)) to iIndex
+        Move sCss to aValues[iIndex].sValue1
+        Move sMedia to aValues[iIndex].sValue2
+        Set paCssInternal to aValues
+    End_Procedure
+    
+    Procedure AddCssExternal String sCssUrl String sMedia
+        Integer iIndex
+        _tHtmlAreaWindowsControlHeaderItem[] aValues
+        Get paCssExternal to aValues
+        Move (SizeOfArray(aValues)) to iIndex
+        Move sCssUrl to aValues[iIndex].sValue1
+        Move sMedia to aValues[iIndex].sValue2
+        Set paCssExternal to aValues
+    End_Procedure
+    
+    Procedure AddScriptInternal String sScript
+        _tHtmlAreaWindowsControlHeaderItem[] aValues
+        Get paScriptInternal to aValues
+        Move sScript to aValues[SizeOfArray(aValues)]
+        Set paScriptInternal to aValues
+    End_Procedure
+    
+    Procedure AddScriptExternal String sScriptUrl
+        _tHtmlAreaWindowsControlHeaderItem[] aValues
+        Get paScriptExternal to aValues
+        Move sScriptUrl to aValues[SizeOfArray(aValues)].sValue1
+        Set paScriptExternal to aValues
+    End_Procedure
+    
+    Procedure AddLocalScriptLibrary String sRelativePath
+        String sLocalPath
+        Get VdfFolderPath of oFileFunctions VDF_PROGRAM to sLocalPath
+        Get AppendPath of oFileFunctions sLocalPath "HtmlLocalScripts" to sLocalPath
+        Get AppendPath of oFileFunctions sLocalPath sRelativePath to sLocalPath
+        If (FileExists(oFileFunctions,sLocalPath)<>1) Begin
+            Error DFERR_PROGRAM ("File: "+sLocalPath+" not found")
+        End
+        Send AddScriptExternal sLocalPath
+    End_Procedure
+    
+    Function _HtmlTempFileName Returns String
+        String sFolder sFilePath
+        Get UserTempFolder of oFileFunctions to sFolder
+        Get AppendPath of oFileFunctions sFolder "tmp-cHtmlAreaWindowsControl.html" to sFilePath
+        Function_Return sFilePath
+    End_Function
+    
+    Procedure OnLinkClicked String sLink String sAuxValue
+    End_Procedure
+    
+    Function _LinkValue String sUrl Returns String
+        Integer iPosBegin iPosEnd
+        String sLink
+        Move (Pos("link(",sUrl)) to iPosBegin
+        If (iPosBegin>0) Begin
+            Move (iPosBegin+5) to iPosBegin
+            Move (Pos(")",sUrl,iPosBegin)) to iPosEnd
+            If (iPosEnd>0) Begin
+                Move (Mid(sUrl,iPosEnd-iPosBegin,iPosBegin)) to sLink
+            End
+        End
+        Function_Return sLink
+    End_Function
+    
+    Function LinkEncode String sLink Returns String
+        Function_Return ("link("+sLink+")")
+    End_Function
+    
+    Procedure OnComBeforeNavigate2 Variant llpDisp Variant llURL Variant llFlags Variant llTargetFrameName Variant llPostData Variant llHeaders Boolean ByRef llCancel
+        String sValue sLink
+        Move llURL to sValue
+        Get _LinkValue sValue to sLink
+        If (sLink<>"") Begin 
+            Send OnLinkClicked sLink
+            Move True to llCancel
+        End
+    End_Procedure
+    
+        Function _CssClasses Returns String
+            Integer iMax iIndex
+            String sCss
+            _tHtmlAreaWindowsControlHeaderItem[] aCssClasses
+            Get paCssInternal to aCssClasses
+            Move (SizeOfArray(aCssClasses)-1) to iMax
+            For iIndex from 0 to iMax
+                If (iIndex<>0) Begin
+                    Move (sCss+" ") to sCss
+                End
+                Move (sCss+aCssClasses[iIndex].sValue1) to sCss
+            Loop
+            Function_Return sCSS
+        End_Function
+        
+        Procedure _AddHeaderCssLinks
+            Integer iMax iIndex
+            String sUrl sMedia
+            _tHtmlAreaWindowsControlHeaderItem[] aValues
+            
+            Get paCssExternal to aValues
+            Move (SizeOfArray(aValues)-1) to iMax
+            For iIndex from 0 to iMax
+                Move aValues[iIndex].sValue1 to sUrl
+                Move (Replaces("/",sUrl,"\")) to sUrl
+                Move aValues[iIndex].sValue2 to sMedia
+                If (sMedia="") Begin
+                    Move "all" to sMedia
+                End
+                
+                Send AddElement of oHtmlBuilder "link" ""
+                Send AddAttribute of oHtmlBuilder "rel" "stylesheet"
+                Send AddAttribute of oHtmlBuilder "type" "text/css"
+                Send AddAttribute of oHtmlBuilder "media" sMedia
+                Send AddAttribute of oHtmlBuilder "href" sUrl
+            Loop
+        End_Procedure
+        
+        Procedure _AddHeaderScriptInternal
+            Integer iMax iIndex
+            String sScript 
+            _tHtmlAreaWindowsControlHeaderItem[] aValues
+            
+            Get paScriptInternal to aValues
+            Move (SizeOfArray(aValues)-1) to iMax
+            For iIndex from 0 to iMax
+                Set pbProtectValueData of oHtmlBuilder to True
+                Move aValues[iIndex].sValue1 to sScript
+                
+                Send AddElement of oHtmlBuilder "script" sScript
+                Send AddAttribute of oHtmlBuilder "type" "text/javascript"
+                Set pbProtectValueData of oHtmlBuilder to False
+            Loop
+        End_Procedure
+        
+        Procedure _AddHeaderScriptExternal
+            Integer iMax iIndex
+            String sUrl 
+            _tHtmlAreaWindowsControlHeaderItem[] aValues
+            
+            Get paScriptExternal to aValues
+            Move (SizeOfArray(aValues)-1) to iMax
+            For iIndex from 0 to iMax
+                Move aValues[iIndex].sValue1 to sUrl
+                Move (Replaces("/",sUrl,"\")) to sUrl
+                
+                Send AddElement of oHtmlBuilder "script" ""
+                Send AddAttribute of oHtmlBuilder "src" sUrl
+            Loop
+        End_Procedure
+        
+    Procedure OnWriteHeader 
+        String sValue
+        Send AddElement of oHtmlBuilder "title" "must be there"
+        
+        Get _CssClasses to sValue
+        If (sValue<>"") Begin
+            Send AddElement of oHtmlBuilder "style" (_CssClasses(Self))
+        End
+        
+        Send _AddHeaderCssLinks
+        
+        Send _AddHeaderScriptExternal
+        Send _AddHeaderScriptInternal
+        
+    End_Procedure
+    
+    Procedure OnFillArea
+    End_Procedure
+    
+    Procedure OnWriteHtml Integer iChannel
+        Write channel iChannel ('<!'+'DOCTYPE html>')
+        Send XmlToChannel of oHtmlBuilder iChannel
+        
+        Send AddOpenElement of oHtmlBuilder "html"
+            Send AddOpenElement of oHtmlBuilder "head" // The opening an closing of this tag has been moved here from OnWriteHeader
+                Send OnWriteHeader
+            Send CloseElement of oHtmlBuilder // head
+                
+            Send AddOpenElement of oHtmlBuilder "body"
+                Send OnFillArea
+            Send CloseElement of oHtmlBuilder // body
+        Send CloseElement of oHtmlBuilder // html
+        Send EndXml of oHtmlBuilder 
+    End_Procedure
+
+    Procedure DoRefreshArea
+        String sFile
+        Integer iChannel
+        If (Active_State(Self)) Begin
+            Get _HtmlTempFileName to sFile
+            Get DirectOutput of oFileFunctions sFile to iChannel
+            If (iChannel>=0) Begin
+                Send OnWriteHtml iChannel
+                Send CloseOutput of oFileFunctions iChannel
+                Send ComNavigate sFile 0 0 0 ""
+            End
+        End
+    End_Procedure
+
+    Procedure OnCreate
+        Forward Send OnCreate
+        Send DoRefreshArea
+    End_Procedure
+
+//            Procedure OnComStatusTextChange String llText
+//                Showln "[Procedure OnComStatusTextChange String llText] *** Statusbar text changed."
+//                Showln "String: " llText
+//            End_Procedure
+//
+//            Procedure OnComProgressChange Integer llProgress Integer llProgressMax
+//                Showln "[Procedure OnComProgressChange Integer llProgress Integer llProgressMax] *** Fired when download progress is updated."
+//                Showln llProgress " , " llProgressMax
+//            End_Procedure
+//
+//            Procedure OnComCommandStateChange Integer llCommand Boolean llEnable
+//                Showln "[Procedure OnComCommandStateChange Integer llCommand Boolean llEnable] *** The enabled state of a command changed."
+//                Showln llCommand " , " llEnable
+//            End_Procedure
+//
+//            Procedure OnComDownloadBegin
+//                Showln "[Procedure OnComDownloadBegin] *** Download of a page started."
+//            End_Procedure
+//
+//            Procedure OnComDownloadComplete
+//                Showln "[Procedure OnComDownloadComplete] *** Download of page complete."
+//            End_Procedure
+//
+//            Procedure OnComTitleChange String llText
+//                Showln "[Procedure OnComTitleChange String llText] *** Document title changed."
+//                Showln llText
+//            End_Procedure
+//
+//            Procedure OnComPropertyChange String llszProperty
+//                Showln "[Procedure OnComPropertyChange String llszProperty] *** Fired when the PutProperty method has been called."
+//                Showln llszProperty
+//            End_Procedure
+
+//            Procedure OnComBeforeNavigate2 Variant llpDisp Variant llURL Variant llFlags Variant llTargetFrameName Variant llPostData Variant llHeaders Boolean ByRef llCancel
+//                Showln "[Procedure OnComBeforeNavigate2 Variant llpDisp Variant llURL Variant llFlags Variant llTargetFrameName Variant llPostData Variant llHeaders Boolean ByRef llCancel] *** Fired before navigate occurs in the given WebBrowser (window or frameset element). The processing of this navigation may be modified."
+//                //Show (String(llpDisp)) " , "
+//                Show "* , "
+//                Show llURL " , "
+//                Show llFlags " , "
+//                Show llTargetFrameName " , "
+//                Show llPostData " , "
+//                Show llHeaders " ,  ByRef:"
+//                Showln llCancel
+//            End_Procedure
+
+//            Procedure OnComNewWindow2 Variant llppDisp Boolean ByRef llCancel
+//                Showln "[Procedure OnComNewWindow2 Variant llppDisp Boolean ByRef llCancel] *** A new, hidden, non-navigated WebBrowser window is needed."
+//                Showln llppDisp " ,  ByRef:" llCancel
+//            End_Procedure
+
+//            Procedure OnComNavigateComplete2 Variant llpDisp Variant llURL
+//                Showln "[Procedure OnComNavigateComplete2 Variant llpDisp Variant llURL] *** Fired when the document being navigated to becomes visible and enters the navigation stack."
+//                //Show (String(llpDisp)) " , "
+//                Show "* , "
+//                Showln llURL
+//            End_Procedure
+//
+//            Procedure OnComDocumentComplete Variant llpDisp Variant llURL
+//                Showln "[Procedure OnComDocumentComplete Variant llpDisp Variant llURL] *** Fired when the document being navigated to reaches ReadyState_Complete."
+//                //Show (String(llpDisp)) " , "
+//                Show "* , "
+//                Showln llURL
+//            End_Procedure
+//
+//            Procedure OnComQuit
+//                Showln "[Procedure OnComQuit] *** Fired when application is quiting."
+//            End_Procedure
+//
+//            Procedure OnComVisible Boolean llVisible
+//                Showln "[Procedure OnComVisible Boolean llVisible] *** Fired when the window should be shown/hidden"
+//                Showln llVisible
+//            End_Procedure
+//
+//            Procedure OnComToolBar Boolean llToolBar
+//                Showln "[Procedure OnComToolBar Boolean llToolBar] *** Fired when the toolbar  should be shown/hidden"
+//                Showln llToolBar
+//            End_Procedure
+//
+//            Procedure OnComMenuBar Boolean llMenuBar
+//                Showln "[Procedure OnComMenuBar Boolean llMenuBar] *** Fired when the menubar should be shown/hidden"
+//                Showln llMenuBar
+//            End_Procedure
+//
+//            Procedure OnComStatusBar Boolean llStatusBar
+//                Showln "[Procedure OnComStatusBar Boolean llStatusBar] *** Fired when the statusbar should be shown/hidden"
+//                Showln llStatusBar
+//            End_Procedure
+//
+//            Procedure OnComFullScreen Boolean llFullScreen
+//                Showln "[Procedure OnComFullScreen Boolean llFullScreen] *** Fired when fullscreen mode should be on/off"
+//                Showln llFullScreen
+//            End_Procedure
+//
+//            Procedure OnComTheaterMode Boolean llTheaterMode
+//                Showln "[Procedure OnComTheaterMode Boolean llTheaterMode] *** Fired when theater mode should be on/off"
+//                Showln llTheaterMode
+//            End_Procedure
+//
+//            Procedure OnComWindowSetResizable Boolean llResizable
+//                Showln "[Procedure OnComWindowSetResizable Boolean llResizable] *** Fired when the host window should allow/disallow resizing"
+//                Showln llResizable
+//            End_Procedure
+//
+//            Procedure OnComWindowSetLeft Integer llLeft
+//                Showln "[Procedure OnComWindowSetLeft Integer llLeft] *** Fired when the host window should change its Left coordinate"
+//                Showln llLeft
+//            End_Procedure
+//
+//            Procedure OnComWindowSetTop Integer llTop
+//                Showln "[Procedure OnComWindowSetTop Integer llTop] *** Fired when the host window should change its Top coordinate"
+//                Showln llTop
+//            End_Procedure
+//
+//            Procedure OnComWindowSetWidth Integer llWidth
+//                Showln "[Procedure OnComWindowSetWidth Integer llWidth] *** Fired when the host window should change its width"
+//                Showln llWidth
+//            End_Procedure
+//
+//            Procedure OnComWindowSetHeight Integer llHeight
+//                Showln "[Procedure OnComWindowSetHeight Integer llHeight] *** Fired when the host window should change its height"
+//                Showln llHeight
+//            End_Procedure
+//
+//            Procedure OnComWindowClosing Boolean llIsChildWindow Boolean ByRef llCancel
+//                Showln "[Procedure OnComWindowClosing Boolean llIsChildWindow Boolean ByRef llCancel] *** Fired when the WebBrowser is about to be closed by script"
+//                Showln llIsChildWindow " , ByRef:" llCancel
+//            End_Procedure
+//
+//            Procedure OnComClientToHostWindow Integer ByRef llCX Integer ByRef llCY
+//                Showln "[Procedure OnComClientToHostWindow Integer ByRef llCX Integer ByRef llCY] *** Fired to request client sizes be converted to host window sizes"
+//                Showln "ByRef:" llCX " , ByRef:" llCY
+//            End_Procedure
+//
+//            Procedure OnComSetSecureLockIcon Integer llSecureLockIcon
+//                Showln "[Procedure OnComSetSecureLockIcon Integer llSecureLockIcon] *** Fired to indicate the security level of the current web page contents"
+//                Showln llSecureLockIcon
+//            End_Procedure
+//
+//            Procedure OnComFileDownload Boolean llActiveDocument Boolean ByRef llCancel
+//                Showln "[Procedure OnComFileDownload Boolean llActiveDocument Boolean ByRef llCancel] *** Fired to indicate the File Download dialog is opening"
+//                Showln llActiveDocument " , ByRef:" llCancel
+//            End_Procedure
+//
+//            Procedure OnComNavigateError Variant llpDisp Variant llURL Variant llFrame Variant llStatusCode Boolean ByRef llCancel
+//                Showln "[Procedure OnComNavigateError Variant llpDisp Variant llURL Variant llFrame Variant llStatusCode Boolean ByRef llCancel] *** Fired when a binding error occurs (window or frameset element)."
+//                Showln llpDisp " , " llURL " , " llFrame " , " llStatusCode " , Byref:" llCancel
+//            End_Procedure
+//
+//            Procedure OnComPrintTemplateInstantiation Variant llpDisp
+//                Showln "[Procedure OnComPrintTemplateInstantiation Variant llpDisp] *** Fired when a print template is instantiated."
+//                Showln llpDisp
+//            End_Procedure
+//
+//            Procedure OnComPrintTemplateTeardown Variant llpDisp
+//                Showln "[Procedure OnComPrintTemplateTeardown Variant llpDisp] *** Fired when a print template destroyed."
+//                Showln llpDisp
+//            End_Procedure
+//
+//            Procedure OnComUpdatePageStatus Variant llpDisp Variant llnPage Variant llfDone
+//                Showln "[Procedure OnComUpdatePageStatus Variant llpDisp Variant llnPage Variant llfDone] *** Fired when a page is spooled. When it is fired can be changed by a custom template."
+//                Showln llpDisp " , " llnPage " , " llfDone
+//            End_Procedure
+//
+//            Procedure OnComPrivacyImpactedStateChange Boolean llbImpacted
+//                Showln "[Procedure OnComPrivacyImpactedStateChange Boolean llbImpacted] *** Fired when the global privacy impacted state changes"
+//                Showln llbImpacted
+//            End_Procedure
+//
+//            Procedure OnComNewWindow3 Variant llppDisp Boolean ByRef llCancel UInteger lldwFlags String llbstrUrlContext String llbstrUrl
+//                Showln "[Procedure OnComNewWindow3 Variant llppDisp Boolean ByRef llCancel UInteger lldwFlags String llbstrUrlContext String llbstrUrl] *** A new, hidden, non-navigated WebBrowser window is needed."
+////                Showln llppDisp " , ByRef:" llCancel " , " lldwFlags " , " llbstrUrlContext " , " llbstrUrl
+//            End_Procedure
+//
+//            Procedure OnComSetPhishingFilterStatus Integer llPhishingFilterStatus
+//                Showln "[Procedure OnComSetPhishingFilterStatus Integer llPhishingFilterStatus] *** Fired to indicate the progress and status of the Phishing Filter analysis of the current web page"
+//                Showln llPhishingFilterStatus
+//            End_Procedure
+//
+//            Procedure OnComWindowStateChanged UInteger lldwWindowStateFlags UInteger lldwValidFlagsMask
+//                Showln "[Procedure OnComWindowStateChanged UInteger lldwWindowStateFlags UInteger lldwValidFlagsMask] *** Fired to indicate that the browser window's visibility or enabled state has changed."
+//                Showln lldwWindowStateFlags " , " lldwValidFlagsMask
+//            End_Procedure
+//
+//            Procedure OnComNewProcess Integer lllCauseFlag Variant llpWB2 Boolean ByRef llCancel
+//                Showln "[Procedure OnComNewProcess Integer lllCauseFlag Variant llpWB2 Boolean ByRef llCancel] *** A new, hidden, non-navigated process is created to handle the navigation."
+//                Showln lllCauseFlag " , " llpWB2 " , ByRef:" llCancel
+//            End_Procedure
+//
+//            Procedure OnComThirdPartyUrlBlocked Variant llURL UInteger lldwCount
+//                Showln "[Procedure OnComThirdPartyUrlBlocked Variant llURL UInteger lldwCount] *** Fired when a third-party URL is blocked."
+//                Showln llURL lldwCount
+//            End_Procedure
+//
+//            Procedure OnComRedirectXDomainBlocked Variant llpDisp Variant llStartURL Variant llRedirectURL Variant llFrame Variant llStatusCode
+//                Showln "[Procedure OnComRedirectXDomainBlocked Variant llpDisp Variant llStartURL Variant llRedirectURL Variant llFrame Variant llStatusCode] *** Fired when a x-domain redirect is blocked."
+//                Showln llpDisp llStartURL llRedirectURL llFrame llStatusCode
+//            End_Procedure
+
+End_Class // cHtmlAreaWindowsControl

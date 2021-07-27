@@ -1,0 +1,59 @@
+Use cWebApp.pkg
+
+Define C_nwMenuBar    for "menubar"
+Define C_nwScrollBars for "scrollbars"
+Define C_nwStatusBar  for "status"
+Define C_nwTitleBar   for "titlebar"
+Define C_nwToolBar    for "toolbar"
+Define C_nwResizable  for "resizable"
+
+Class cWqWebApp is a cWebApp
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        
+        Property String[] pasNewWindowOptions
+    End_Procedure
+    
+    Procedure Set NewWindowOption String sOption Boolean bOn
+        String[] asOpts
+        Integer  i iPos
+        
+        Get pasNewWindowOptions to asOpts
+        Move (SizeOfArray(asOpts)) to iPos
+        
+        For i from 0 to (SizeOfArray(asOpts) - 1)
+            If (Left(asOpts[i], (Pos("=", asOpts[i]) - 1)) = sOption) Move i to iPos
+        Loop
+        
+        Move (sOption + "=" + If(bOn, "yes", "no")) to asOpts[iPos]
+        Set pasNewWindowOptions to asOpts
+    End_Procedure
+    
+    Procedure ClearWindowOptions
+        String[] asEmpty
+        
+        Set pasNewWindowOptions to asEmpty
+    End_Procedure
+    
+    Procedure NavigateNewWindow String sUrl Integer iWidth Integer iHeight
+        String[] aParams asOpts
+        String   sOpts
+        Integer  i
+        
+        Move sURL               to aParams[0]
+        Move iWidth             to aParams[1]
+        Move iHeight            to aParams[2]
+        
+        Get pasNewWindowOptions to asOpts
+        
+        For i from 0 to (SizeOfArray(asOpts) - 1)
+            Move (sOpts + ", " + asOpts[i]) to sOpts
+        Loop
+        
+        Move sOpts              to aParams[3]
+        
+        Send ClientAction "navigateNewWindow" aParams
+    End_Procedure
+    
+End_Class

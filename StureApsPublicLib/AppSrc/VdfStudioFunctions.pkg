@@ -1,0 +1,212 @@
+#IFDEF Is$WebApp
+  #ERROR 4999 "VdfStudioFunctions.pkg does not belong in a webapp"
+#ENDIF
+
+// DAW:
+Use VdfBase.pkg    
+Use Windows.pkg
+Use DFClient.pkg
+
+// StureApsPublicLib:
+Use StringFunctions.pkg // Define oStringFunctions object
+Use FileFunctions.pkg // Define oFileFunctions object
+Use StackFunctions.pkg // Define oStackFunctions object
+Use VdfRuntime.pkg
+Use WorkSpaceFunctions.pkg
+
+Define vdfs_WM_COPYDATA for |CI$004A
+
+// The tCopyDataStruct structure contains data to be passed to another application by 
+// the (vdfs_)WM_COPYDATA message.
+Struct vdfs_tCopyDataStruct
+    DWord dwData         // Specifies data to be passed to the receiving application.
+    DWord cbData         // length of lpData
+    Pointer lpData       // Pointer to data to be passed to the receiving application.
+End_Struct
+
+// Retrieves a Handle to a window whose Class name And window name match the specified 
+// strings. The Function searches child windows, beginning with the one following the 
+// specified child window.
+External_Function vdfs_FindWindowEx "FindWindowExA" User32.dll ;
+    Handle hWndParent ;
+    Handle hWndChildAfter ;
+    String sClassName ;
+    String sCaption ;
+    Returns Handle
+
+Global_Variable Integer oVdfStudioFunctions
+
+Object _oVdfStudioFunctions is a cObject
+    Move Self to oVdfStudioFunctions
+    
+    Procedure GetGenericFileExtensions String[] ByRef aMasks
+        Send StringPush of oStackFunctions "*.src" (&aMasks)
+        Send StringPush of oStackFunctions "*.vw" (&aMasks)
+        Send StringPush of oStackFunctions "*.rv" (&aMasks)
+        Send StringPush of oStackFunctions "*.dg" (&aMasks)
+        Send StringPush of oStackFunctions "*.sl" (&aMasks)
+        Send StringPush of oStackFunctions "*.wo" (&aMasks)
+        Send StringPush of oStackFunctions "*.dd" (&aMasks)
+        Send StringPush of oStackFunctions "*.bp" (&aMasks)
+        Send StringPush of oStackFunctions "*.pkg" (&aMasks)
+        Send StringPush of oStackFunctions "*.inc" (&aMasks)
+    End_Procedure
+    
+    Procedure GetExtraFileExtensionsVdfVersion String sVdfVer String[] ByRef aMasks
+        Integer iMax iIndex
+        Boolean bOk
+        String sKey sValue
+        String[] aMasks2
+        tRegKeyData stData
+
+        Move ("SOFTWARE\Data Access Worldwide\Visual DataFlex Tools\"+sVdfVer+"\"+"Studio") to sKey
+        Get ReadKeyData of oRegistryFunctions HKEY_CURRENT_USER sKey (&stData) True to bOk
+        If (bOk) Begin
+            Get NamedRegValue of oRegistryFunctions stData "Preferences" to sValue
+            Send SplitString of oStringFunctions sValue ";" True False (&aMasks2)
+        End
+        Move (SizeOfArray(aMasks2)-1) to iMax
+        For iIndex from 0 to iMax
+            Move (Trim(aMasks2[iIndex])) to aMasks[SizeOfArray(aMasks)]
+        Loop
+    End_Procedure
+    
+    Function FileExtensionMasks String sVdfVer Boolean bVdfQueryExtensions Returns String[]
+        String[] aMasks
+        Send GetExtraFileExtensionsVdfVersion sVdfVer (&aMasks)
+        Send GetGenericFileExtensions (&aMasks)
+        If (bVdfQueryExtensions) Begin
+            Send StringPush of oStackFunctions "*.nui" (&aMasks)
+            Send StringPush of oStackFunctions "*.utl" (&aMasks)
+        End
+        Function_Return aMasks
+    End_Function
+    
+    Procedure GetExtraFileExtensions String[] ByRef aMasks
+        String sVdfVer
+        Get CurrentVdfVer of oVdfRuntimeFunctions to sVdfVer
+        Send GetExtraFileExtensionsVdfVersion sVdfVer (&aMasks)
+    End_Procedure
+    
+    Function FileExtensions Returns String[] 
+        String[] aMasks
+        Send GetGenericFileExtensions (&aMasks)
+        Send GetExtraFileExtensions (&aMasks)
+        Function_Return aMasks
+    End_Function
+    
+    
+    // Parameters: sCaption - Is the titlebar caption to be searched. (may contain wildcard characters).
+    //             Returns  - Window handle of the first running application with matching titlebar.
+    // Matching windows are searched top to bottom in the window z-order.
+    Function _GetApplicationHandle String sCaption Returns Handle
+        Handle  hWnd
+        String  sText
+        Pointer lpsText
+        Integer iLength
+        
+        Move (Length(sCaption)) to iLength
+        Move sCaption to sText
+        Move (sText + Repeat(character(0),60)) to sText
+        Move (AddressOf(sText)) to lpsText
+    
+        Move (GetWindow(GetDesktopWindow(), GW_CHILD)) to hWnd
+    
+        While hWnd
+            Move (GetWindowText(hWnd, lpsText, 60)) to WindowIndex
+    
+            // look for a match....        
+            If (sCaption = Left(Cstring(sText), iLength)) Begin
+                Function_Return hWnd
+            End
+            Move (GetWindow(hWnd, GW_HWNDNEXT)) to hWnd
+        End
+    
+        Function_Return 0
+    End_Function  // _GetApplicationHandle
+
+    Function StudioCaptionTitle String sVdfVer Returns String
+        If (sVdfVer="12.0") Function_Return "Visual DataFlex Studio 12.0"
+        If (sVdfVer="12.1") Function_Return "Visual DataFlex Studio 12.1"
+        If (sVdfVer="14.0") Function_Return "Visual DataFlex 2008 Studio 14.0"
+        If (sVdfVer="14.1") Function_Return "Visual DataFlex 2008 Studio 14.1"
+        If (sVdfVer="15.0") Function_Return "Visual DataFlex 2009 Studio 15.0"
+        If (sVdfVer="15.1") Function_Return "Visual DataFlex 2009 Studio 15.1"
+        If (sVdfVer="16.0") Function_Return "Visual DataFlex 2010 Studio 16.0"
+        If (sVdfVer="16.1") Function_Return "Visual DataFlex 2010 Studio 16.1"
+        If (sVdfVer="17.0") Function_Return "Visual DataFlex 2012 Studio 17.0"
+        If (sVdfVer="17.1") Function_Return "Visual DataFlex 2012 Studio 17.1"
+    End_Function
+    
+        Function _AnyStudioHandle Returns Handle
+            Integer iItem iMax
+            Handle hWndStudio
+            String sStudioTitle
+            
+            Move 0 to hWndStudio
+            Move 0 to iItem
+            Move (SizeOfArray(gaRuntimes)-1) to iMax
+            
+            While (iItem<=iMax and hWndStudio=0)
+                Get StudioCaptionTitle gaRuntimes[iItem].sVdfVersion to sStudioTitle
+                Get _GetApplicationHandle sStudioTitle to hWndStudio
+                Increment iItem
+            Loop
+            Function_Return hWndStudio
+        End_Function
+    
+    Function OpenFileInStudio String sFileName Integer iLine String sSwsFile Returns Boolean
+        Handle hWndStudio hWndStudioAgent
+        String sVdfVer sStudioTitle
+        Integer iVoid
+        Boolean bExists 
+        vdfs_tCopyDataStruct strCopyData
+        tStudioWorkSpaceFile strSWS
+        
+        If (sSwsFile<>"" and FileExists(oFileFunctions,sSwsFile)) Begin
+            Get StudioWorkspaceStruct of oWorkSpaceFunctions sSwsFile to strSWS
+            Move strSWS.sVdfVersion to sVdfVer
+        End
+        Else Begin
+            Get CurrentVdfVer of oVdfRuntimeFunctions to sVdfVer
+        End
+        
+        Get StudioCaptionTitle sVdfVer to sStudioTitle
+        
+        Get _GetApplicationHandle sStudioTitle to hWndStudio
+        
+        If (hWndStudio=0) Begin
+            Get _AnyStudioHandle to hWndStudio // Any studios running at all?
+        End
+
+        If (hWndStudio) Begin
+            // Get the window handle of the previous Studio's cStudioAgent object....
+            Move (vdfs_FindWindowEx(hWndStudio, 0, "cStudioAgent", "")) to hWndStudioAgent
+
+            If (hWndStudioAgent) Begin
+                Move (CString(sFileName)) to sFileName
+                
+                File_Exist sFileName bExists
+
+                If (bExists) Begin
+                    Move (sFileName + Character(0)) to sFileName
+
+                    // Assemble the copy data and send it to the Studio instance....
+                    Move (iLine-1)              to strCopyData.dwData    // does not yet work
+                    Move (Length(sFileName))    to strCopyData.cbData
+                    Move (AddressOf(sFileName)) to strCopyData.lpData
+
+                    Move (SendMessage(hWndStudioAgent, vdfs_WM_COPYDATA, 0, AddressOf(strCopyData))) to iVoid
+                End
+            End
+
+            // bring the previous Studio window to the foreground....
+            Move (SetForegroundWindow(hWndStudioAgent)) to iVoid
+        End
+        Else Begin
+            Send ShellExecuteDocument of oFileFunctions sFileName
+        End
+        Function_Return True // It probably worked fine
+    End_Function
+    
+End_Object

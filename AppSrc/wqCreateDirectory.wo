@@ -1,0 +1,107 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebQueryFunctions.pkg
+
+Object oWqCreateDirectory is a cWebModalDialog
+    { WebProperty=True }
+    Property String  wpsPath ""
+    
+    Set psCaption to "Create Directory"
+    Set piMinWidth to 500
+    Set piMinHeight to 80
+    Set pbServerOnSubmit to true    // enable the OnSubmit event
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oDirName is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to "Directory name:"
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 4
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object 
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object
+        
+    End_Object 
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        String  sName sPath
+        Integer i
+        Boolean bExists
+        
+        // 1. Check all characteras are legal
+        WebGet psValue of oDirName to sName
+        Move (Trim(sName))         to sName
+        
+        For i from 1 to (Length(sName))
+            
+            If (C_wqInvalidDirChars contains Mid(sName, 1, i)) Begin
+                Send ShowInfoBox ("Directory name may not contain '" + Mid(sName, 1, i) + "'") "Invalid Character"
+                Procedure_Return
+            End
+            
+        Loop
+        
+        // 2. Check it doesn't already exist
+        WebGet wpsPath to sPath
+        Move (sPath + "\" + sName) to sPath
+        
+        File_Exist sPath bExists
+        
+        If bExists Begin
+            Send ShowInfoBox (sName * "already exists") "Cannot Create"
+            Procedure_Return
+        End
+        
+        Forward Send Ok
+    End_Procedure
+    
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure DoPopup Handle hoObj String sPath
+        WebSet wpsPath to sPath
+        
+        Send Popup hoObj
+    End_Procedure
+    
+    Function EnteredName Returns String
+        String  sName
+        
+        WebGet psValue of oDirName to sName
+        Function_Return sName
+    End_Function
+
+End_Object

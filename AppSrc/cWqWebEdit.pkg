@@ -1,0 +1,14 @@
+Use cWebEdit.pkg
+
+Class cWqWebEdit is a cWebEdit
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        
+        { WebProperty=True }
+        Property Integer piCaretPosition 0
+        
+        Set psJSClass to "df.wqWebEdit"
+    End_Procedure
+
+End_Class

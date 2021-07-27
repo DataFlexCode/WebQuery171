@@ -1,0 +1,110 @@
+// Use ErrorEventHandlerClass.pkg // cErrorEventHandler class and oErrorSilence object
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+
+Struct tErrorEvent
+    Integer iError
+    Integer iErrorLine
+    String sErrorText
+End_Struct
+
+Class cErrorEventHandler is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        Property Integer _phPreviousErrorHandler public -1
+        Property Integer _error_processing_state public False
+
+        // These properties are used internally to enable forwarding of errors to the previous error handler.
+        Property Integer _piError
+        Property Integer _piErrorLine
+        Property String  _psErrMsg
+        
+        Property tErrorEvent[] paErrors
+    End_Procedure
+    
+    Function Error_Processing_State Returns Integer
+        Function_Return (_error_processing_state(Self))
+    End_Function
+
+    //> Forwards the error event to the previous errorhandler
+    Procedure Forward_Error_Report
+        Integer hPreviousErrorHandler
+        Get _phPreviousErrorHandler to hPreviousErrorHandler
+        If (hPreviousErrorHandler<>-1) Send error_report to hPreviousErrorHandler (_piError(Self)) (_piErrorLine(Self)) (_psErrMsg(Self))
+    End_Procedure
+    
+    Function ErrorEventCount Returns Integer
+        tErrorEvent[] aErrors
+        Get paErrors to aErrors
+        Function_Return (SizeOfArray(aErrors))
+    End_Function
+    
+    Function ErrorEvent Integer iIndex Returns tErrorEvent
+        tErrorEvent[] aErrors
+        Get paErrors to aErrors
+        Function_Return aErrors[iIndex]
+    End_Function
+
+    Procedure OnError Integer iError String sErrorText Integer iErrorLine
+        Integer iErrIndex
+        tErrorEvent[] aErrors
+        Get paErrors to aErrors
+        Move (SizeOfArray(aErrors)) to iErrIndex
+        Move iError to aErrors[iErrIndex].iError
+        Move sErrorText to aErrors[iErrIndex].sErrorText
+        Move iErrorLine to aErrors[iErrIndex].iErrorLine
+        Set paErrors to aErrors
+    End_Procedure
+
+    Procedure DoReset
+        tErrorEvent[] aErrors
+        Set paErrors to (ResizeArray(aErrors,0))
+    End_Procedure
+
+    Procedure Activate
+        Send DoReset
+        If (_phPreviousErrorHandler(Self)=-1) Begin
+            Set _phPreviousErrorHandler to Error_Object_Id
+            Move Self to Error_Object_Id
+        End
+    End_Procedure
+    
+    Procedure Deactivate
+        If (_phPreviousErrorHandler(Self)<>-1) Begin
+            Get _phPreviousErrorHandler to Error_Object_Id
+            Set _phPreviousErrorHandler to -1
+        End
+    End_Procedure
+    
+    Function Error_Description Integer iError String sErrorText Returns String
+        Integer hPreviousErrorHandler
+        Get _phPreviousErrorHandler to hPreviousErrorHandler
+        If (hPreviousErrorHandler<>-1) Get Error_Description of hPreviousErrorHandler iError sErrorText to sErrorText
+        Function_Return sErrorText
+    End_Function
+
+    Procedure Error_Report Integer iError Integer iErrorLine String sErrMsg
+        String  sErrorText
+        Integer hPrevErrHandler
+
+        If (_error_processing_state(Self)) Procedure_Return // this prevents recursion
+        Set _error_processing_state to True
+
+        Set _piError     to iError
+        Set _piErrorLine to iErrorLine
+        Set _psErrMsg    to sErrMsg
+
+        Get _phPreviousErrorHandler to hPrevErrHandler
+
+        Move (Error_Description(hPrevErrHandler,iError,sErrMsg)) to sErrorText
+        Send OnError iError sErrorText iErrorLine
+        Set _error_processing_state to False
+    End_Procedure
+End_Class // cErrorEventHandler
+
+Global_Variable Integer oErrorSilence
+
+Object _oErrorSilence is a cErrorEventHandler
+    Move Self to oErrorSilence
+End_Object

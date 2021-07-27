@@ -1,0 +1,88 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html><head> 
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+  <title>WebQuery Other Topics</title>
+</head>
+<body style="font-family: Verdana, Geneva, sans-serif; font-size: 11.2px;">
+<h2>Other Topics</h2>
+
+<h3>Expressions</h3>
+<p>WebQuery expressions - both for creating calculated columns and when used
+for selection - are based on Sture Andersen's cExpressionParser class (the source
+can be found in StureApsPublicLib) which is still somewhat experimental. For
+WebQuery we have expanded some of its definitions in the cWqExprParser class,
+adding some functions and one new operator.</p>
+
+<p>The new operator is "<b>&amp;</b>", which WebQuery understands as a string
+concatenation operator (this is in addition to the rather clumsier "Concat" function
+which is also added) - use this rather than "<b>+</b>" to join strings together.</p>
+
+<p>Because of the experimental nature of these expressions, they should be used with
+care and you should not be too surprised if they don't perform exactly as you would
+wish.</p>
+
+<p>If you do have problems with them, please report them with an indication of how
+to reproduce them (ideally using something standard like the WebOrder sample).</p>
+
+<h3><i>Ad Hoc</i> Indices</h3>
+<i>Ad hoc</i> indices can be very useful, but they come with a significant performance
+overhead, because the records must first be read, then sorted in memory by the WebApp
+process before being output.</p>
+
+<p>For relatively small data sets, this is generally a bearable amount of time, but once
+several thousand rows are involved the time taken to do this can start to get out of hand.
+For much more than a few thousand rows it may prove impractical to use <i>ad hoc</i> indices.
+
+<h3>UI Performance</h3>
+<p>Our philosophy when writing software is generally "<i>get it working first, <u>then</u>
+get it working fast</i>". WebQuery is now (mostly!) working, however it is still passing too
+much data back and forth between the UI (user interface) in the browser and the WebApp on
+the server. This does not produce a serious issue when the browser and server are on the
+same machine (where performance is really pretty good) or on a fast local area network,
+but over a connection with significant
+network lag it results in rather <i>soggy</i> performance in the UI. Hopefully this will
+be addressed in future releases.<p>
+
+<h3>"Report Processing..." waiting dialog</h3>
+<p>It would be nice if while the WebApp at the server was processing a report, the user had
+an indication that something was happening. We will look into providing this in future.</p>
+
+<h3><i>But I want PDF output!</i></h3>
+<p>WebQuery does not offer PDF output, however you can achieve this by running a report in
+the Google Chrome web browser to a new browser tab or new browser window (Chrome will - at time of writing -
+actually open a new window for either option) then use "Print" (click on the top-left Chrome
+icon and select "Print", or right-click on the report and select "Print"), in "Destination"
+click "Change..." and select "Save as PDF", then click the "Save" button.</p>
+
+<p>Unless your previously selected printer from Chrome was a colour printer, the resulting PDF
+ <i>will</i> only be in black and white however.</p>
+
+<h3>Extensions to the WAF</h3>
+<p>WebQuery required two minor extensions to the Web Application Framework.
+<ol>
+<li>An extension of the df.WebEdit/cWebEdit (to df.wqWebEdit/cWqWebEdit) class to provide
+the additional ability to get and set the caret (text cursor) position programatically
+from within the web application. This can be accessed using WebGet/WebSet piCaretPosition.
+This is used in the expression editor.</li>
+<li>An extension of the df.WebApp/cWebApp (to df.wqWebApp/cWqWebApp) to give more control
+(in some browsers anyway) over the features present in new browser windows. These are set
+using the message "Set NewWindowOption {<i>option</i>} True/False" (of your cWqWebApp object)
+prior to sending the "NavigateNewWindow" message.
+The various options are:
+<pre>
+<ul>
+<li>C_nwMenuBar    - menubar</li>
+<li>C_nwScrollBars - scrollbars</li>
+<li>C_nwStatusBar  - status (presence of a status bar)</li>
+<li>C_nwTitleBar   - titlebar</li>
+<li>C_nwToolBar    - toolbar</li>
+<li>C_nwResizable  - resizeable</li>
+</ul>
+</pre>
+You can Set multiple options one after the other.
+They can also be reset to the defaults using "Send ClearWindowOptions".
+</li>
+</ol>
+
+</body>
+</html>

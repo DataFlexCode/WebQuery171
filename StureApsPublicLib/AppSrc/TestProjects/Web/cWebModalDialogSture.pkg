@@ -1,0 +1,106 @@
+Use cWebView.pkg
+Use cWebModalDialog.pkg
+Use TestProjects\Web\cWebViewSture.pkg
+
+Enum_List
+    Define MDEC_None
+    Define MDEC_Rename
+    Define MDEC_Create
+    Define MDEC_Delete
+End_Enum_List
+
+Class cWebModalDialogSture is a cWebModalDialog
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        { WebProperty=True}
+        Property String psNextShowState
+        { WebProperty=True}
+        Property Integer piExitCode MDEC_None
+    End_Procedure
+    
+    Function NextOnShowStateNew Boolean bClearAll Returns tNextOnShowState
+        tNextOnShowState strState
+        Move bClearAll to strState.bClearAll
+        Function_Return strState
+    End_Function
+    
+    Procedure NextOnShowStateAddRecord tNextOnShowState ByRef strState Integer iTable 
+        Integer iItem
+        String sRowID
+        If (IsNullRecordBuffer(oRecordBufferFunctions,iTable)) Begin
+            Move "" to sRowID
+        End
+        Else Begin
+            Move (SerializeRowID(GetRowID(iTable))) to sRowID
+        End
+        Move (SizeOfArray(strState.aRecords)) to iItem
+        Move iTable to strState.aRecords[iItem].iTable
+        Move sRowID to strState.aRecords[iItem].sRowID
+    End_Procedure
+    
+    Procedure NextOnShowStateAddRecordArray tNextOnShowState ByRef strState Integer[] aTables
+        Integer iMax iItem
+        Move (SizeOfArray(aTables)-1) to iMax
+        For iItem from 0 to iMax
+            Send NextOnShowStateAddRecord (&strState) aTables[iItem]
+        Loop
+    End_Procedure
+    
+    Procedure Set NextOnShowState tNextOnShowState strState
+        String sValue
+        Get VariantToString of oStructFunctions strState to sValue
+        WebSet psNextShowState to sValue
+    End_Procedure
+
+    Procedure OnShow
+        Integer iItem iMax hDD iTable hDirectDD
+        Integer hDataLossMessage
+        String sValue sRowID
+        tValueTree strValueTree
+        tNextOnShowState strState
+
+        Forward Send OnShow
+
+        WebGet psNextShowState to sValue
+        If (sValue<>"") Begin
+            Get StringToValueTree of oStructFunctions sValue to strValueTree
+            ValueTreeDeserializeParameter strValueTree to strState
+            
+            If (strState.bClearAll) Begin
+                // Avoid "confirm dataloss" message when clearing the view
+                Get Verify_Data_Loss_msg to hDataLossMessage
+                Set Verify_Data_Loss_msg to 0
+                Send Request_Clear_All
+                Set Verify_Data_Loss_msg to hDataLossMessage
+            End
+            
+            Get Main_DD to hDD
+            
+            Move (SizeOfArray(strState.aRecords)-1) to iMax
+            For iItem from 0 to iMax
+                Move strState.aRecords[iItem].iTable to iTable
+                Move strState.aRecords[iItem].sRowID to sRowID
+                
+                Get Data_Set of hDD iTable to hDirectDD
+                
+                If (sRowID="" or IsNullRowID(DeserializeRowID(sRowID))) Begin
+                    Send Request_Clear_File of hDirectDD iTable
+                End
+                Else Begin
+                    Send FindByRowId of hDirectDD iTable (DeserializeRowID(sRowID)) 
+                End
+            Loop
+            
+            //
+            WebSet psNextShowState to ""
+            WebSet piExitCode to MDEC_None
+        End
+    End_Procedure    
+
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+
+    End_Procedure
+
+End_Class

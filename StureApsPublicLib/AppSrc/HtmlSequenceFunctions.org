@@ -1,0 +1,593 @@
+// WebTableQuery
+//
+//
+//
+
+Use XmlBuilder.pkg
+Use CSSFunctions.pkg
+Use RecordBufferFunctions.pkg
+
+Struct tHTMLSequenceItem
+    Integer iNodeType // 0=Closed element, 1=Open element, 2=CDATA element, 3=Attibute, 4=Close element, 5=Callback point
+    String sName      // Name of either of the above    
+    String sValue
+    Boolean bDoStyle
+    Boolean bDoClass
+    tCSSPropertyValue[] aCSSStyles
+    String[]            aCSSClasses
+    Integer iCallForValueMsg
+    Integer iCallForValueObj
+End_Struct
+
+Struct tHTMLSequence
+    String   sCurrentSection
+    
+    tHTMLSequenceItem[] _aItems
+    Integer  _iIndexPointer
+    
+    Boolean  bPendingCSSStyles
+    tCSSPropertyValue[] aPendingCSSStyles
+    
+    String[] aPendingCSSClasses
+    Boolean  bPendingCSSClasses
+End_Struct
+
+Struct tSimpleTableColumnLayout
+    String sHeaderLabel
+    Integer iJustification //> 0=left 1=center 2=right
+    String  sOnClickAction //> If this is set a link will be generatet on the cell
+    Integer iOnClickTable  //> If iOnClickTable is set the param will be a record id.
+    Integer iCallParamMsg  //> If not, sOnClickAction will be called with what the param function returns.
+    Integer iCallParamObj
+    String  sWidth
+    Integer iAutoSourceTable  //> If non zero this enables automatic populating the column with data
+    Integer iAutoSourceColumn 
+    Integer iOutputCellHtmlMsg //> If iAutoSourceTable is not set but this is, the iOutputCellHtmlMsg procedure will be called to fill the cell content
+    Integer iOutputCellHtmlObj
+End_Struct
+
+Struct tSimpleTableLayout
+    String sCSSClass
+    String sWidth
+    String sCellPadding
+    Integer iLinkEncodeMode // 0="data-ServerOnClick" "data-OnClickParam", 1=href
+    Boolean bHeaderLine
+    Boolean bHighlightHover
+    Integer iGridLinesMode // 0=none 1=All 
+    tSimpleTableColumnLayout[] aColumns
+End_Struct
+    
+Global_Variable Integer oHTMLSequenceFunctions
+
+Object _oHTMLSequenceFunctions is a cObject
+    Move Self to oHTMLSequenceFunctions
+    
+    Function NewSequence Returns tHTMLSequence
+        tHTMLSequence strSequence
+        Move 0 to strSequence._iIndexPointer
+        Function_Return strSequence
+    End_Function
+        
+        Procedure _AppendToSequence tHTMLSequence ByRef strHTMLSequence Integer iNodeType String sName String sValue Integer iValueCallMsg Integer iValueCallObj
+            tHTMLSequenceItem strItem
+            Move iNodeType to strItem.iNodeType
+            Move sName to strItem.sName
+            Move sValue to strItem.sValue
+            Move False to strItem.bDoStyle
+            Move iValueCallMsg to strItem.iCallForValueMsg
+            Move iValueCallObj to strItem.iCallForValueObj
+            Move strItem to strHTMLSequence._aItems[SizeOfArray(strHTMLSequence._aItems)]
+        End_Procedure
+    
+    // 0=Closed element
+    // 1=Open element
+    // 2=CDATA element
+    // 3=Attibute
+    // 4=Close element 
+    // 5=Callback point
+    Procedure AddElement tHTMLSequence ByRef strHTMLSequence String sElement String sValue
+        Send _AppendToSequence (&strHTMLSequence) 0 sElement sValue 0 0
+    End_Procedure
+    Procedure AddOpenElement tHTMLSequence ByRef strHTMLSequence String sElement
+        Send _AppendToSequence (&strHTMLSequence) 1 sElement "" 0 0
+    End_Procedure
+    Procedure AddCDATAElement tHTMLSequence ByRef strHTMLSequence String sElement String sValue // Same as AddElement but marks up the data in sValue as CDATA
+        Send _AppendToSequence (&strHTMLSequence) 2 sElement sValue 0 0
+    End_Procedure
+    Procedure AddAttribute tHTMLSequence ByRef strHTMLSequence String sAttr String sValue
+        Send _AppendToSequence (&strHTMLSequence) 3 sAttr sValue 0 0
+    End_Procedure
+    Procedure AddAttribute_CallbackForValue tHTMLSequence ByRef strHTMLSequence String sAttr Integer iValueCallMsg Integer iValueCallObj
+        Send _AppendToSequence (&strHTMLSequence) 3 sAttr "" iValueCallMsg iValueCallObj
+    End_Procedure
+    Procedure CloseElement tHTMLSequence ByRef strHTMLSequence 
+        Send _AppendToSequence (&strHTMLSequence) 4 "" "" 0 0
+    End_Procedure
+    Procedure AddSectionPoint tHTMLSequence ByRef strHTMLSequence String sName 
+        Send _AppendToSequence (&strHTMLSequence) 5 sName "" 0 0
+    End_Procedure
+    Procedure SetElementStyle tHTMLSequence ByRef strHTMLSequence tCSSPropertyValue[] aCSSStyles
+        Integer iItem
+        Move (SizeOfArray(strHTMLSequence._aItems)-1) to iItem
+        If (strHTMLSequence._aItems[iItem].iNodeType=0 or strHTMLSequence._aItems[iItem].iNodeType=1) Begin
+            Move aCSSStyles to strHTMLSequence._aItems[iItem].aCSSStyles
+            Move True to strHTMLSequence._aItems[iItem].bDoStyle
+        End
+    End_Procedure
+    Procedure SetElementClasses tHTMLSequence ByRef strHTMLSequence String[] aCSSClasses
+        Integer iItem
+        Move (SizeOfArray(strHTMLSequence._aItems)-1) to iItem
+        If (strHTMLSequence._aItems[iItem].iNodeType=0 or strHTMLSequence._aItems[iItem].iNodeType=1) Begin
+            Move aCSSClasses to strHTMLSequence._aItems[iItem].aCSSClasses
+            Move True to strHTMLSequence._aItems[iItem].bDoClass
+        End
+    End_Procedure
+    
+    Procedure _FlushPendingCSS Integer hHTMLBuilder tHTMLSequence ByRef strHTMLSequence
+        String sValue
+        If (strHTMLSequence.bPendingCSSStyles) Begin
+            Get CSSStyleAttributeValue of oCSSFunctions strHTMLSequence.aPendingCSSStyles to sValue
+            If (sValue<>"") Begin
+                Send AddAttribute of hHTMLBuilder "style" sValue
+            End
+            Move False to strHTMLSequence.bPendingCSSStyles
+            Move (ResizeArray(strHTMLSequence.aPendingCSSStyles,0)) to strHTMLSequence.aPendingCSSStyles
+        End
+        If (strHTMLSequence.bPendingCSSClasses) Begin
+            Get CSSClassAttributeValue of oCSSFunctions strHTMLSequence.aPendingCSSClasses to sValue
+            If (sValue<>"") Begin
+                Send AddAttribute of hHTMLBuilder "class" sValue 
+            End
+            Move False to strHTMLSequence.bPendingCSSClasses
+            Move (ResizeArray(strHTMLSequence.aPendingCSSClasses,0)) to strHTMLSequence.aPendingCSSClasses
+        End
+        // Error checking
+        If ((SizeOfArray(strHTMLSequence.aPendingCSSStyles)+SizeOfArray(strHTMLSequence.aPendingCSSClasses))>0) Begin
+            Error DFERR_PROGRAM "HTMLSequenceFunctions: Element not marked for CSS modification (by SetElementStyle or SetElementClasses)"
+        End
+    End_Procedure
+    
+    Function FindSection Integer hHTMLBuilder tHTMLSequence ByRef strHTMLSequence Returns Boolean
+        Integer iTable
+        String sValue
+        String[] aValues
+        tHTMLSequenceItem strItem
+        While (strHTMLSequence._iIndexPointer<SizeOfArray(strHTMLSequence._aItems))
+            Move strHTMLSequence._aItems[strHTMLSequence._iIndexPointer] to strItem
+            Increment strHTMLSequence._iIndexPointer
+            
+            If (strItem.iCallForValueMsg<>0) Begin
+                Send strItem.iCallForValueMsg of strItem.iCallForValueObj (&strItem.sValue)
+            End
+
+            If (strItem.iNodeType=0) Begin // 0=Closed element
+                Send _FlushPendingCSS hHTMLBuilder (&strHTMLSequence)
+                Send AddElement of hHTMLBuilder strItem.sName strItem.sValue
+                If (strItem.bDoClass) Begin
+                    Move True to strHTMLSequence.bPendingCSSClasses
+                    Move strItem.aCSSClasses to strHTMLSequence.aPendingCSSClasses
+                End
+                If (strItem.bDoStyle) Begin
+                    Move True to strHTMLSequence.bPendingCSSStyles
+                    Move strItem.aCSSStyles to strHTMLSequence.aPendingCSSStyles
+                End
+            End
+
+            If (strItem.iNodeType=1) Begin // 1=Open element
+                Send _FlushPendingCSS hHTMLBuilder (&strHTMLSequence)
+                Send AddOpenElement of hHTMLBuilder strItem.sName 
+                If (strItem.bDoClass) Begin
+                    Move True to strHTMLSequence.bPendingCSSClasses
+                    Move strItem.aCSSClasses to strHTMLSequence.aPendingCSSClasses
+                End
+                If (strItem.bDoStyle) Begin
+                    Move True to strHTMLSequence.bPendingCSSStyles
+                    Move strItem.aCSSStyles to strHTMLSequence.aPendingCSSStyles
+                End
+            End
+
+            If (strItem.iNodeType=2) Begin // 2=CDATA element
+                Send _FlushPendingCSS hHTMLBuilder (&strHTMLSequence)
+                Send AddCDATAElement of hHTMLBuilder strItem.sName strItem.sValue
+            End
+
+            If (strItem.iNodeType=3) Begin // 3=Attibute
+                If ((strItem.sName="data-OnClickParam" or strItem.sName="href")and left(strItem.sValue,4)="rid:") Begin
+                    Move (Replace("rid:",strItem.sValue,"")) to sValue
+                    If (strItem.sName="data-OnClickParam") Begin // sValue=iTable -> "rid:"+iTable+","+RowID
+                        Move sValue to iTable
+                        If (iTable>0) Begin
+                            Move (SerializeRowID(GetRowID(iTable))) to sValue
+                            Move ("rid:"+String(iTable)+","+sValue) to sValue 
+                            Move sValue to strItem.sValue
+                        End
+                    End
+                    If (strItem.sName="href") Begin // sValue=iTable,sAction -> "rid:"+iTable+","+RowID+","+sAction
+                        Send SplitString of oStringFunctions sValue "," False False (&aValues)
+                        If (SizeOfArray(aValues)=2) Begin
+                            Move aValues[0] to iTable
+                            Move ("rid:"+String(iTable)+","+SerializeRowID(GetRowID(iTable))+","+aValues[1]) to strItem.sValue
+                        End
+                    End
+                End
+                Send AddAttribute of hHTMLBuilder strItem.sName strItem.sValue
+            End
+
+            If (strItem.iNodeType=4) Begin // 4=Close element 
+                Send _FlushPendingCSS hHTMLBuilder (&strHTMLSequence)
+                Send CloseElement of hHTMLBuilder
+            End
+
+            If (strItem.iNodeType=5) Begin // 5=Callback point
+                Move strItem.sName to strHTMLSequence.sCurrentSection
+                Function_Return True
+            End
+        Loop
+        Send _FlushPendingCSS hHTMLBuilder (&strHTMLSequence)
+        Move 0 to strHTMLSequence._iIndexPointer // Make ready for a new "run"
+        Function_Return False
+    End_Function
+    
+
+// *** Column layout *********************************************************************************************
+    
+        //> If bTextColumns is true text will be top aligned and padding will be set to 0.5em
+        Function _ColumnLayout String[] aColumnWidths Boolean bTextColumns Returns tHTMLSequence
+            Integer iColumn iColumns
+            tHTMLSequence strSequence
+            Move (SizeOfArray(aColumnWidths)) to iColumns
+            Get NewSequence to strSequence
+            Send AddOpenElement (&strSequence) "table"
+            Send AddAttribute (&strSequence) "width" "100%"
+            Send AddOpenElement (&strSequence) "tr"
+            For iColumn from 1 to iColumns
+                Send AddOpenElement (&strSequence) "td"
+                Send AddAttribute (&strSequence) "width" aColumnWidths[iColumn-1] // (String(Integer(100/iColumns))+"%")
+                If (bTextColumns) Begin
+                    Send AddAttribute (&strSequence) "style" "vertical-align:text-top; padding:0.5em" 
+                End
+                Send AddSectionPoint (&strSequence) ("column"+String(iColumn))
+                Send CloseElement (&strSequence) // td
+            Loop
+            Send CloseElement (&strSequence) // tr
+            Send CloseElement (&strSequence) // table
+            Function_Return strSequence
+        End_Function
+
+    Function ColumnLayoutByNumberOfColumns Integer iColumns Boolean bTextColumns Returns tHTMLSequence
+        Integer iColumn
+        String[] aColumnWidths
+        // ToDo: Get rid of bTextColumn
+        For iColumn from 0 to (iColumns-1) // Tag stilling til bTextColumns
+            Move (String(Integer(100/iColumns))+"%") to aColumnWidths[iColumn]
+        Loop
+        Function_Return (_ColumnLayout(Self,aColumnWidths,bTextColumns))
+    End_Function
+    
+    //> Get ColumnLayoutByWidths "10% 40% 40% 10%" True 
+//    Function ColumnLayoutByWidths String sColumns Boolean bTextColumns Returns tHTMLSequence
+    Function ColumnLayout String sColumns Boolean bTextColumns Returns tHTMLSequence
+        String[] aValues
+        Send SplitString of oStringFunctions sColumns " " True False (&aValues)
+        Function_Return (_ColumnLayout(Self,aValues,bTextColumns))
+    End_Function    
+
+// *** SimpleTable layout *********************************************************************************************
+
+    //> The CSS generated will be unique to this table. Hence the name "sUniqueCSSClass" of the first parameter
+    Function SimpleTableNewLayout String sUniqueCSSClass String sWidth Returns tSimpleTableLayout 
+        tSimpleTableLayout strTableLayout
+        Move sUniqueCSSClass to strTableLayout.sCSSClass
+        Move sWidth to strTableLayout.sWidth
+        Move "4px" to strTableLayout.sCellPadding
+        Move True to strTableLayout.bHeaderLine
+        Move True to strTableLayout.bHighlightHover
+        Function_Return strTableLayout
+    End_Function
+    
+    Procedure SimpleTableLayoutAddColumn tSimpleTableLayout ByRef strTableLayout ;
+                                         String sHeaderLabel Integer iJustification String sWidth
+        Integer iItem
+        Move (SizeOfArray(strTableLayout.aColumns)) to iItem
+        Move sHeaderLabel to strTableLayout.aColumns[iItem].sHeaderLabel
+        Move iJustification to strTableLayout.aColumns[iItem].iJustification
+        Move sWidth to strTableLayout.aColumns[iItem].sWidth
+        
+        If (sWidth<>"") Begin
+            Move sWidth to strTableLayout.aColumns[iItem].sWidth
+        End
+        Else Begin
+            Move "150px" to strTableLayout.aColumns[iItem].sWidth
+        End
+    End_Procedure
+              
+    Procedure SimpleTableLayoutAddColumnDB tSimpleTableLayout ByRef strTableLayout ;
+                                    Integer iTable Integer iColumn String sHeaderLabel String sWidth
+        Integer iItem iType iJustification
+        
+        Get_Attribute DF_FIELD_TYPE of iTable iColumn to iType
+        Move (If(iType=DF_BCD,2,0)) to iJustification
+        Send SimpleTableLayoutAddColumn (&strTableLayout) sHeaderLabel iJustification sWidth
+        
+        Move (SizeOfArray(strTableLayout.aColumns)-1) to iItem
+        Move iTable to strTableLayout.aColumns[iItem].iAutoSourceTable
+        Move iColumn to strTableLayout.aColumns[iItem].iAutoSourceColumn
+    End_Procedure
+
+    Procedure SimpleTableLayoutAddColumnCellCallback tSimpleTableLayout ByRef strTableLayout Integer iCallbackMsg Integer iCallbackObj String sHeaderLabel String sWidth
+        Integer iItem
+        Send SimpleTableLayoutAddColumn (&strTableLayout) sHeaderLabel 0 sWidth
+        Move (SizeOfArray(strTableLayout.aColumns)-1) to iItem
+        Move iCallbackMsg to strTableLayout.aColumns[iItem].iOutputCellHtmlMsg
+        Move iCallbackObj to strTableLayout.aColumns[iItem].iOutputCellHtmlObj
+    End_Procedure
+    
+    Procedure SimpleTableSetColumnLink tSimpleTableLayout ByRef strTableLayout String sAction Integer iOnClickTable Integer iParamMsg Integer iParamObj
+        Integer iItem
+        Move (SizeOfArray(strTableLayout.aColumns)-1) to iItem // Most recently added item
+        Move sAction to strTableLayout.aColumns[iItem].sOnClickAction
+        Move iOnClickTable to strTableLayout.aColumns[iItem].iOnClickTable
+        Move iParamMsg to strTableLayout.aColumns[iItem].iCallParamMsg
+        Move iParamObj to strTableLayout.aColumns[iItem].iCallParamObj
+    End_Procedure
+    
+    Procedure SimpleTableLayoutOutputTableRowArrayValues Integer hHTMLBuilder tHTMLSequence strTableRow String[] aValues
+        Integer iColumn
+        String sSection sValue
+        While (FindSection(Self,hHTMLBuilder,&strTableRow))
+            Move (Replace("td",strTableRow.sCurrentSection,"")) to sSection
+            Move (Integer(sSection)-1) to iColumn
+            Move "" to sValue
+            If (iColumn<SizeOfArray(aValues)) Begin
+                Move aValues[iColumn] to sValue
+            End
+            Send AddElement of hHTMLBuilder "span" sValue
+        Loop
+    End_Procedure
+    
+    Function GetSimpleTableLayoutCSS tSimpleTableLayout strTableLayout Returns tCSSRules
+        Integer iColumn iColumns iJust
+        tCSSRules strRules
+//                Send CSSAppendRule         of oCSSFunctions (&strRules) ("."+strTableLayout.sCSSClass) ""
+//                Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_box_shadow "box-shadow: 10px 10px 5px #888888;"
+//                Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border "1px solid #000000"
+        
+        Send CSSAppendRule         of oCSSFunctions (&strRules) ("table."+strTableLayout.sCSSClass) ""
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_width "100%"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_margin "0px"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_padding "0px"
+        If (strTableLayout.iGridLinesMode=0) Begin
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border "none"
+        End
+        If (strTableLayout.iGridLinesMode=1) Begin // All
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border "1px solid black"
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border_collapse "collapse"
+        End
+
+        If (strTableLayout.bHighlightHover) Begin // As also supplied by CSS calss 'linkarea'
+            Send CSSAppendRule         of oCSSFunctions (&strRules) ("."+strTableLayout.sCSSClass+" tr:hover") ""
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_background_color "rgb(232,232,255)"
+        End
+        Else Begin
+            // must set it to false somehow as the CSS could be inherited from a surrounding table (table in a table)
+        End
+        
+        Send CSSAppendRule         of oCSSFunctions (&strRules) ("."+strTableLayout.sCSSClass+" th") ""
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_font_weight "bold"
+        If (strTableLayout.bHeaderLine) Begin
+//            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border_bottom "1px solid #000000"
+        End
+        Else Begin
+//            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border_bottom "none"
+        End
+
+        If (strTableLayout.iGridLinesMode=0) Begin
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border "none"
+        End
+        If (strTableLayout.iGridLinesMode=1) Begin // All
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border "1px solid black"
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border_collapse "collapse"
+        End
+
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_text_align "left"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_vertical_align "bottom"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_padding strTableLayout.sCellPadding
+
+        Send CSSAppendRule         of oCSSFunctions (&strRules) ("."+strTableLayout.sCSSClass+" td") ""
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_text_align "left"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_vertical_align "top"
+        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_padding strTableLayout.sCellPadding
+
+        If (strTableLayout.iGridLinesMode=0) Begin
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border "none"
+        End
+        If (strTableLayout.iGridLinesMode=1) Begin // All
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border "1px solid black"
+            Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_border_collapse "collapse"
+        End
+//          // Virker ikke ???:
+//        Send CSSAppendRule         of oCSSFunctions (&strRules) ("."+strTableLayout.sCSSClass+" a") ""
+//        Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_text_decoration "none !important"
+
+        Move (SizeOfArray(strTableLayout.aColumns)-1) to iColumns
+        For iColumn from 0 to iColumns
+            Move strTableLayout.aColumns[iColumn].iJustification to iJust
+            If (iJust<>0) Begin // o:left
+                Send CSSAppendRule of oCSSFunctions (&strRules) ("."+strTableLayout.sCSSClass+" th:nth-child("+String(iColumn+1)+")") ""
+                Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_text_align (If(iJust=1,"center","right"))
+                Send CSSAppendRule of oCSSFunctions (&strRules) ("."+strTableLayout.sCSSClass+" td:nth-child("+String(iColumn+1)+")") ""
+                Send CSSAppendRuleProperty of oCSSFunctions (&strRules) CSSP_text_align (If(iJust=1,"center","right"))
+            End
+        Loop
+        Function_Return strRules
+    End_Function
+
+    Procedure GetSimpleTableLayoutHtmlSeq tSimpleTableLayout strTableLayout tHTMLSequence ByRef strTableBegin tHTMLSequence ByRef strTableRow tHTMLSequence ByRef strTableEnd
+        Integer iColumn iColumns iOnClickTable
+        Boolean bDoLink
+        String sOnClickAction
+        tCSSPropertyValue[] aCSSStyles
+
+        Move (SizeOfArray(strTableLayout.aColumns)) to iColumns
+        
+        // --- TableBegin --------------------
+        Get NewSequence to strTableBegin
+
+        Send AddOpenElement (&strTableBegin) "table"
+            Send AddAttribute (&strTableBegin) "width" strTableLayout.sWidth
+            Send AddAttribute (&strTableBegin) "class" strTableLayout.sCSSClass
+            
+            Send AddOpenElement (&strTableBegin) "tr"
+                For iColumn from 1 to iColumns
+                    Send AddElement      (&strTableBegin) "th" strTableLayout.aColumns[iColumn-1].sHeaderLabel
+                    Send AddAttribute    (&strTableBegin) "width" strTableLayout.aColumns[iColumn-1].sWidth // (String(Integer(100/iColumns))+"%")
+                    If (not(strTableLayout.bHeaderLine)) Begin
+                        Send AddAttribute    (&strTableBegin) "style" "padding:0px;"
+                    End
+                Loop
+            Send CloseElement (&strTableBegin) // tr
+
+            // --- TableRow --------------------
+            Get NewSequence to strTableRow
+            
+            Send AddOpenElement (&strTableRow) "tr"
+                For iColumn from 1 to iColumns
+                    Send AddOpenElement (&strTableRow) "td"
+                        
+                        Move (ResizeArray(aCSSStyles,0)) to aCSSStyles
+                        Send SetElementStyle (&strTableRow) aCSSStyles
+                        
+                        Move strTableLayout.aColumns[iColumn-1].sOnClickAction to sOnClickAction
+                        Move (sOnClickAction<>"") to bDoLink
+                        If (bDoLink) Begin
+                            Move strTableLayout.aColumns[iColumn-1].iOnClickTable to iOnClickTable
+                            If (strTableLayout.iLinkEncodeMode=0) Begin // Encode in data-ServerOnClick and data-OnClickParam
+                                Send AddOpenElement (&strTableRow) "span" // "a"
+                                    Send AddAttribute (&strTableRow) "class" "internallink"
+                                Send AddAttribute (&strTableRow) "data-ServerOnClick" sOnClickAction
+                                If (iOnClickTable>0) Begin
+                                    Send AddAttribute (&strTableRow) "data-OnClickParam" ("rid:"+String(iOnClickTable))
+                                End
+                                Else Begin
+                                    Send AddAttribute_CallbackForValue (&strTableRow) "data-OnClickParam" strTableLayout.aColumns[iColumn-1].iCallParamMsg strTableLayout.aColumns[iColumn-1].iCallParamObj
+                                End
+                            End
+                            Else If (strTableLayout.iLinkEncodeMode=1) Begin // href encoding
+                                Send AddOpenElement (&strTableRow) "span" // "a"
+                                    Send AddAttribute (&strTableRow) "class" "internallink"
+                                If (iOnClickTable>0) Begin
+                                    Send AddAttribute (&strTableRow) "href" ("rid:"+String(iOnClickTable)+","+sOnClickAction)
+                                End
+                                Else Begin // If iOnClicktable has not been specified we're betting that the call-for-value messages has
+                                    Send AddAttribute_CallbackForValue (&strTableRow) "href" strTableLayout.aColumns[iColumn-1].iCallParamMsg strTableLayout.aColumns[iColumn-1].iCallParamObj
+                                End
+                            End
+                        End
+
+                        Send AddSectionPoint (&strTableRow) ("td"+String(iColumn))
+
+                        If (bDoLink) Begin
+                            Send CloseElement (&strTableRow) // a
+                        End
+
+
+                    Send CloseElement (&strTableRow) // td
+                Loop
+            Send CloseElement (&strTableRow) // tr
+
+
+            // --- TableEnd --------------------
+            Get NewSequence to strTableEnd
+
+        Send CloseElement (&strTableEnd) // table
+
+    End_Procedure
+
+
+End_Object
+
+
+
+
+Use TableQueryFunctions.pkg
+
+Struct tHtmlTQ
+    String sTitle
+    tSimpleTableLayout strTableLayout
+    tTableQuery strQ
+    String[] aFixedRecordRowIDs
+End_Struct
+
+Class cHtmlGeneratorTQ is a cObject // Todo: Should go in separate package Web\HtmlGenerators\cHtmlGeneratorTQ
+    Function CalculateColumn Integer iColumn tSimpleTableColumnLayout strColumnLayout Returns String
+    End_Function
+
+    Procedure OnRecordSelected
+    End_Procedure
+
+    Procedure OutputHtml tHtmlTQ strHtmlTQ
+        Integer iColumn iAutoTable iAutoColumn
+        Integer iOutputCellHtmlMsg iOutputCellHtmlObj
+        tTableQuery strQ
+        tSimpleTableLayout strTableLayout
+        tCSSRules strRules
+        tHTMLSequence strTableBegin strTableRow strTableEnd
+        String sValue sCSS
+
+        Move strHtmlTQ.strTableLayout to strTableLayout
+        Move strHtmlTQ.strQ to strQ
+
+        Get GetSimpleTableLayoutCSS of oHTMLSequenceFunctions strTableLayout to strRules
+
+        If (SizeOfArray(strRules.aRules)>0) Begin
+            Get CSSRulesToString of oCSSFunctions strRules to sCSS
+            Send AddElement "style" sCSS
+        End
+
+        If (strHtmlTQ.sTitle<>"") Begin
+            Send AddElement "h2" strHtmlTQ.sTitle
+            Send AddAttribute "style" "text-align:center;margin-bottom:20px;"
+        End
+
+        If (SizeOfArray(strHtmlTQ.aFixedRecordRowIDs)=0 or FixedTablesRestore_Serialized(oTQ,strQ,strHtmlTQ.aFixedRecordRowIDs)) Begin
+            Send GetSimpleTableLayoutHtmlSeq of oHTMLSequenceFunctions strTableLayout (&strTableBegin) (&strTableRow) (&strTableEnd)
+            While (FindSection(oHTMLSequenceFunctions,Self,&strTableBegin))
+            Loop
+            While (FindRecord(oTQ,&strQ))
+                Send OnRecordSelected
+                While (FindSection(oHTMLSequenceFunctions,Self,&strTableRow))
+                    If (Left(strTableRow.sCurrentSection,2)="td") Begin
+                        Move (Replace("td",strTableRow.sCurrentSection,"")) to iColumn
+                        Move strTableLayout.aColumns[iColumn-1].iAutoSourceTable to iAutoTable
+                        If (iAutoTable<>0) Begin
+                            Move strTableLayout.aColumns[iColumn-1].iAutoSourceColumn to iAutoColumn
+                            Get ResultColumnValue of oTQ (&strQ) iAutoTable iAutoColumn to sValue
+                            Move (Trim(sValue)) to sValue
+                            Send AddElement "span" sValue
+                        End
+                        Else Begin
+                            Move strTableLayout.aColumns[iColumn-1].iOutputCellHtmlMsg to iOutputCellHtmlMsg
+                            If (iOutputCellHtmlMsg<>0) Begin
+                                Move strTableLayout.aColumns[iColumn-1].iOutputCellHtmlObj to iOutputCellHtmlObj
+                                Send iOutputCellHtmlMsg of iOutputCellHtmlObj iColumn
+                            End
+                            Else Begin
+                                Get CalculateColumn (iColumn-1) strTableLayout.aColumns[iColumn-1] to sValue
+                                Send AddElement "span" sValue
+                            End
+                        End
+                    End
+                Loop
+
+            Loop
+
+            While (FindSection(oHTMLSequenceFunctions,Self,&strTableEnd))
+            Loop
+        End
+        Else Begin
+            Send AddElement "p" "Fixed parent records could not be restored!"
+        End
+    End_Procedure
+End_Class
+
+

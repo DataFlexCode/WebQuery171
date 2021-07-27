@@ -1,0 +1,568 @@
+//> The cXmlBuilder class may be used for adding elements to an XML DOM tree in a way that relieves
+//> you of having to deal with a myriad of handle type variables in your code and the house keeping
+//> of destroying all the element objects again.
+//>
+//> As an alternative it may be used to write directly to a sequential file without building
+//> a DOM object in memory. It is a question of which method you use for initiating the
+//> XML builing:
+//>
+//>    send XmlToDOM iNode // Add to XML DOM object
+//>
+//>    send XmlToChannel iChannel // Write to sequential channel
+//>
+//>    send XmlToWebApp // Send output directly to the WebApp output stream.
+//>
+//>
+//> <tip legend="Writing XHTML code">
+//> If used in the sequential file output mode, all output is written by the write method. I use this
+//> when I write XTHML directly from within a WebApp application because I can augment just one
+//> method and have it write to the WebApp output stream..
+//> </tip>
+//>
+//> This piece of code:
+//> <pkgdoc:code>
+//> Use FileFunctions.pkg // Define oFileFunctions object
+//>
+//> Object oTestBuilder is a cXmlBuilder
+//>
+//>   Procedure DoTest
+//>     Integer iChannel
+//>     Get DirectOutput of oFileFunctions "test.xml" to iChannel
+//>     If (iChannel>=0) begin
+//>       // Manually write this line:
+//>       Write channel iChannel '<?xml version="1.0" encoding="iso-8859-1"?>'
+//>       Send XmlToChannel iChannel //
+//>       Send AddOpenElement "response"
+//>            Send AddAttribute "xmlns:service" "http://www.sture.dk/2012/service/"
+//>       Send AddOpenElement   "function"
+//>            Send AddAttribute "name" "login"
+//>       Send AddOpenElement     "result"
+//>       Send AddOpenElement       "fieldset"
+//>       Send AddElement       "legend" "Login"
+//>       Send AddElement       "span" "UserName"
+//>       Send AddOpenElement         "span"
+//>            Send AddElement         "input" ""
+//>            Send AddAttribute "type" "text"
+//>       Send CloseElement            // "span"
+//>       Send AddElement       "span" "Password"
+//>       Send AddOpenElement         "span"
+//>            Send AddElement         "input" ""
+//>            Send AddAttribute  "type" "password"
+//>       Send CloseElement            // span
+//>       Send CloseElement          // fieldset
+//>       Send CloseElement        // result
+//>       Send CloseElement      // function
+//>       Send CloseElement    // response
+//>       Send EndXml
+//>       Send CloseOutput of oFileFunctions iChannel
+//>     End
+//>   End_procedure
+//>
+//>   Send DoTest
+//>
+//> End_Object
+//> </pkgdoc:code>
+//>
+//> will write this to a file called test.xml:
+//>
+//> <pkgdoc:code>
+//> <?xml version="1.0" encoding="iso-8859-1"?>
+//> <response xmlns:service="http://www.sture.dk/2004/service/">
+//>   <function name="login">
+//>     <result>
+//>       <fieldset>
+//>         <legend>Login</legend>
+//>         <span>Username</span>
+//>         <span><input type="text" /></span>
+//>         <span>Password</span>
+//>         <span><input type="password" /></span>
+//>       </fieldset>>
+//>     </result>
+//>   </function>
+//> </response>
+//> </pkgdoc:code>
+//>
+//> (line feeds and indentation has been added for readability)
+//>
+//> <pkgdoc:note>
+//> This class is not able to handle mixed-content elements except by the use of the
+//> pbProtectValueData property.
+//> </pkgdoc:note>
+//>
+//> pkgdoc.end
+
+
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+Use FleXML.pkg // DAW interface package for FLEXML.DLL
+
+Use StackFunctions.pkg // Define oStackFunctions object
+Use DateFunctions.pkg // Define oDateFunctions object
+
+Global_Variable String[] _gaXmlBuildToString // Array for collecting XML as one string
+Global_Variable Integer  _giXmlBuildToString
+Global_Variable Boolean  _gbXmlBuildToString
+Move False to _gbXmlBuildToString // Not in use
+
+Enum_List // XML modes
+    Define XM_DOM // Build DOM
+    Define XM_SEQ // Write to sequential channel
+    Define XM_WEB // Write to WebApp output stream
+    Define XM_STR // Build XML string
+    Define XM_DWR // Delete calls to write
+End_Enum_List
+
+Class cXmlBuilder is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer piOutputMode       //  XM_DOM, XM_SEQ, XM_WEB or XM_STR
+
+        Property Integer _channel       //
+        Property Handle  _CurrentNode   // While building DOM trees this property holds the "current node"
+        Property Boolean _ClosedElement // Has AddElement been called after the most recent FlushBuffers?
+        Property String  _WriteBuffer   // Used for building the attributes string while writing to sequential file
+        Property Boolean _OpenElement   // While writing to sequential files this property indicates that the last element added was an open one
+
+        Property Handle[] paNodes           // Node stack
+        Property String[] paElements        // Element stack
+        Property Integer[] paCDATAs         // CDATA? stack
+        
+        Property Boolean   pbTagSelfClosingEnabled True
+        
+        //> This property has been introduced because the textarea element in (X)HTML is not allowed to be closed
+        //> in this way "<textarea />" when it's empty. Totally not understandable! But it must be written as
+        //> "<textarea></textarea>".
+        Property Integer pbTextAreaException  False
+        //> This property has been introduced because the script element in (X)HTML is not allowed to be closed
+        //> in this way "<script />" when it's empty. Must be written as "<script></script>". IE 6 problem
+        Property Integer pbScriptException    False
+        //> The pbProtectValueData property controls whether <, > and & characters written to the XML as data
+        //> is HTML encoded ("&lt;", "&gt;" and "&amp;") or not. Its default value is to do this encoding (true).
+        //> The reason for (temporarily) setting it to false when generating XHTML code is making it able to handle
+        //> when the data itself represents XHTML code. In this case it is not OK to encode these characters.
+        Property Integer pbProtectValueData   True
+    
+        Property String[] _paAttr
+        Property String[] _paAttrValue
+    End_Procedure
+
+    //> If XML is not being added to DOM all output will be sent to this procedure.
+    Procedure Write String sValue
+        Integer iMode
+        String[] aOutput
+        Get piOutputMode to iMode
+        
+        If (iMode=XM_SEQ) Begin
+            Write channel (_channel(Self)) sValue
+        End
+        Else If (iMode=XM_WEB) Begin
+            #IFDEF IS$WebApp
+              Send OutputString to ghInetSession sValue
+            #ENDIF
+        End
+        Else If (iMode=XM_STR) Begin
+            Move sValue to _gaXmlBuildToString[_giXmlBuildToString]
+            Increment _giXmlBuildToString
+        End
+        Else If (iMode=XM_DWR) Begin
+            Delegate Send Write sValue // Somebody outside will handle it
+        End
+    End_Procedure
+
+    Procedure Stream String sValue // Not for DOM building!
+        If (piOutputMode(Self)<>XM_DOM) Begin
+            Send FlushBuffer
+            Send Write sValue
+        End
+        Else Begin
+            Error 312 "XmlBuilder: Illegal invocation of Stream method"
+        End
+    End_Procedure
+
+                Procedure PushNode Handle hValue // Private
+                    Handle[] aNodes
+                    Get paNodes to aNodes
+                    Send HandlePush of oStackFunctions hValue (&aNodes)
+                    Set paNodes to aNodes
+                End_Procedure
+
+                Function PopNode Returns Handle // Private
+                    Handle hValue
+                    Handle[] aNodes
+                    Get paNodes to aNodes
+                    Get HandlePop of oStackFunctions (&aNodes) to hValue
+                    Set paNodes to aNodes
+                    Function_Return hValue
+                End_Function
+
+                Procedure PushString String sValue // Private
+                    String[] aElements
+                    Get paElements to aElements
+                    Send StringPush of oStackFunctions sValue (&aElements)
+                    Set paElements to aElements
+                End_Procedure
+                
+                Function PopString Returns String // Private
+                    String sValue
+                    String[] aElements
+                    Get paElements to aElements
+                    Get StringPop of oStackFunctions (&aElements) to sValue
+                    Set paElements to aElements
+                    Function_Return sValue
+                End_Function
+
+                Procedure PushInteger Integer iValue // Private
+                    Integer[] aCDATAs
+                    Get paCDATAs to aCDATAs
+                    Send IntegerPush of oStackFunctions iValue (&aCDATAs)
+                    Set paCDATAs to aCDATAs
+                End_Procedure
+
+                Function PopInteger Returns Integer // Private
+                    Integer iValue
+                    Integer[] aCDATAs
+                    Get paCDATAs to aCDATAs
+                    Get IntegerPop of oStackFunctions (&aCDATAs) to iValue
+                    Set paCDATAs to aCDATAs
+                    Function_Return iValue
+                End_Function
+    
+                Procedure FlushBuffer // Private
+                    Boolean bException
+                    Boolean bCDATA
+                    String sBuffer sValue sElement
+                    If (piOutputMode(Self)=XM_DOM) Begin
+                        If (_ClosedElement(Self)) Begin
+                            Send destroy of (_CurrentNode(Self))
+                            Set _CurrentNode to (PopNode(Self))
+                            Set _ClosedElement to False
+                        End
+                    End
+                    Else Begin
+                        Get _WriteBuffer to sBuffer
+                        If (sBuffer<>"") Begin // If there's anything in the buffer
+                            If (_Openelement(Self)) Begin
+                                Send Write (sBuffer+">") // If we're writing an opening tag
+                            End
+                            Else Begin // We're dealing with writing a data element (including a closing tag)
+                                Get PopInteger to bCDATA
+                                Get PopString to sElement
+                                Get PopString to sValue
+                                If (sValue="" and pbTagSelfClosingEnabled(Self) and ;
+                                     ((Lowercase(sElement)<>"textarea" or pbTextAreaException(Self)=0) and ;
+                                      (Lowercase(sElement)<>"script" or pbScriptException(Self)=0) )) Begin
+                                    Send Write (sBuffer+" />") // If no value, we're writing the shorthand open-close tag.
+                                End
+                                Else Begin
+                                    If bCDATA Begin
+                                        Send Write (sBuffer+"><![CDATA["+sValue+"]]></"+sElement+">")
+                                    End
+                                    Else Begin
+                                        If (pbProtectValueData(Self)) Begin
+                                            Move (replaces("&",sValue,"&amp;")) to sValue
+                                            Move (replaces("<",sValue,"&lt;")) to sValue
+                                            Move (replaces(">",sValue,"&gt;")) to sValue
+                                        End
+                                        Send Write (sBuffer+">"+sValue+"</"+sElement+">")
+                                    End
+                                End
+                            End
+                            Set _WriteBuffer to ""
+                        End
+
+                    End
+                End_Procedure
+                
+    //> Send this to initiate the process of adding to XML a DOM node.
+    Procedure XmlToDOM Integer iNode
+        Integer[] aNodes
+        Set piOutputMode to XM_DOM
+        Set _CurrentNode to iNode
+        Set paNodes to aNodes // Reset paNodes
+        Set _ClosedElement to False
+    End_Procedure
+
+    //> Send this to initiate the process of writing XML to a sequential channel.
+    Procedure XmlToChannel Integer iChannel
+        Set piOutputMode to XM_SEQ
+        Set _channel to iChannel
+        Set _WriteBuffer to ""
+    End_Procedure
+
+    //> Only use this from within an WebApp.
+    Procedure XmlToWebApp
+        Set piOutputMode to XM_WEB
+        Set _WriteBuffer to ""
+    End_Procedure
+
+  //> If you want the XML to be returned as a string you should use this method to initate the process.
+    Procedure XmlToString
+        String[] aValues
+        If (not(_gbXmlBuildToString)) Begin
+            Set piOutputMode to XM_STR
+            Set _WriteBuffer to ""
+            Move aValues to _gaXmlBuildToString
+            Move 0 to _giXmlBuildToString
+            Move True to _gbXmlBuildToString
+        End
+        Else Begin
+            Error DFERR_PROGRAM "XmlBuilder can only build one string at a time (XmlBuilder.pkg)"
+        End
+    End_Procedure
+    
+    Procedure XmlToDelegatedWrite
+        Set piOutputMode to XM_DWR
+        Set _WriteBuffer to ""
+    End_Procedure
+    
+        Procedure _AddPreadvisedAttributes
+            Integer iIndex iMax
+            String[] aAttr aAttrValue
+            Get _paAttr to aAttr
+            Move (SizeOfArray(aAttr)-1) to iMax
+            If (iMax>=0) Begin
+                Get _paAttrValue to aAttrValue
+                For iIndex from 0 to iMax
+                   Send AddAttribute aAttr[iIndex] aAttrValue[iIndex]
+                Loop
+                Move (ResizeArray(aAttr,0)) to aAttr
+                Set _paAttr to aAttr
+                Set _paAttrValue to aAttr
+            End
+        End_Procedure
+
+    //> Adds an element that contains other elements. The element must ultimately be closed by sending the CloseElement message.
+    Procedure AddOpenElement String sElement
+        Handle hParent hChild
+        if (piOutputMode(self)=XM_DOM) Begin
+            Send FlushBuffer
+            Get _CurrentNode to hParent
+            Get AddElement of hParent sElement "" to hChild
+            Send PushNode hParent
+            Set _CurrentNode to hChild
+        End
+        Else Begin
+            Send FlushBuffer
+            Set _WriteBuffer to ("<"+sElement)
+            Send PushString sElement
+            Set _OpenElement to True
+        End
+        Send _AddPreadvisedAttributes
+    End_Procedure
+    
+    //> Adds a data element (an element with no children)
+    Procedure AddElement String sElement String sValue
+        Handle hParent hChild
+        if (piOutputMode(self)=XM_DOM) Begin
+            Send FlushBuffer
+            Get _CurrentNode to hParent
+            Get AddElement of hParent sElement sValue to hChild
+            Send PushNode hParent
+            Set _CurrentNode to hChild
+            Set _ClosedElement to True
+        End
+        Else Begin
+            Send FlushBuffer
+            Set _WriteBuffer to ("<"+sElement)
+            Send PushString sValue
+            Send PushString sElement
+            Send PushInteger 0 // not CDATA
+            Set _OpenElement to False
+        End
+        Send _AddPreadvisedAttributes
+    End_Procedure
+
+    //> Same as AddElement but marks up the data in sValue as CDATA
+    Procedure AddCDATAElement String sElement String sValue
+        Handle hParent hChild
+        if (piOutputMode(self)=XM_DOM) Begin
+            Send FlushBuffer
+            Get _CurrentNode to hParent
+            Get AddElement of hParent sElement "" to hChild
+            Send AddCDataSection of hChild sValue
+            Send PushNode hParent
+            Set _CurrentNode to hChild
+            Set _ClosedElement to True
+        End
+        Else Begin
+            Send FlushBuffer
+            Set _WriteBuffer to ("<"+sElement)
+            Send PushString sValue
+            Send PushString sElement
+            Send PushInteger 1 // CDATA
+            Set _OpenElement to False
+        End
+    End_Procedure
+
+    //> Same as AddElement but formats the number with "." as decimal separator
+    Procedure AddNumberElement String sElement Number nValue
+        Send AddElement sElement (replace(",",String(nValue),"."))
+    End_Procedure
+
+    //> Same as AddElement but formats the date according to ISO 8601 (YYYY-MM-DD)
+    Procedure AddDateElement String sElement Date dValue                                                      
+        Send AddElement sElement (DateToString(oDateFunctions,dValue,DF_DATE_MILITARY,True,"-")) // International Standard ISO 8601
+    End_Procedure
+
+    //> Close an element previously added by the AddOpenElement method
+    Procedure CloseElement
+        String sElement
+        if (piOutputMode(self)=XM_DOM) Begin
+            Send FlushBuffer
+            Send destroy of (_CurrentNode(Self))
+            Set _CurrentNode to (PopNode(Self))
+        End
+        Else Begin
+            Send FlushBuffer
+            Get PopString to sElement
+            Send Write ("</"+sElement+">")
+        End
+    End_Procedure
+
+    //> Add an attribute to the element that was most recently added (whether it is an open or a closed element)
+    Procedure AddAttribute String sAttr String sValue
+        String sBuffer
+        If (piOutputMode(Self)=XM_DOM) Begin
+            Send AddAttribute of (_CurrentNode(Self)) sAttr sValue
+        End
+        Else Begin
+            Get _WriteBuffer to sBuffer
+            Move (sBuffer+" ") to sBuffer
+            Move (sBuffer+sAttr) to sBuffer
+            Move (sBuffer+"=") to sBuffer
+            Move (sBuffer+'"') to sBuffer
+            Move (sBuffer+sValue) to sBuffer
+            Move (sBuffer+'"') to sBuffer
+            Set _WriteBuffer to sBuffer
+//            Set _WriteBuffer to (sBuffer+' '+sAttr+'="'+sValue+'"')
+        End
+    End_Procedure
+
+    //> Adding attributes with this message will attach them to the next
+    //> element being added.
+    Procedure AddAttributeToNextElement String sAttr String sValue
+        Integer iIndex
+        String[] aAttr aAttrValue
+        Get _paAttr to aAttr
+        Get _paAttrValue to aAttrValue
+        Move (SizeOfArray(aAttr)) to iIndex
+        Move sAttr to aAttr[iIndex]
+        Move sValue to aAttrValue[iIndex]
+        Set _paAttr to aAttr
+        Set _paAttrValue to aAttrValue
+    End_Procedure
+
+    //> Send this to conclude the process of building the XML sequence.
+    Procedure EndXml
+        String[] aEmpty
+        Send FlushBuffer
+        Set _paAttr to aEmpty
+        Set _paAttrValue to aEmpty
+        If (piOutputMode(Self)=XM_STR) Begin
+            Move False to _gbXmlBuildToString // Means that a new string can be built
+        End
+    End_Procedure
+
+    //> If the XML building was initiated by the XmlToString message you can use this function to retrieve the value. Calling this
+    //> function resets the content of the internal array.
+    Function XmlStringValue Returns String
+        String sRval
+        Integer iItm iMax
+        Send FlushBuffer
+        Move (SizeOfArray(_gaXmlBuildToString)-1) to iMax
+        Move "" to sRval
+        For iItm from 0 to iMax
+            Move (sRval+_gaXmlBuildToString[iItm]) to sRval
+        Loop
+        Move (ResizeArray(_gaXmlBuildToString,0)) to _gaXmlBuildToString // You can only get its value once.
+        Function_Return sRval
+    End_Function
+
+    Function XmlStringValueLength Returns Integer
+        Integer iLength iIndex iMax
+        Move (SizeOfArray(_gaXmlBuildToString)-1) to iMax
+        Move 0 to iLength
+        For iIndex from 0 to iMax
+            Move (iLength+Length(_gaXmlBuildToString[iIndex])) to iLength
+        Loop
+        Function_Return iLength
+    End_Function
+End_Class // cXmlBuilder
+
+Class cXmlBuilderProxyMixin is a Mixin
+    Procedure Define_cXmlBuilderProxyMixin Integer hXmlBuilder
+        Property Integer phXMLBuilder
+    End_Procedure
+
+    Procedure Write String sValue
+        Send Write of (phXMLBuilder(Self)) sValue
+    End_Procedure
+
+    Procedure Stream String sValue // Only for DOM building
+        Send Stream of (phXMLBuilder(Self)) sValue
+    End_Procedure
+
+    Procedure XmlToDOM Integer iNode //> Send this to initiate the process of adding to XML a DOM node.
+        Send XmlToDOM of (phXMLBuilder(Self)) iNode
+    End_Procedure
+
+    Procedure XmlToChannel Integer iChannel //> Send this to initiate the process of writing XML to a sequential channel.
+        Send XmlToChannel of (phXMLBuilder(Self)) iChannel
+    End_Procedure
+
+    Procedure XmlToWebApp //> Only use this from within an WebApp.
+        Send XmlToWebApp of (phXMLBuilder(Self))
+    End_Procedure
+
+    Procedure XmlToString //> If you want the XML to be returned as a string you should use this method to initate the process.
+        Send XmlToString of (phXMLBuilder(Self))
+    End_Procedure
+
+    Procedure XmlToDelegatedWrite //> If you want the encapsulating object to handle the Write method.
+        Send XmlToDelegatedWrite of (phXMLBuilder(Self))
+    End_Procedure
+
+    Procedure AddOpenElement String sElement //> Adds an element that contains other elements. The element must ultimately be closed by sending the CloseElement message.
+        Send AddOpenElement of (phXMLBuilder(Self)) sElement
+    End_Procedure
+
+    Procedure AddElement String sElement String sValue //> Adds a data element (an element with no children)
+        Send AddElement of (phXMLBuilder(Self)) sElement sValue
+    End_Procedure
+
+    Procedure AddCDATAElement String sElement String sValue //> Same as AddElement but marks up the data in sValue as CDATA
+        Send AddCDATAElement of (phXMLBuilder(Self)) sElement sValue
+    End_Procedure
+
+    Procedure AddNumberElement String sElement Number nValue //> Same as AddElement but formats the number with "." as decimal separator
+        Send AddNumberElement of (phXMLBuilder(Self)) sElement nValue
+    End_Procedure
+
+    Procedure AddDateElement String sElement Date dValue //> Same as AddElement but formats the date according to ISO 8601 (YYYY-MM-DD)
+        Send AddDateElement of (phXMLBuilder(Self)) sElement dValue
+    End_Procedure
+
+    Procedure CloseElement //> Close an element previously added by the AddOpenElement method
+        Send CloseElement of (phXMLBuilder(Self))
+    End_Procedure
+
+    Procedure AddAttribute String sAttr String sValue //> Add an attribute to the element that was most recently added (whether it is an open or a closed element)
+        Send AddAttribute of (phXMLBuilder(Self)) sAttr sValue
+    End_Procedure
+
+    Procedure AddAttributeToNextElement String sAttr String sValue //> Adding attributes with this message will attach them to the next element being added.
+        Send AddAttributeToNextElement of (phXMLBuilder(Self)) sAttr sValue
+    End_Procedure
+
+    Procedure EndXml //> Send this to conclude the process of building the XML sequence.
+        Send EndXml of (phXMLBuilder(Self))
+    End_Procedure
+
+    Function XmlStringValue Returns String //> If the XML building was initiated by the XmlToString message you can use this function to retrieve the value. Calling this function resets the content of the internal array.
+        Function_Return (XmlStringValue(phXMLBuilder(Self)))
+    End_Function
+    
+    Function XmlStringValueLength Returns Integer
+        Function_Return (XmlStringValueLength(phXMLBuilder(Self)))
+    End_Function
+End_Class

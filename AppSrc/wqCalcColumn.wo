@@ -1,0 +1,220 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebLabel.pkg
+Use cWebCombo.pkg
+Use cWebSpacer.pkg
+
+Define C_wqTypeText for -1
+
+Object oWqCalcColumn is a cWebModalDialog
+    { WebProperty=True }
+    Property Handle  wphMainTable
+    { WebProperty=True }
+    Property String  wpsExpression
+    { WebProperty=True }
+    Property Integer wpiAction
+    
+    Property Integer piOperation
+    Property Integer piField
+    
+    Set psCaption to "Calculated column"
+    Set piMinWidth to 400
+    Set piMinHeight to 180
+    Set pbServerOnSubmit to True
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oLongLab is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to "Long label:"
+            Set piLabelOffset to 90
+            Set pbServerOnChange to True
+            
+            
+            Procedure OnChange String sNewValue String sOldValue
+                String  sShort
+                
+                WebGet psValue of oShortLab to sShort
+                If ((sNewValue <> "") and (sShort = "")) WebSet psValue of oShortLab to sNewValue
+            End_Procedure
+            
+            
+        End_Object
+
+        Object oShortLab is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to "Short label:"
+            Set piColumnSpan to 6
+            Set piLabelOffset to 90
+        End_Object
+
+        Object oWidth is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to "Width:"
+            Set piColumnSpan to 4
+            Set peDataType to typeNumber
+            Set psValue to 10
+            Set piLabelOffset to 90
+        End_Object
+
+        Object oCharLab is a cWebLabel
+            Set psCaption to "characters"
+            Set piColumnIndex to 4
+            Set piColumnSpan to 0
+        End_Object
+
+        Object oRetType is a cWebCombo
+            Set piColumnSpan to 0
+            Set psLabel to "Return type:"
+            Set piColumnSpan to 5
+            Set piLabelOffset to 90
+            Set pbServerOnChange to True
+            
+            Procedure OnChange String sNewValue String sOldValue
+                WebSet pbEnabled of oDecimals to (sNewValue = typeNumber)
+            End_Procedure
+            
+            Procedure OnFill
+                Send AddComboItem typeNumber   "Numeric"
+                Send AddComboItem typeASCII    "String"
+                Send AddComboItem C_wqTypeText "Text"
+                Send AddComboItem typeDate     "Date"
+                Send AddComboItem typeDateTime "DateTime"
+            End_Procedure
+            
+        End_Object
+
+        Object oDecimals is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to "Decimal places:"
+            Set piColumnIndex to 6
+            Set piColumnSpan to 4
+            Set peDataType to typeNumber
+            Set piLabelOffset to 100
+            Set psValue to 0
+        End_Object
+
+        Object oEditButton is a cWebButton
+            Set piColumnSpan to 0
+            Set psCaption to "Edit"
+            Set piColumnSpan to 2
+            Set piColumnIndex to 4
+        
+            Procedure OnClick
+                wqPrintField tField
+                Handle  hTab
+                String  sExpr sName
+                Integer iAction
+                
+                WebGet wpsExpression of oWqCalcColumn to sExpr
+                WebGet wphMainTable  of oWqCalcColumn to hTab
+                WebGet wpiAction     of oWqCalcColumn to iAction
+                WebGet psValue       of oShortLab     to sName
+                
+                Send DoPopup of oWqExpressionPopup oWqCalcColumn sExpr iAction 0 hTab sName
+            End_Procedure
+            
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 4
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+        End_Object 
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+        End_Object 
+        
+    End_Object 
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        Forward Send Ok
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure OnCloseModalDialog Handle hoMD
+        wqExpressionReturn tExpr
+        
+        Get ExprValue of hoMD   to tExpr
+        Set piOperation         to tExpr.iOp
+        Set piField             to tExpr.iField
+        WebSet wpsExpression    to tExpr.sExpression
+        WebSet pbEnabled of oOkButton to (tExpr.sExpression <> "")
+    End_Procedure
+    
+    Procedure PopupCalcCol Handle hoObj wqPrintField tField Integer iAction Handle hMainTable
+        WebSet wphMainTable to hMainTable
+        WebSet wpiAction    to iAction
+        
+        If (iAction = C_wqEditExpression) Begin
+            WebSet wpsExpression            to tField.sExpression
+            WebSet psValue of   oLongLab    to tField.sLongLabel
+            WebSet psValue of   oShortLab   to tField.sUserName
+            WebSet psValue of   oWidth      to tField.iWidth
+            WebSet psValue of   oRetType    to tField.iType
+            WebSet psValue of   oDecimals   to tField.iDecimals
+            WebSet pbEnabled of oOkButton   to (tField.sExpression <> "")  // Probably certain to be True here
+        End
+        Else Begin
+            WebSet wpsExpression            to ""
+            WebSet psValue   of oLongLab    to ""
+            WebSet psValue   of oShortLab   to ""
+            WebSet psValue   of oWidth      to 10
+            WebSet psValue   of oRetType    to "Numeric"
+            WebSet psValue   of oDecimals   to 0
+            WebSet pbEnabled of oOkButton   to False
+        End
+        
+        If      (iAction = C_wqAddExpression)    WebSet psCaption to "Create calculated column"
+        Else If (iAction = C_wqInsertExpression) WebSet psCaption to "Create calculated column"
+        Else If (iAction = C_wqEditExpression)   WebSet psCaption to ('Edit calculated column "' * tField.sUserName + '"')
+        
+        Send Popup hoObj
+    End_Procedure
+    
+    Function CalcColInfo Returns wqPrintField
+        wqPrintField tField
+        Integer iOp
+        
+        WebGet psValue of oLongLab  to tField.sLongLabel
+        WebGet psValue of oShortLab to tField.sUserName
+        WebGet psValue of oWidth    to tField.iWidth
+        WebGet psValue of oRetType  to tField.iType
+        WebGet psValue of oDecimals to tField.iDecimals
+        WebGet wpsExpression        to tField.sExpression
+        Move True                   to tField.bCalc
+        
+        WebGet wpiAction to iOp
+        Set piOperation  to iOp
+        
+        Function_Return tField
+    End_Function
+    
+End_Object

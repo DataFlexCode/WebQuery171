@@ -1,0 +1,119 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+  <title>WebQuery Introduction</title>
+</head>
+<body style="font-family: Verdana, Geneva, sans-serif; font-size: 11.2px;">
+<h2>Welcome to WebQuery</h2>
+
+<p>(Version: 0.4 - beta 2)</p>
+
+<p>WebQuery is an Open Source component (view) you can include in your own 
+<a href="http://www.visualdataflex.com/2012" target="blank">
+Visual DataFlex<sup>&reg;</sup> 17.1</a>
+(or higher) WebApp programs to provide the users with an <i>ad hoc</i>
+reporting capability.</p>
+
+<p>WebQuery is a reimplemetation of <a href="http://www.stureaps.dk/" target="blank">
+Sture Andersen's</a> VDFQuery Windows
+utility as a VDF 17.1 WebApp Framework (WAF) component. As well as
+taking its inspiration and interface design from Sture's VDFQuery, it
+also relies very heavily on a number of his other offerings:
+StructFunctions, TableQuery, XmlBuilder and his experimental
+ExpressionParser.</p>
+
+<p>
+<b>In this program you must log in to use the WebQuery interface</b> (File
+-&gt; Log In)... but who to log in as? Well, thanks to weak management,
+sloppy programming and inexcusably poor product testing, a pair of
+reports have been left on the Reports menu accessible to un-logged-in
+users: the "Users List" will give you the required information. In
+addition, some pre-defined reports require more elevated rights to
+appear on the menu - again, the "Users List" will help you out here.</p>
+
+<p>WebQuery allows you to create reports on multiple tables based on
+the relationships defined in your database - once a "Main Table" has
+been selected all of the tables that relates to, all the way up the
+relationship tree, will be available to you. Note: you must select a
+Main Table as the first step in creating a report (or load an already
+defined query).</p>
+
+<p>You can chose columns (except Overlap or Binary type columns) from
+any of the tables to output and also to use as the basis for record
+selection. You can also use calculated fields (expressions) and a
+single selection expression. You can chose to total ("Sum") on numeric
+fields and can split rows in your reports over multiple lines using the
+"CR" feature, which will start a new line with that field.</p>
+
+<p>Selections can be made using a number of selection operators,
+including string inclusion or exclusion, ranges (included or excluded)
+or lists of values. You can order your report by any of the main
+table's defined indices, or select the "Ad hoc index" option to define
+your own ordering, which can then be based on fields from related-to
+tables as well as the main table. (<span style="font-weight: bold;">Warning</span>:
+this may result in slow
+running reports.)</p>
+
+<p>
+You can define breakpoints in the report which will cause the printing
+of sub-headings at the beginning of each section and sub-totals at the
+end of them (the latter assuming you are totalling on at least one
+field).</p>
+
+<p>
+You can specify multi-line fixed text to appear both before and after
+your report.</p>
+
+<p>
+You can select the font typeface and size, specify the colours of the
+text, background and alternate-row highlight (if used), choose to
+include the selection critera and record count in the report, or to
+print only totals. Finally you can select the output destination and
+format.</p>
+
+<p>
+Reports can be saved as "Public Queries" or as private to the logged in
+user.</p>
+
+<p>
+If the ability to see all of the data in the database seems too great a
+capability to grant to your users, you can programmatically exclude
+entire tables, or just certain columns, from being visible within the
+WebQuery interface.</p>
+
+<p>
+Alternatively you can use WebQuery without making it available to your
+users by omitting it from the menus (or perhaps by setting the required
+rights higher than you grant them), but still use it to provide them
+with reports which you build with it. There are several examples of
+such reports in the "Reports" menu above (more once you log in).</p>
+
+<p>
+The data included in this sample workspace is that from the VDF 17.1
+WebOrder sample (with a few additions to the WebAppUser table and some
+of the customer balances adjusted to make for more interesting things
+to report on).</p>
+
+<p>WebQuery was developed entirely using the VDF Studio and required
+only two minor additions to the standard Data Access Web Application
+Framework. It should work with all of the four Data Access supplied
+themes - Modern Sky, Windows Like, High Contrast and Web Creme - please
+report any instances where it fails to do so.
+</p>
+
+<p style="font-weight: bold;">Enjoy!</p>
+
+<p>
+Please report all bugs or feature requests to:
+<a href="mailto:mpeat@unicorninterglobal.com?subject=WebQuery">Mike Peat
+at Unicorn InterGlobal</a>.</p>
+
+<p>
+WebQuery is a product of
+<a href="http://www.unicorninterglobal.com" target="blank">
+Unicorn InterGlobal Ltd.</a> (tel: +44 (0)118 988
+9709).</p>
+
+</body>
+</html>

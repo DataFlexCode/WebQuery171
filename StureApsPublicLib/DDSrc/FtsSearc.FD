@@ -1,0 +1,15 @@
+#REPLACE FILE1005 FtsSearc
+#REPLACE FtsSearc.Recnum |FN1005,0
+#REPLACE FtsSearc.Search_Id |FN1005,1
+#REPLACE FtsSearc.Search_Mode |FN1005,2
+#REPLACE FtsSearc.User_id |FN1005,3
+#REPLACE FtsSearc.Search_String |FS1005,4
+#REPLACE FtsSearc.Create_Date |FD1005,5
+#REPLACE FtsSearc.Create_Time |FS1005,6
+#REPLACE FtsSearc.Result_Count |FN1005,7
+#REPLACE FtsSearc.Execution_Time |FN1005,8
+#REPLACE FtsSearc.Search_Name |FS1005,9
+#REPLACE FtsSearc.Low_Date_Limit |FD1005,10
+#REPLACE FtsSearc.High_Date_Limit |FD1005,11
+#REPLACE FtsSearc.Order_By |FN1005,12
+#REPLACE FtsSearc.Refinement_Of |FN1005,13

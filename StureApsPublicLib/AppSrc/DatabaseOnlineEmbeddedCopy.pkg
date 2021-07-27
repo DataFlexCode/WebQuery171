@@ -1,0 +1,374 @@
+// To do:
+// Do not create copies of tables that can't be opened
+// Do not attempt to Set field_main_index of columns that do not participate in that Index
+// Make function to perform max-records pruning (if copied from an SQL table MAX-RECORDS will
+// be set to 16384932 records even for a table with only 10 records).
+
+Use GlobalAttributes.pkg
+
+Use FilelistFunctions.pkg
+Use DateFunctions.pkg
+Use TableStructure.pkg
+Use StringFunctions.pkg
+Use TemporaryTables.pkg
+Use TableAccessFunctions.pkg
+Use TableExplicitFunctions.pkg
+Use IndexFunctions.pkg
+Use Win\StatusPanelAlternative.pkg
+
+Object oDataBaseOnlineEmbeddedCopy is a cTableStructure
+
+        Property String _psLogFileName
+
+    Procedure WriteLog String sValue
+        Integer iChannel
+        Get AppendOutput of oFileFunctions (_psLogFileName(Self)) to iChannel
+        If (iChannel>=0) Begin
+            Write channel iChannel (String(SystemDateTime(oDateFunctions))+" ")
+            Writeln sValue
+            Send CloseOutput of oFileFunctions iChannel
+        End
+    End_Procedure
+
+//    Property Integer _piSourceChannel -1 // -1: no source
+
+//    Procedure Writeln String sValue
+//        Integer iChannel
+//        Get _piSourceChannel to iChannel
+//        If (iChannel>=0) Begin
+//            Writeln channel iChannel sValue
+//        End
+//    End_Procedure
+
+//    Procedure OnOperationBegin String sOperation // called before each modification of the structure (for each changing of an attribute value)
+//        Forward Send OnOperationBegin sOperation
+//        Send WriteSource ("         "+sOperation)
+//    End_Procedure
+
+    Procedure CreateTable tTableExplicit strTable String sFolder String sRootName
+        Boolean bSuccess
+        If (TrimTableDefinitionToDriver(oTableExplicitFunctions,&strTable)) Begin
+            Get CreateTableExplicit strTable sFolder to bSuccess
+            If (bSuccess) Begin
+//                Showln "Success"
+            End
+            Else Begin
+//                Showln "Fail"
+            End
+        End
+    End_Procedure
+
+                Procedure CopyRecord Integer iTable Integer hTargetTable
+                    Integer iField iFieldMax iType
+                    
+                    Number nValue
+                    Date dValue
+                    String sValue
+                    DateTime dtValue
+                    
+                    Get_Attribute DF_FILE_NUMBER_FIELDS of iTable to iFieldMax
+                    For iField from 1 to iFieldMax
+                        Get_Attribute DF_FIELD_TYPE of iTable iField to iType
+                        If (iType<>DF_OVERLAP) Begin
+                            If (iType=DF_BCD) Begin
+                                Set_Field_Value hTargetTable iField to 1 // Force a change
+                                Get_Field_Value iTable iField to nValue    
+                                Set_Field_Value hTargetTable iField to nValue    
+                            End
+                            Else If (iType=DF_DATE) Begin
+                                Set_Field_Value iTable iField to (SystemDate(oDateFunctions)) // Force a change
+                                Get_Field_Value iTable iField to dValue    
+                                Set_Field_Value hTargetTable iField to dValue    
+                            End
+                            Else If (iType=DF_DATETIME) Begin
+                                Set_Field_Value iTable iField to (SystemDateTime(oDateFunctions)) // Force a change
+                                Get_Field_Value iTable iField to dtValue    
+                                Set_Field_Value hTargetTable iField to dtValue    
+                            End
+                            Else Begin
+                                Set_Field_Value hTargetTable iField to "a" // Force a change
+                                Get_Field_Value iTable iField to sValue    
+                                Set_Field_Value hTargetTable iField to sValue    
+                            End
+                        End
+                    Loop
+                End_Procedure
+
+                Procedure PopulateTable Integer iTable String sFolder Number ByRef nTime Integer ByRef iRecordCount Boolean bLeaveIndicesOffline
+                    Boolean bFound
+                    Integer hTargetTable iIndex iRecordsUsed iPct
+                    Integer iIsSystemFile iInnerCount
+                    Integer iSpeed
+                    String sRoot
+                    Integer[] aIndices
+                    Boolean bFinish
+                    tSystemTimeMS strStart strStop
+                    tSystemTimeMS strChunkStart strChunkStop
+                    
+                    Move 0 to nTime // not measured
+                    Move 0 to iRecordCount
+                    
+                    If (OpenTable(oTableAccessFunctions,iTable,DF_SHARE,0)) Begin
+                        Get_Attribute DF_FILE_ROOT_NAME of iTable to sRoot
+                        Get StripPathAndDriverFromTableRootName of oTableAccessFunctions sRoot to sRoot
+                        Get AppendPath of oFileFunctions sFolder sRoot to sRoot
+                        Get OpenTableAsAutoHandle of oTableAccessFunctions sRoot DF_SHARE 0 to hTargetTable
+                        If (hTargetTable>0) Begin
+
+                            Get_Attribute DF_FILE_RECORDS_USED of iTable to iRecordsUsed
+                            Get_Attribute DF_FILE_IS_SYSTEM_FILE of iTable to iIsSystemFile
+                            Move 0 to iRecordCount
+
+                            If (iIsSystemFile<>0) Begin // System table
+
+                                Send CopyRecord iTable hTargetTable
+                                SaveRecord hTargetTable
+                                Set Meter_Text of ghoStatusPanel to "100%"
+                                Set Meter_Pct of ghoStatusPanel to 100
+                                Increment iRecordCount
+
+                            End
+                            Else Begin // Normal table
+                                
+                                Get SwitchIndicesOffline of oIndexFunctions hTargetTable sRoot to aIndices
+                                
+                                Get SystemTimeMilliSeconds of oDateFunctions to strStart
+                                Move strStart to strChunkStart
+                                Move 0 to iInnerCount
+                                
+                                Clear iTable
+                                Get AnyIndex of oTableAccessFunctions iTable to iIndex
+                                Repeat
+                                    Vfind iTable iIndex GT
+                                    Move (Found) to bFound
+                                    If (bFound) Begin
+
+                                        Clear hTargetTable
+                                        Send CopyRecord iTable hTargetTable
+                                        SaveRecord hTargetTable
+                                        Increment iRecordCount
+                                        Move (iRecordCount=iRecordsUsed) to bFinish
+                                        If (((iRecordCount/500)*500)=iRecordCount or bFinish) Begin
+                                            Move (iInnerCount+500) to iInnerCount
+                                            Get SystemTimeMilliSeconds of oDateFunctions to strChunkStop
+                                            Get SystemTimeMilliSecondsElapsed of oDateFunctions strChunkStart strChunkStop to nTime // Milliseconds
+                                            If (nTime>=1000 or bFinish) Begin 
+
+                                                If (nTime>=2000 or bFinish) Begin // Only update panel every other second
+                                                    // Calculate current speed:
+                                                    Move (nTime/1000) to nTime // milliseconds to seconds
+                                                    Move (iInnerCount/nTime) to iSpeed
+                                                    Get SystemTimeMilliSeconds of oDateFunctions to strChunkStart
+                                                   
+                                                    Set Meter_Text of ghoStatusPanel to (String(iRecordCount)+"/"+String(iRecordsUsed)+". Current speed: "+String(iSpeed)+"/s")
+                                                    
+                                                    Move (100.0*iRecordCount/iRecordsUsed) to iPct
+                                                    Set Meter_Pct of ghoStatusPanel to iPct
+                                                    Move 0 to iInnerCount
+                                                End 
+                                                // Here a check could be inserted to check for user interrupt
+                                            End
+                                        End
+                                    End
+                                    
+                                Until (not(bFound))
+                                
+                                Get SystemTimeMilliSeconds of oDateFunctions to strStop
+                                Get SystemTimeMilliSecondsElapsed of oDateFunctions strStart strStop to nTime // Milliseconds
+
+                                If (not(bLeaveIndicesOffline)) Begin
+                                    Set Message_Text of ghoStatusPanel to "Rebuilding indices"
+                                    Send SwitchIndicesOnLine of oIndexFunctions hTargetTable sRoot aIndices
+                                End
+                            End
+                        End
+                        Else Begin
+                            Send WriteLog ("Could not open target table :"+sRoot)
+//                            Error 233 ("Could not open target table :"+sRoot)
+                        End
+                    End
+                    Else Begin
+                        Send WriteLog ("Could not open source table "+String(iTable))
+//                        Error 232 ("Could not open source table "+String(iTable))
+                    End
+                End_Procedure
+                
+    Procedure CreateAll String sFolder Boolean bDB Boolean bSource Integer iTableFilter Boolean bLeaveIndicesOffline
+        Integer iIndex iMax iTable iChannel iRecordCount
+        Integer[] aTables aAliasTables
+        Number nConversionSpeed nTime
+        String sRootName sLogicalName sFilelistName sFilelistPush
+        String sLogFileName
+        String[] aStringValues
+        Integer iStringMax iStringIndex
+        tTableExplicit strTable
+
+        Get_Attribute DF_FILELIST_NAME to sFilelistPush // Remember who we were
+        Get AppendPath of oFileFunctions sFolder "filelist.cfg" to sFilelistName
+
+        Set _psLogFileName to (AppendPath(oFileFunctions,sFolder,"log.txt"))
+
+        If (CreateEmptyFilelist(oFilelistFunctions,sFilelistName)) Begin
+
+            Send Initialize_StatusPanel of ghoStatusPanel "Create embedded database" "Creating tables" ""
+            Send Start_StatusPanel of ghoStatusPanel
+            Send EnableCancelButton of ghoStatusPanel False // MUST be done *after* Start_StatusPanel
+
+            Set _piWriteSourceChannel to (DirectOutput(oFileFunctions,AppendPath(oFileFunctions,sFolder,"CreateDB.src")))
+            Send WriteSource 'Use DFAllent.pkg'
+            Send WriteSource 'Use TableStructure.pkg'
+            Send WriteSource 'Use FileFunctions.pkg'
+            Send WriteSource 'Use FileListFunctions.pkg'
+            Send WriteSource ''
+            Send WriteSource 'Object oCreateDB is a cTableStructure'
+            Send IndentSource
+
+            Get FilelistNavigationTableArray of oAttributeFunctions gstFilelist.aTables DF_FILE_NEXT_USED to aTables
+            Move (SizeOfArray(aTables)-1) to iMax
+            For iIndex from 0 to iMax
+                Move aTables[iIndex] to iTable
+                If (iTable=iTableFilter or iTableFilter=0) Begin
+                    Get AliasTableArray of oAttributeFunctions gstFilelist.aTables iTable to aAliasTables
+
+                    Get FilelistEntryToExplicit of oAttributeFunctions gstFilelist iTable to strTable
+                    Get StripPathAndDriverFromTableRootName of oTableAccessFunctions strTable.sRootName to sRootName
+                    Move strTable.sLogicalName to sLogicalName
+
+                    Set Message_Text of ghoStatusPanel to sRootName
+
+                    Send WriteSource ''
+                    Get ExplicitTabelToStringArray of oTableExplicitFunctions strTable to aStringValues
+                    Move (SizeOfArray(aStringValues)-1) to iStringMax
+                    For iStringIndex from 0 to iStringMax
+                        Send WriteSource ('// '+aStringValues[iStringIndex])
+                    Loop
+
+                    Send WriteSource ''
+                    Send WriteSource     ('Procedure CreateTable_'+String(iTable)+" String sFolder // "+sLogicalName)
+                    Send IndentSource
+                    Send WriteSource         ('Integer hTable iPosition')
+                    Send WriteSource         ('Boolean bSucces')
+                    Send WriteSource         ('Move 0 to hTable')
+    
+                    Move "DATAFLEX" to strTable.sDriver
+                    If (iTable=iTableFilter or (iTableFilter=0 and iTable=aAliasTables[0])) Begin // Create physical table
+    //                    Get TableRootNameStripDriver of oAttributeFunctions strTable.sRootName to sRootName
+    //                    Get TableRootNameStripAll of oAttributeFunctions strTable.sRootName to sRootName
+                        Send CreateTable strTable sFolder sRootName
+                    End
+                    
+                    Get PathStripType of oFileFunctions strTable.sRootName to strTable.sRootName
+                    
+                    Send UpdateEntry of oFilelistFunctions iTable strTable.sRootName strTable.sLogicalName strTable.sDisplayName
+                    
+                    Send WriteSource         ('Set_Attribute DF_FILE_ROOT_NAME    of '+String(strTable.iFileListEntry)+' to "'+strTable.sRootName+'"')
+                    Send WriteSource         ('Set_Attribute DF_FILE_LOGICAL_NAME of '+String(strTable.iFileListEntry)+' to "'+strTable.sLogicalName+'"')
+                    Send WriteSource         ('Set_Attribute DF_FILE_DISPLAY_NAME of '+String(strTable.iFileListEntry)+' to "'+strTable.sDisplayName+'"')
+                    Send UnindentSource
+                    Send WriteSource     ('End_Procedure')
+                End
+            Loop
+
+            // Call the procedures just created:
+            Send WriteSource ''
+            Send WriteSource     ('Procedure CreateAllTables String sFolder')
+            Send IndentSource
+            Send WriteSource 'String sFilelistName'
+            
+            Send WriteSource 'If (sFolder="") Begin'
+            Send WriteSource '    Get BrowseFolder of oFileFunctions "Select database destination folder" "" to sFolder'
+            Send WriteSource 'End'
+            Send WriteSource 'If (sFolder<>"") Begin'
+            Send IndentSource
+            Send WriteSource 'Get AppendPath of oFileFunctions sFolder "filelist.cfg" to sFilelistName'
+            Send WriteSource 'If (CreateEmptyFilelist(oFilelistFunctions,sFilelistName)) Begin'
+            Send IndentSource
+
+            For iIndex from 0 to iMax
+                Move aTables[iIndex] to iTable
+                If (iTable=iTableFilter or iTableFilter=0) Begin
+                    Get AliasTableArray of oAttributeFunctions gstFilelist.aTables iTable to aAliasTables
+                    Get FilelistEntryToExplicit of oAttributeFunctions gstFilelist iTable to strTable
+                    Get StripPathAndDriverFromTableRootName of oTableAccessFunctions strTable.sRootName to sRootName
+                    Move strTable.sLogicalName to sLogicalName
+                    Send WriteSource ("Send CreateTable_"+String(iTable)+" sFolder // "+sLogicalName)
+                End
+            Loop
+            Send UnindentSource
+            Send WriteSource 'End'
+
+            Send UnindentSource
+            Send WriteSource 'End'
+            Send UnindentSource
+            Send WriteSource     ('End_Procedure')
+
+            Send UnindentSource
+            Send WriteSource ('End_Object')
+            
+            Send WriteSource ''
+            Send WriteSource 'Send CreateAllTables of oCreateDB ""'
+    
+//            If (bSource) Begin
+            Send CloseOutput of oFileFunctions (_piWriteSourceChannel(Self))
+//            End
+
+            // Function CreateEmptyFilelist changes DF_FILELIST_NAME as a sideeffect
+            Set_Attribute DF_FILELIST_NAME to sFilelistPush // Set back. Set back. Set back to where you once belonged
+
+            If (bDB) Begin // Populate database
+                Set Title_Text of ghoStatusPanel to "Populating tables"
+                Get AppendPath of oFileFunctions sFolder "log.txt" to sLogFileName
+                For iIndex from 0 to iMax
+                    Move aTables[iIndex] to iTable
+                    Get AliasTableArray of oAttributeFunctions gstFilelist.aTables iTable to aAliasTables
+
+                    If (iTable=iTableFilter or (iTableFilter=0 and iTable=aAliasTables[0])) Begin // Populate table (if not an alias)
+        
+                        Get FilelistEntryToExplicit of oAttributeFunctions gstFilelist iTable to strTable
+                        Set Message_Text of ghoStatusPanel to (strTable.sLogicalName+" ("+String(iIndex+1)+"/"+String(iMax+1)+")")
+                        Set Meter_Text of ghoStatusPanel to ""
+                        Set Meter_Pct of ghoStatusPanel to 0
+                        
+                        Close DF_ALL
+                        Send PopulateTable iTable sFolder (&nTime) (&iRecordCount) bLeaveIndicesOffline
+                        
+                        Get AppendOutput of oFileFunctions sLogFileName to iChannel
+                        If (iChannel>=0) Begin
+                            Write channel iChannel (String(SystemDateTime(oDateFunctions))+", "+strTable.sLogicalName+": ")
+                            If (nTime<>0) Begin
+                                Write (String(iRecordCount)+" records converted in "+String(nTime/1000)+" s at a speed of ")
+                                Move (iRecordCount/nTime*1000) to nConversionSpeed
+                                Writeln (String(nConversionSpeed)+" recs/sec")
+                            End
+                            Else Begin
+                                Writeln (String(iRecordCount)+" records converted. Speed not measured")
+                            End
+                            Send CloseOutput of oFileFunctions iChannel
+                            
+                        End
+                    End
+                Loop
+            End
+            
+            Send Stop_StatusPanel of ghoStatusPanel
+        End
+        Else Begin
+            Send Info_Box ("Could not create "+sFilelistName) "Error"
+        End
+    End_Procedure
+    
+    Procedure MakeDatabaseCopy String sFolder
+        Boolean bOk
+        tTableOpenState[] aOpenStates
+        Get TableOpenStates of oTableAccessFunctions to aOpenStates
+        Send ReadAll of oGlobalAttrFunctions
+        Send CreateAll sFolder True False 0 False
+        Close DF_ALL
+        Get SetTableOpenStates of oTableAccessFunctions aOpenStates False False to bOk
+        If (not(bOk)) Begin
+            Error DFERR_PROGRAM "Table connection(s) could not be restored"
+            Abort
+        End
+    End_Procedure
+    
+End_Object

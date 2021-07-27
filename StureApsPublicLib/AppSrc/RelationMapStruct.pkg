@@ -1,0 +1,11 @@
+Struct tRelationsDrawingMapItem
+    Integer iItemId
+    Integer iLevel
+    Boolean[] aVerticalLines
+    Integer iAlreadyMappedAtRow
+    Boolean bFirst 
+    Boolean bLast 
+    Boolean bParent 
+    Boolean bChild
+End_Struct
+

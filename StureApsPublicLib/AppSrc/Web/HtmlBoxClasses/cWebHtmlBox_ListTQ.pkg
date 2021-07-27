@@ -1,0 +1,290 @@
+Use TestProjects\Web\cWebHtmlBoxSture.pkg
+Use Web\HtmlBoxClasses\cWebHtmlBox_BaseClass.pkg
+Use TableQueryFunctions.pkg
+Use StringFunctions.pkg
+Use StructFunctions.pkg
+
+Struct tWHBListTQ
+    String sElementID
+    String sItemElementID
+    Integer iTable
+    String sRowID
+End_Struct
+
+// cWebHtmlBox_* classes are meant to be instantiated inside a cWebHtmlBoxSture object
+Class cWebHtmlBox_ListTQ is a cWebHtmlBox_BaseClass
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String  psListLabel
+        Property Integer phEditItemPanel 0
+        Property Integer phGotoItemView  0
+        Property Boolean pbAddOnClickAttributes False
+        Property Boolean pbAddNewItem      False
+        Property String  psAddNewItemLabel "Tilf›j"
+        Property Integer piDisplayStyle 0 // 0:default, 1:vidensbank
+        Property Boolean pbSuppressEmpty False
+    End_Procedure
+
+    Procedure HtmlListLabel String sLabel
+        If (sLabel<>"") Begin
+            If (piDisplayStyle(Self)=0) Begin
+                Send AddElement "h2" sLabel    
+            End
+            Else If (piDisplayStyle(Self)=1) Begin
+                Send AddElement "h2" sLabel
+                Send AddAttribute "style" "background-color:rgb(232,232,232);padding:4px;margin-top:24px;margin-bottom:4px;border-radius:5px;"
+            End
+        End
+    End_Procedure
+
+    Procedure HtmlBeginList String sUniqueID
+        String sLabel
+        Get psListLabel to sLabel
+        Send HtmlListLabel sLabel
+        Send AddOpenElement "ul"
+        Send AddAttribute "id" sUniqueID
+    End_Procedure
+
+    Procedure HtmlEndList
+        Send CloseElement // ul
+    End_Procedure
+    
+    Procedure HtmlListItem String sUniqueID String sLabel tTableQuery strQ
+        If (piDisplayStyle(Self)=0) Begin
+            Send AddElement "span" sLabel
+        End
+        Else If (piDisplayStyle(Self)=1) Begin
+            Send AddElement "span" sLabel
+            Send AddAttribute "style" "display:inline-block;padding-left:8px;padding-top:3px;padding-bottom:3px;"
+        End
+    End_Procedure
+    
+    Function OnSelectRecord Returns Boolean
+        Function_Return True
+    End_Function
+    
+    Procedure _HtmlListItem String sUniqueID tTableQuery strQ
+        Boolean bAddNewItem
+        Integer hEditItemPanel hGotoItemView iColumn
+        String sLabel sRowID sParams
+        tWHBListTQ strObjectState
+        
+        Move (IsNullRecordBuffer(oRecordBufferFunctions,strQ.iTable)) to bAddNewItem
+        
+        Get phEditItemPanel to hEditItemPanel
+        Get phGotoItemView to hGotoItemView
+        Move (SerializeRowID(GetRowID(strQ.iTable))) to sRowID
+        
+        Send AddOpenElement "li"
+            Send AddAttribute "id" (sUniqueID+sRowID)
+            
+            Send AddOpenElement "div"
+            
+//                Send AddAttribute "style" "margin-left:10px;padding-top:4px;padding-bottom:4px;"
+            
+                Move sUniqueID          to strObjectState.sElementID
+                Move (sUniqueID+sRowID) to strObjectState.sItemElementID
+                Move strQ.iTable        to strObjectState.iTable
+                Move sRowID             to strObjectState.sRowID
+                Get VariantToString of oStructFunctions strObjectState to sParams
+                
+                If (hEditItemPanel<>0 or hGotoItemView<>0 or pbAddOnClickAttributes(Self)) Begin
+                    If (not(bAddNewItem)) Begin
+                        Send AddAttribute "class" "linkarea"
+                        
+                        Send AddOnClickAttributes sUniqueID sParams
+                    End
+                End
+                
+                If (bAddNewItem) Begin
+//                   Send AddElement "span" (psAddNewItemLabel(Self)) 
+//                   Send AddElement "div" ""
+//                   Send AddAttribute "style" "height:3px;"
+                   Send AddSmallButton (psAddNewItemLabel(Self)) sUniqueID sParams "" 0 0
+                End
+                Else Begin
+                
+                    If (SizeOfArray(strQ.aOutputColumns)>0) Begin
+                        Move strQ.aOutputColumns[0].iColumn to iColumn
+                    End
+                    Else Begin
+                        Move 0 to iColumn
+                    End
+                    
+                    If (iColumn>0) Begin
+                        Get_Field_Value strQ.aOutputColumns[0].iTable iColumn to sLabel
+                    End
+                    Else Begin
+                        Move "no label" to sLabel
+                    End
+                    
+                    Send HtmlListItem sUniqueID (Trim(sLabel)) strQ 
+                End
+            Send CloseElement // div
+        Send CloseElement // li
+    End_Procedure
+    
+    Procedure RefreshInnerHtml tWHBListTQ strObjectState Integer iModalPanelExitCode
+        String sInnerHtml
+        Send XmlToString
+        Send _InnerBuildListHtml
+        Send EndXml
+        Get XmlStringValue to sInnerHtml
+        Send UpdateInnerHtml strObjectState.sElementID sInnerHtml
+    End_Procedure
+    
+    Procedure OnCloseModalDialog Handle hoModalDialog
+        Integer iModalPanelExitCode
+        String sPushedData sListElementId
+        tWHBListTQ strObjectState
+        tValueTree strValueTree
+        
+        Get HtmlBoxModalPanelDataPush (&sListElementId) to sPushedData // We don't care about the sListElementId value.
+        Get StringToValueTree of oStructFunctions sPushedData to strValueTree
+        ValueTreeDeserializeParameter strValueTree to strObjectState
+        
+        WebGet piExitCode of hoModalDialog to iModalPanelExitCode
+        
+        Send RefreshInnerHtml strObjectState iModalPanelExitCode
+    End_Procedure
+    
+    Register_Procedure PopupTheDialog
+    
+    Procedure OnItemSelect tWHBListTQ strObjectState //  String sListItemElementID Integer iTable String sRowID
+        Integer hEditItemPanel hGotoItemView hTargetPanel
+        Boolean bModalPopup 
+        Integer[] aConstrainTables
+        RowID riRow
+        String sDataPush
+        tNextOnShowState strState
+        tTableQuery      strQ
+
+        Get phEditItemPanel to hEditItemPanel
+        If (hEditItemPanel<>0) Begin
+            Move hEditItemPanel to hTargetPanel
+            Move True to bModalPopup
+        End
+        Else Begin
+            Get phGotoItemView to hGotoItemView
+            If (hGotoItemView<>0) Begin
+                Move hGotoItemView to hTargetPanel
+                Move False to bModalPopup
+            End
+        End
+        
+        
+        If (hTargetPanel<>0) Begin
+            Move (DeserializeRowID(strObjectState.sRowID)) to riRow
+            
+            Get NextOnShowStateNew of hTargetPanel True to strState
+            
+            Clear strObjectState.iTable
+            If (not(IsNullRowID(riRow))) Begin
+                If (FindByRowID(strObjectState.iTable,riRow)) Begin
+                    Send NextOnShowStateAddRecord of hTargetPanel (&strState) strObjectState.iTable
+                End
+                Else Begin
+                    Error 25 // record not found
+                End
+            End
+            Else Begin
+                Get TableQuery to strQ
+                Get FixedTables of oTQ strQ to aConstrainTables
+                Send NextOnShowStateAddRecordArray of hTargetPanel (&strState) aConstrainTables
+            End
+            
+            Get VariantToString of oStructFunctions strObjectState to sDataPush
+            Set HtmlBoxModalPanelDataPush strObjectState.sElementID to sDataPush // Is actually a webset
+            Set NextOnShowState of hTargetPanel to strState
+            If (bModalPopup) Begin
+                Send PopupTheDialog of hTargetPanel Self
+            End
+            Else Begin
+                Send Show of hTargetPanel
+            End
+        End
+    End_Procedure
+    
+    Function TableQuery Returns tTableQuery
+        tTableQuery strEmpty
+        Error DFERR_PROGRAM ("TableQuery not specified for "+Name(Self))
+        Function_Return strEmpty
+    End_Function
+    
+    Procedure OnClick String sAction String sParam
+        RowID riRow
+        Integer    iTable
+        String     sElementID sRowID
+        String[]   aValues
+        tWHBListTQ strObjectState
+        tValueTree strValueTree
+        
+        Get StringToValueTree of oStructFunctions sParam to strValueTree
+        ValueTreeDeserializeParameter strValueTree to strObjectState
+//        Send SplitString of oStringFunctions sParam "," False False (&aValues)
+//        Move aValues[0] to iTable
+//        Move aValues[1] to sElementID
+//        Move aValues[2] to sRowID
+        Clear strObjectState.iTable
+        Move (DeserializeRowID(strObjectState.sRowID)) to riRow
+        If (not(IsNullRowID(riRow))) Begin
+            If (FindByRowID(strObjectState.iTable,riRow)) Begin
+                
+            End
+        End
+        Send OnItemSelect strObjectState
+    End_Procedure
+    
+    Procedure OnEmptyList tTableQuery strQ
+    End_Procedure
+
+    Procedure _InnerBuildListHtml
+        Boolean bRecordsFound
+        String sUniqueID 
+        tTableQuery strQ
+        
+        Get psUniqueID to sUniqueID
+        Get TableQuery to strQ
+        Move False to bRecordsFound
+        While (FindRecord(oTQ,&strQ))
+            If (OnSelectRecord(Self)) Begin
+                Move True to bRecordsFound
+                Send _HtmlListItem sUniqueID strQ // Passing strQ enables HtmlListItem to perform an intelligent default behavior
+            End
+        Loop
+        If (not(bRecordsFound)) Begin
+            Send OnEmptyList strQ
+        End
+        If (pbAddNewItem(Self)) Begin
+            Clear strQ.iTable
+            Send _HtmlListItem sUniqueID strQ
+        End
+    End_Procedure
+    
+    Procedure BuildListHtml 
+        Boolean bSuppress
+        String sUniqueID 
+        tTableQuery strQ
+        Get TableQuery to strQ
+        
+        If (pbSuppressEmpty(Self)) Begin
+            Move (not(HasData(oTQ,strQ))) to bSuppress
+        End
+        Else Begin
+            Move False to bSuppress
+        End
+
+        If (not(bSuppress)) Begin
+            Get psUniqueID to sUniqueID
+            
+            If (strQ.iTable<>0) Begin
+                Send HtmlBeginList sUniqueID
+                Send _InnerBuildListHtml
+                Send HtmlEndList
+            End
+            Else Begin
+                Error DFERR_PROGRAM ("Query not defined for "+Name(Self))
+            End
+        End
+    End_Procedure
+End_Class

@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html><head>
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+  <title>WebQuery Usage</title>
+</head>
+<body style="font-family: Verdana, Geneva, sans-serif; font-size: 11.2px;">
+<h2>Using WebQuery</h2>
+
+<p>The first step in using WebQuery in your own applications is to add
+the WebQuery workspace as a Library in you application's workspace: in
+the VDF Studio menu use Tools -&gt; Maintain Libraries -&gt; Add
+Library and navigate to the file "WebQuery171.sws" in whatever directory
+you extracted the zip file to.</p>
+
+<p>A copy of Sture Andersen's "StureApsPublicLib" is included in the
+WebQuery workspace (currently the 2013-10-23 version), however if you
+want to use
+a later version you can remove that one and add Sture's to your own
+workspace.</p>
+
+<p>Next, copy the "AppHTML/Custom" directory from the WebQuery
+workspace into your own AppHTML directory - if you already have a
+"Custom" directory there, just copy the contents of the WebQuery one
+into it.</p>
+
+<p>Open your "Index.html" file (or equivalent if you are using something
+else) in your AppHTML directory and make the following modifications:</p>
+
+<p>After the "DataFlex Custom Controls" comment line (which you should
+<u>not</u> remove) add the following three lines of code:</p>
+
+<pre>&lt;script src="Custom/wqWebApp.js"&gt;&lt;/script&gt;<br>&lt;script src="Custom/wqWebEdit.js"&gt;&lt;/script&gt;<br>&lt;link rel="stylesheet" type="text/css" href="Custom/WebQuery.css" /&gt;</pre>
+
+<p>
+A few lines farther down modify the line:</p>
+
+<pre>var oWebApp = new df.WebApp("WebServiceDispatcher.wso");</pre>
+
+<p>to read:</p>
+
+<pre>var oWebApp = new df.<b>wq</b>WebApp("WebServiceDispatcher.wso");</pre>
+
+<p>Open your WebApp.src file and near the top add the line:</p>
+
+<pre>Use cWqWebApp.pkg</pre>
+
+<p>after any other "Use" statements there.</p>
+
+<p>Then modify the line:</p>
+
+<pre>Object oWebApp is a cWebApp</pre>
+
+<p>to read:</p>
+
+<pre>Object oWebApp is a c<b>Wq</b>WebApp<br></pre>
+
+<p>Now all that remains to be done is to add WebQuery to your menu (if
+you wish to do that).
+You can do that by right-clicking on WebApp.src in the Workspace
+Explorer panel of the
+VDF Studio and selecting "Add Component(s) to WebApp.src" then navigate
+to the WebQuery workspace's
+AppSrc directory and select "WebQuery.wo". This will add WebQuery to
+your "View" menu, but if
+you have a "Reports" menu you may wish to move it there by editing
+WebApp.src manually. You can
+separate it from other items by adding the line "Set pbBeginGroup to
+True" in the menu item,
+while if you wish to give it an image you can use "Set psImage to
+'Custom/report.png'".</p>
+
+<p>Then compile and run your application to begin using WebQuery</p>
+
+</body></html>

@@ -1,0 +1,65 @@
+Use DFClient.pkg
+Use dfSelLst.pkg
+Use UserAccess\cUserAccessControl.pkg
+//Use cUagroupDataDictionary.dd
+
+Object oUaGroupSelectionList is a dbModalPanel
+    Set Label to "Select user group"
+
+    Object oUagroup_DD is a cUagroupDataDictionary
+    End_Object
+
+    Set Main_DD to oUagroup_DD
+    Set Server to oUagroup_DD
+
+    Set Size to 171 234
+    Set piMinSize to 89 211
+    Set Location to 3 1
+    Set Border_Style to Border_Thick
+
+    Object oList is a dbList
+        Set Size to 135 217
+        Set Location to 11 9
+        Set Export_Item_State to True
+
+        Begin_Row
+            Entry_Item uaGroup.GroupID
+            Entry_Item uaGroup.Name
+        End_Row
+
+        Set Main_File to uaGroup.File_number
+
+        Set Form_Width 0 to 72
+        Set Header_Label 0 to "GroupID"
+        Set Form_Width 1 to 134
+        Set Header_Label 1 to "Name"
+        Set peAnchors to anAll
+    End_Object
+
+    Object oOK_btn is a Button
+        Set Label    to "&OK"
+        Set Location to 151 120
+        Set peAnchors to anBottomRight
+
+        Procedure OnClick
+           Send Ok of oList
+        End_Procedure
+
+    End_Object
+
+    Object oCancel_btn is a Button
+        Set Size to 14 50
+        Set Label    to "&Cancel"
+        Set Location to 151 175
+        Set peAnchors to anBottomRight
+
+        Procedure OnClick
+           Send Close_Panel
+        End_Procedure
+
+    End_Object
+
+    On_Key Key_Alt+Key_O Send KeyAction of oOk_btn
+    On_Key Key_Alt+Key_C Send KeyAction of oCancel_btn
+
+End_Object

@@ -1,0 +1,46 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebIFrame.pkg
+
+Object oWqDownload is a cWebModalDialog
+    Set psCaption        to "Downloading Report..."
+    Set piMinWidth       to 200
+    Set piMinHeight      to 99
+    Set pbResizable      to False
+    Set pbShowClose      to False
+    Set pbServerOnSubmit to True
+    
+    { WebProperty=True }
+    Property String  wpsFile
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 5
+
+        Object oDownloadFrame is a cWebIFrame
+            Set piColumnIndex to 0
+            Set piColumnSpan  to 0
+            Set pbShowBorder  to False
+            Set piHeight      to 30
+        End_Object
+
+        Object oOkButton is a cWebButton
+            Set psCaption to "Click when done"
+            Set piColumnSpan to 3
+            Set piColumnIndex to 1
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object 
+
+    End_Object 
+    
+    Procedure DoPopup Handle hoObj String sUrl String sFile
+        WebSet psUrl of oDownloadFrame to sUrl
+        WebSet wpsFile                 to sFile
+        Send Popup hoObj
+    End_Procedure
+    
+End_Object

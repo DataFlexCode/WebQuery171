@@ -1,0 +1,7 @@
+Article_Id
+Word_Id
+Word_Id_s1
+Word_Id_s2
+Word_Id_s3
+Word_Id_s4
+Word_Id_s5

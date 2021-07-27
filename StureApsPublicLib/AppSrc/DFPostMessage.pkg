@@ -1,0 +1,206 @@
+// By Sture Andersen (sture@stureaps.dk).
+
+//Use VdfBase.pkg
+//
+//Struct _tPostMessage
+//    Integer hMsg
+//    Integer hObj
+//    Boolean bHasBeenSent
+//    String[] aArguments
+//End_Struct
+//
+//Global_Variable _tPostMessage[] _gaPostedMessages
+//Global_Variable Integer _oPostMessage
+//
+//Object __oPostMessage is a cIdleHandler
+//
+//    Move Self to _oPostMessage
+//
+//    Function NextMessage Returns _tPostMessage
+//        Integer iMax iIndex
+//        _tPostMessage stEmptyMsg
+//        Move (SizeOfArray(_gaPostedMessages)-1) to iMax
+//        For iIndex from 0 to iMax
+//            If (_gaPostedMessages[iIndex].bHasBeenSent=False) Begin
+//                Move True to _gaPostedMessages[iIndex].bHasBeenSent
+//                Function_Return _gaPostedMessages[iIndex]
+//            End
+//        Loop
+//        // No more messages => reset the array:
+//        If (iMax>=0) Begin
+//            Move (ResizeArray(_gaPostedMessages,0)) to _gaPostedMessages
+//        End
+//        Move 0 to stEmptyMsg.hMsg
+//        Function_Return stEmptyMsg
+//    End_Function
+//
+//    Procedure OnIdle
+//        Integer iNum_Arguments
+//        _tPostMessage stMsg
+//        Showln "OnIdle"
+//        Get NextMessage to stMsg
+//        If (stMsg.hMsg=0) Begin
+//            Set pbEnabled to False
+//        End
+//        Else Begin
+//            Move (SizeOfArray(stMsg.aArguments)) to iNum_Arguments
+//            If (iNum_Arguments=0) Send stMsg.hMsg of stMsg.hObj
+//            If (iNum_Arguments=1) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0]
+//            If (iNum_Arguments=2) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0] stMsg.aArguments[1]
+//            If (iNum_Arguments=3) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0] stMsg.aArguments[1] stMsg.aArguments[2]
+//            If (iNum_Arguments=4) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0] stMsg.aArguments[1] stMsg.aArguments[2] stMsg.aArguments[3]
+//        End
+//    End_Procedure
+//End_Object
+//
+//Procedure DFPostMessage Global Integer hMsg Integer hObj String sArg1 String sArg2 String sArg3 String sArg4
+//    _tPostMessage stMsg
+//    Move hMsg to stMsg.hMsg
+//    Move hObj to stMsg.hObj
+//    If (num_arguments>=3) Move sArg1 to stMsg.aArguments[0]
+//    If (num_arguments>=4) Move sArg2 to stMsg.aArguments[1]
+//    If (num_arguments>=5) Move sArg3 to stMsg.aArguments[2]
+//    If (num_arguments>=6) Move sArg4 to stMsg.aArguments[3]
+//    Move False to stMsg.bHasBeenSent
+//    Move stMsg to _gaPostedMessages[SizeOfArray(_gaPostedMessages)] // Put at the end of the array
+//    Set pbEnabled of _oPostMessage to True
+//End_Procedure
+//
+//Procedure _DFPostMessageSuppressPredecessors Global 
+//    Integer iMax iIndex hMsg hObj
+//    Move (SizeOfArray(_gaPostedMessages)-1) to iMax
+//    If (iMax>=0) Begin
+//        If (not(_gaPostedMessages[iMax].bHasBeenSent)) Begin
+//            Move _gaPostedMessages[iMax].hMsg to hMsg
+//            Move _gaPostedMessages[iMax].hObj to hObj
+//            Decrement iMax
+//            For iIndex from 0 to iMax // Loop through all items except the last one
+//                If (_gaPostedMessages[iIndex].hMsg=hMsg and _gaPostedMessages[iMax].hObj=hObj) Begin
+//                    Move True to _gaPostedMessages[iMax].bHasBeenSent
+//                End
+//            Loop
+//        End
+//    End
+//End_Procedure
+//
+//Procedure DFPostMessageSuppress Global Integer hMsg Integer hObj String sArg1 String sArg2 String sArg3 String sArg4
+//    _tPostMessage stMsg
+//    Move hMsg to stMsg.hMsg
+//    Move hObj to stMsg.hObj
+//    If (num_arguments>=3) Move sArg1 to stMsg.aArguments[0]
+//    If (num_arguments>=4) Move sArg2 to stMsg.aArguments[1]
+//    If (num_arguments>=5) Move sArg3 to stMsg.aArguments[2]
+//    If (num_arguments>=6) Move sArg4 to stMsg.aArguments[3]
+//    Move False to stMsg.bHasBeenSent
+//    Move stMsg to _gaPostedMessages[SizeOfArray(_gaPostedMessages)] // Put at the end of the array
+//    Set pbEnabled of _oPostMessage to True
+//    Send _DFPostMessageSuppressPredecessors
+//End_Procedure 
+//
+//// Previous implementation. Hopefully not needed anymore.
+
+Use Dftimer.pkg
+
+Struct _tPostMessage
+    Integer hMsg
+    Integer hObj
+    Boolean bHasBeenSent
+    String[] aArguments
+End_Struct
+
+Global_Variable _tPostMessage[] _gaPostedMessages
+Global_Variable Integer _oPostMessage
+
+If (False) Begin
+    Deferred_oPostMessage_Create:
+        Object __oPostMessage is a dfTimer
+            Move Self to _oPostMessage
+            Set TimeOut to 0 // Makes it fire immediately when program becomes idle.
+            Set Auto_Start_State to False
+            Set Auto_Stop_State to False
+            Set Timer_Object to Self
+            Set Timer_Active_State to False
+        
+            Function NextMessage Returns _tPostMessage
+                Integer iMax iIndex
+                _tPostMessage stEmptyMsg
+                Move (SizeOfArray(_gaPostedMessages)-1) to iMax
+                For iIndex from 0 to iMax
+                    If (_gaPostedMessages[iIndex].bHasBeenSent=False) Begin
+                        Move True to _gaPostedMessages[iIndex].bHasBeenSent
+                        Function_Return _gaPostedMessages[iIndex]
+                    End
+                Loop
+                // No more messages => reset the array:
+                If (iMax>=0) Begin
+                    Move (ResizeArray(_gaPostedMessages,0)) to _gaPostedMessages
+                End
+                Move 0 to stEmptyMsg.hMsg
+                Function_Return stEmptyMsg
+            End_Function
+        
+            // Define when no Timer_Message
+            Procedure OnTimer
+                Integer iNum_Arguments
+                _tPostMessage stMsg
+                Get NextMessage to stMsg
+                If (stMsg.hMsg=0) Begin
+                    Set Timer_Active_State to False
+                End
+                Else Begin
+                    Move (SizeOfArray(stMsg.aArguments)) to iNum_Arguments
+                    If (iNum_Arguments=0) Send stMsg.hMsg of stMsg.hObj
+                    If (iNum_Arguments=1) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0]
+                    If (iNum_Arguments=2) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0] stMsg.aArguments[1]
+                    If (iNum_Arguments=3) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0] stMsg.aArguments[1] stMsg.aArguments[2]
+                    If (iNum_Arguments=4) Send stMsg.hMsg of stMsg.hObj stMsg.aArguments[0] stMsg.aArguments[1] stMsg.aArguments[2] stMsg.aArguments[3]
+                End
+            End_Procedure
+        End_Object
+    Return
+End
+Gosub Deferred_oPostMessage_Create
+
+Procedure DFPostMessage Global Integer hMsg Integer hObj String sArg1 String sArg2 String sArg3 String sArg4
+    _tPostMessage stMsg
+    Move hMsg to stMsg.hMsg
+    Move hObj to stMsg.hObj
+    If (num_arguments>=3) Move sArg1 to stMsg.aArguments[0]
+    If (num_arguments>=4) Move sArg2 to stMsg.aArguments[1]
+    If (num_arguments>=5) Move sArg3 to stMsg.aArguments[2]
+    If (num_arguments>=6) Move sArg4 to stMsg.aArguments[3]
+    Move False to stMsg.bHasBeenSent
+    Move stMsg to _gaPostedMessages[SizeOfArray(_gaPostedMessages)] // Put at the end of the array
+    Set Timer_Active_State of _oPostMessage to True
+End_Procedure
+
+Procedure _DFPostMessageSuppressPredecessors Global 
+    Integer iMax iIndex hMsg hObj
+    Move (SizeOfArray(_gaPostedMessages)-1) to iMax
+    If (iMax>=0) Begin
+        If (not(_gaPostedMessages[iMax].bHasBeenSent)) Begin
+            Move _gaPostedMessages[iMax].hMsg to hMsg
+            Move _gaPostedMessages[iMax].hObj to hObj
+            Decrement iMax
+            For iIndex from 0 to iMax // Loop through all items except the last one
+                If (_gaPostedMessages[iIndex].hMsg=hMsg and _gaPostedMessages[iMax].hObj=hObj) Begin
+                    Move True to _gaPostedMessages[iMax].bHasBeenSent
+                End
+            Loop
+        End
+    End
+End_Procedure
+
+Procedure DFPostMessageSuppress Global Integer hMsg Integer hObj String sArg1 String sArg2 String sArg3 String sArg4
+    _tPostMessage stMsg
+    Move hMsg to stMsg.hMsg
+    Move hObj to stMsg.hObj
+    If (num_arguments>=3) Move sArg1 to stMsg.aArguments[0]
+    If (num_arguments>=4) Move sArg2 to stMsg.aArguments[1]
+    If (num_arguments>=5) Move sArg3 to stMsg.aArguments[2]
+    If (num_arguments>=6) Move sArg4 to stMsg.aArguments[3]
+    Move False to stMsg.bHasBeenSent
+    Move stMsg to _gaPostedMessages[SizeOfArray(_gaPostedMessages)] // Put at the end of the array
+    Set Timer_Active_State of _oPostMessage to True
+    Send _DFPostMessageSuppressPredecessors
+End_Procedure 

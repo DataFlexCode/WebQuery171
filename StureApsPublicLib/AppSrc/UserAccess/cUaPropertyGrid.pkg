@@ -1,0 +1,278 @@
+Use UserAccess\cUserAccessControl.pkg
+Use Win\GridFunctions.pkg
+Use RgbFunctions.pkg
+
+// The cUaPropertyGrid may be used to display property values as defined on 
+// group-level or on the individual user-level. The grid has got three columns:
+// "Property name", "Value" and checkbox column.
+// 
+// The checkbox column has got different meaning whether it is group- or user-level:
+//
+// Group level:
+//      Checkbox column is called: "User customizable"
+//
+// User level:
+//      Checkbox column is called: "Use value from group level"
+//
+
+Class _cUaPropertyGrid is a cfreeGrid
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String _psStateValue
+        Set pbNoSortState to True
+    End_Procedure
+    
+    Function Status_Help Integer iItem Returns String
+        Integer iBase iProp
+        String sValue
+        If (Item_Count(Self)) Begin
+            Get BaseItem of oGridFunctions Self to iBase
+            Get Aux_Value iBase to iProp
+            Move _gaUserAccessProperties[iProp].sStatusHelp to sValue
+        End
+        Function_Return sValue
+    End_Function
+        
+    Function Changed_State Returns Boolean
+        String sOldState sNewState
+        Get _psStateValue to sOldState
+        Get StateValue of oGridFunctions Self to sNewState
+        Function_Return (_psStateValue(Self)<>StateValue(oGridFunctions,Self))
+    End_Function
+
+End_Class
+
+Class cUaPropertyGrid_GroupSide is a _cUaPropertyGrid
+    Procedure DefineColumns
+        Send AddColumn of oGridFunctions "Parameter" (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,20,0))  80
+        Send AddColumn of oGridFunctions "Value"     (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,40,0))  95
+        Send AddColumn of oGridFunctions "Fixed"     (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,3,0))   50
+        Send ApplyToGrid of oGridFunctions Self False
+        
+        Set Select_Mode to Multi_Select
+        Set peResizeColumn to rcSelectedColumn
+        Set piResizeColumn to 1
+    End_Procedure
+        
+    Procedure PrepareGrid
+        Integer iMax iIndex iBase
+        String sValue
+        Set Dynamic_Update_State to False
+        Send Delete_Data
+        Move (SizeOfArray(_gaUserAccessProperties)-1) to iMax
+        For iIndex from 0 to iMax
+            Get Item_Count to iBase
+            Send Add_Item MSG_NONE _gaUserAccessProperties[iIndex].sLabel
+            Send Add_Item MSG_NONE ""
+            If (_gaUserAccessProperties[iIndex].bTableConnected) Begin
+                Send AddCheckBoxItem of oGridFunctions Self False 
+            End
+            Else Begin
+                Send Add_Item MSG_NONE ""
+            End
+            Set Aux_Value iBase to iIndex //_gaUserAccessProperties[iIndex].iField
+            Set Entry_State iBase to False
+            Set ItemColor iBase to clBtnFace
+
+            If (not(_gaUserAccessProperties[iIndex].bTableConnected)) Begin
+                Send SetRowColor of oGridFunctions Self iIndex (Brighten(oRgbFunctions,clRed,90))
+                Set Entry_State (iBase+1) to False
+                Set Value (iBase+1) to "Parameter not defined"
+                Set Entry_State (iBase+2) to False
+            End
+        Loop
+        Set Dynamic_Update_State to True
+    End_Procedure
+    
+    Procedure FillGrid // Move data from record buffer to grid
+        Integer iRow iMax iBase iProp
+        Boolean bSelect
+        String sValue
+        Get RowCount of oGridFunctions Self to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem of oGridFunctions Self iRow to iBase
+            Get Aux_Value iBase to iProp
+            If (_gaUserAccessProperties[iProp].bTableConnected) Begin
+                Get GroupPropertyValue of ghoUserAccessObject iProp to sValue
+                Set Value (iBase+1) to sValue
+                Get PropertyGroupFixed of ghoUserAccessObject iProp to bSelect
+                Set Select_State (iBase+2) to bSelect
+            End
+        Loop
+        Set _psStateValue to (StateValue(oGridFunctions,Self))
+    End_Procedure
+
+    Procedure UpdateRecordBuffer // Move data from grid to record buffer
+        Integer iRow iMax iBase iProp
+        Boolean bSelect
+        String sValue
+        Get RowCount of oGridFunctions Self to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem of oGridFunctions Self iRow to iBase
+            Get Aux_Value iBase to iProp
+            If (_gaUserAccessProperties[iProp].bTableConnected) Begin
+                Get Value (iBase+1) to sValue
+                Set GroupPropertyValue of ghoUserAccessObject iProp to sValue
+                Get Select_State (iBase+2) to bSelect
+                Set PropertyGroupFixed of ghoUserAccessObject iProp to bSelect
+            End
+        Loop
+    End_Procedure
+            
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+        Send PrepareGrid
+    End_Procedure
+End_Class // cUaPropertyGrid_GroupSide
+
+Class cUaPropertyGrid_UserSide is a _cUaPropertyGrid
+    Procedure DefineColumns
+        Send AddColumn of oGridFunctions "Parameter"       (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,20,0))  80 // Label
+        Send AddColumn of oGridFunctions "Value"           (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,40,0))  95 // Value
+        Send AddColumn of oGridFunctions "Use group value" (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,3,0))   65 // Use group
+        Send ApplyToGrid of oGridFunctions Self False
+        
+        Set Select_Mode to Multi_Select
+        Set peResizeColumn to rcSelectedColumn
+        Set piResizeColumn to 1
+    End_Procedure
+    
+    Procedure OnChangeSelectState Integer iItem
+        Integer iBase iProp
+        Boolean bUseGroupValue
+        Get Select_State iItem to bUseGroupValue
+        Get ItemBaseItem of oGridFunctions Self iItem to iBase
+        Get Aux_Value iBase to iProp
+        If (bUseGroupValue) Begin
+            Set Entry_State (iBase+1) to False
+            Set ItemColor (iBase+1) to clBtnFace
+            Set Value (iBase+1) to (GroupPropertyValue(ghoUserAccessObject,iProp))
+        End
+        Else Begin
+            Set Entry_State (iBase+1) to True
+            Set ItemColor (iBase+1) to clWhite
+            Set Value (iBase+1) to (UserPropertyValueDirect(ghoUserAccessObject,iProp))
+        End
+    End_Procedure
+    
+    Procedure PrepareGrid
+        Integer iMax iIndex iBase
+        String sValue
+        Set Dynamic_Update_State to False
+        Send Delete_Data
+        Move (SizeOfArray(_gaUserAccessProperties)-1) to iMax
+        For iIndex from 0 to iMax
+            Get Item_Count to iBase
+            Send Add_Item MSG_NONE _gaUserAccessProperties[iIndex].sLabel
+            Send Add_Item MSG_NONE ""
+            Send Add_Item MSG_NONE ""
+            Set Aux_Value iBase to iIndex //_gaUserAccessProperties[iIndex].iField
+            Set Entry_State iBase to False
+            
+            If (_gaUserAccessProperties[iIndex].bTableConnected) Begin
+                Set ItemColor iBase to clBtnFace
+            End
+            Else Begin
+                Send SetRowColor of oGridFunctions Self iIndex (Brighten(oRgbFunctions,clRed,90))
+                Set Entry_State (iBase+1) to False
+                Set Value (iBase+1) to "Parameter not defined"
+                Set Entry_State (iBase+2) to False
+            End
+        Loop
+        Set Dynamic_Update_State to True
+    End_Procedure
+    
+        Procedure _DisplayGroup // Precondition: uaGroup record active
+            Integer iMax iProp iBase iRow
+            Boolean bGroupValue
+            Get RowCount of oGridFunctions Self to iMax
+            Decrement iMax
+            For iRow from 0 to iMax
+                Get RowBaseItem of oGridFunctions Self iRow to iBase
+                Get Aux_Value iBase to iProp
+                If (_gaUserAccessProperties[iProp].bTableConnected) Begin
+                    Get PropertyGroupFixed of ghoUserAccessObject iProp to bGroupValue
+                    If (bGroupValue) Begin
+                        Set Value (iBase+1) to (GroupPropertyValue(ghoUserAccessObject,iProp))
+                        Set Entry_State (iBase+1) to False
+                        Set ItemColor (iBase+1) to clBtnFace
+                        Set Checkbox_Item_State (iBase+2) to False
+                        Set Value (iBase+2) to "   (fixed by group)" // Make it look centered
+                        Set Select_State (iBase+2) to False
+                        Set Entry_State (iBase+2) to False
+                        Set ItemColor (iBase+2) to clBtnFace
+                    End
+                    Else Begin
+                        Set Value (iBase+1) to ""
+                        Set Entry_State (iBase+1) to True
+                        Set ItemColor (iBase+1) to clWhite
+                        Set Entry_State (iBase+2) to True // Corny 
+                        Set Value (iBase+2) to ""
+                        Set Checkbox_Item_State (iBase+2) to True
+                        Set Select_State (iBase+2) to False
+                        Set ItemColor (iBase+2) to clWhite
+                    End
+                End
+            Loop
+         End_Procedure
+        
+        Procedure _DisplayUser // Precondition: uaUser and uaGroup active
+            Integer iMax iProp iBase iRow
+            Boolean bFixedToGroup bUseGroupValue
+            Get RowCount of oGridFunctions Self to iMax
+            Decrement iMax
+            For iRow from 0 to iMax
+                Get RowBaseItem of oGridFunctions Self iRow to iBase
+                Get Aux_Value iBase to iProp
+                If (_gaUserAccessProperties[iProp].bTableConnected) Begin
+                    Get PropertyGroupFixed of ghoUserAccessObject iProp to bFixedToGroup
+                    Get PropertyUseDefault of ghoUserAccessObject iProp to bUseGroupValue
+                    If (not(bFixedToGroup)) Begin
+                        Set Value (iBase+1) to (UserPropertyValueDirect(ghoUserAccessObject,iProp))
+                        Set ItemColor (iBase+1) to (If(bUseGroupValue,clBtnFace,clWhite))
+                        Set Select_State (iBase+2) to bUseGroupValue
+                    End
+                    Else Begin
+                        Set ItemColor (iBase+1) to clBtnFace
+                        
+                    End
+                End
+            Loop
+        End_Procedure
+    
+    Procedure FillGrid // Move data from record buffer to grid
+        Send _DisplayGroup
+        Send _DisplayUser
+        Set _psStateValue to (StateValue(oGridFunctions,Self))
+    End_Procedure
+    
+    Procedure UpdateRecordBuffer // Move data from grid to record buffer
+        Integer iRow iMax iBase iProp
+        Boolean bSelect
+        String sValue
+        Get RowCount of oGridFunctions Self to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem of oGridFunctions Self iRow to iBase
+            Get Aux_Value iBase to iProp
+            If (_gaUserAccessProperties[iProp].bTableConnected) Begin
+                // If Checkbox_Item_State is set on the last column we
+                // know that the property is user specified (and not group
+                // specified):
+                If (Checkbox_Item_State(Self,iBase+2)) Begin
+                    Get Value (iBase+1) to sValue
+                    Set UserPropertyValueDirect of ghoUserAccessObject iProp to sValue
+                    Get Select_State (iBase+2) to bSelect
+                    Set PropertyUseDefault of ghoUserAccessObject iProp to bSelect
+                End
+            End
+        Loop
+    End_Procedure
+    
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+        Send PrepareGrid
+    End_Procedure
+End_Class // cUaPropertyGrid_UserSide

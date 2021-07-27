@@ -1,0 +1,7 @@
+Use VDFBase.pkg
+
+Object oWebBaseFunctions is a cObject
+    Procedure PopupIpAddressLocator String sIpAddress
+        Send NavigateNewWindow 600 800 ("http://www.ip-tracker.org/locator/ip-lookup.php?ip="+Trim(sIpAddress))
+    End_Procedure
+End_Object

@@ -1,0 +1,70 @@
+/* Styles for WebQuery-specific components */
+
+#wqTabSelButton button
+{
+    background-image: url('magnifier.png');
+    height: 30px;
+    width: 30px;
+    -ms-filter: "progid:DXImageTransform.Microsoft.AlphaImageLoader(src='magnifier.png', sizingMethod='scale')";
+    background-color: transparent;
+    border-style: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+#wqTabSelButton button:hover
+{
+    border-style: solid;
+}
+
+#wqOpenQueryButton button
+{
+    background-image: url('folder.png');
+    -ms-filter: "progid:DXImageTransform.Microsoft.AlphaImageLoader(src='folder.png', sizingMethod='scale')";
+    height: 27px;
+    width: 27px;
+    background-color: transparent;
+    border-style: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+#wqOpenQueryButton button:hover
+{
+    border-style: solid;
+}
+
+#wqSaveQueryButton button
+{
+    background-image: url('disk.png');
+    -ms-filter: "progid:DXImageTransform.Microsoft.AlphaImageLoader(src='disk.png', sizingMethod='scale')";
+    height: 25px;
+    width: 25px;
+    background-color: transparent;
+    border-style: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+    opacity: 1.0;
+}
+#wqSaveQueryButton.Web_Enabled button:hover
+{
+    border-style: solid;
+}
+#wqSaveQueryButton.Web_Disabled button
+{
+    opacity: 0.5;
+}
+
+#wqClearQueryButton button
+{
+    background-image: url('page.png');
+    -ms-filter: "progid:DXImageTransform.Microsoft.AlphaImageLoader(src='page.png', sizingMethod='scale')";
+    height: 25px;
+    width: 25px;
+    background-color: transparent;
+    border-style: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+#wqClearQueryButton button:hover
+{
+    border-style: solid;
+}

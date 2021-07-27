@@ -1,0 +1,129 @@
+Use cWebView.pkg
+Use cWebPanel.pkg
+Use cWebForm.pkg 
+
+//Use HtmlFragments.pkg
+Use TestProjects\Web\cWebHtmlBoxSture.pkg
+Use HtmlSequenceFunctions.pkg
+Use DateFunctions.pkg
+
+Object oFreeStyleWo is a cWebView
+
+    Set psCaption to "Basic view"
+    
+        Object oBrowser is a cWebHtmlBoxSture
+            Set piColumnSpan to 0
+            Set pbFillHeight to True
+            Set pbServerOnClick to True
+
+//            Procedure BuildSomething
+//                Send BeginHTML
+//                    Send AddElement "p" "hello world in a paragraph"
+//                    Send AddElement "input" ""
+//                        Send AddAttribute "value" "This is an input value"
+//                    Send AddElement "input" ""
+//                        Send AddAttribute "checked" "true"
+//                        Send AddAttribute "type" "checkbox"
+//                    Send AddElement "button" "A button"
+//                        Send AddAttribute "type" "button"
+//                        Send AddAttribute "style" "display:block"
+//                        Send AddAttribute "data-ServerOnClick" "open"
+//                        Send AddAttribute "data-OnClickParam" "order"
+//                    Send AddElement "hr" ""
+//                    Send AddElement "div" "This is a div element"
+//                        Send AddAttribute "id" "mydiv"
+//                Send EndHTML
+//            End_Procedure
+            
+//            Procedure BuildSomethingElse
+//                tHTMLSequence strSeq
+//                Send BeginHTML
+//                Get ColumnLayoutByWidths of oHTMLSequenceFunctions "10% 40% 40% 10%" True to strSeq
+//                While (FindSection(oHTMLSequenceFunctions,Self,&strSeq))
+//                    Send AddElement "span" strSeq.sCurrentSection
+//                Loop
+//                Send EndHTML
+//            End_Procedure
+            
+            Function TestTableLayout Returns tSimpleTableLayout
+                tSimpleTableLayout strTableLayout
+                Move "500px" to strTableLayout.sWidth
+                Move "testclass" to strTableLayout.sCSSClass
+                
+                Move "Width" to strTableLayout.aColumns[0].sHeaderLabel
+                Move "300px" to strTableLayout.aColumns[0].sWidth
+                Move 0 to strTableLayout.aColumns[0].iJustification
+
+                Move "Turnover" to strTableLayout.aColumns[1].sHeaderLabel
+                Move "100px" to strTableLayout.aColumns[1].sWidth
+                Move 2 to strTableLayout.aColumns[1].iJustification
+
+                Move "Abr." to strTableLayout.aColumns[2].sHeaderLabel
+                Move "100px" to strTableLayout.aColumns[2].sWidth
+                Move 0 to strTableLayout.aColumns[2].iJustification // Center
+                
+                Function_Return strTableLayout
+            End_Function
+            
+
+            Procedure AddTestTableData tHTMLSequence strTableRow 
+                Integer iRow
+                Date dValue
+                For iRow from 1 to 25
+                    Get SystemDate of oDateFunctions to dValue
+                    Get DateIncrement of oDateFunctions dValue DS_DAY iRow to dValue
+                    While (FindSection(oHTMLSequenceFunctions,Self,&strTableRow))
+                        If (strTableRow.sCurrentSection="td1") Begin
+                            Send AddElement "span" (DateDayName(oDateFunctions,dValue))
+                        End
+                        If (strTableRow.sCurrentSection="td2") Begin
+                            Send AddElement "span" (iRow*iRow)
+                        End
+                        If (strTableRow.sCurrentSection="td3") Begin
+                            Send AddElement "span" (Left(DateDayName(oDateFunctions,dValue),3))
+                        End
+                    Loop
+                Loop
+            End_Procedure
+            
+            Procedure OnBuildHtml
+                String sCSS
+                tCSSRules strRules
+                tSimpleTableLayout strTableLayout
+                tHTMLSequence strTableBegin strTableRow strTableEnd
+                
+                Get TestTableLayout to strTableLayout
+                
+                Get GetSimpleTableLayoutCSS of oHTMLSequenceFunctions strTableLayout to strRules
+                
+                If (SizeOfArray(strRules.aRules)>0) Begin
+                    Get CSSRulesToString of oCSSFunctions strRules to sCSS
+                    Send AddElement "style" sCSS
+                End
+                
+                Send GetSimpleTableLayoutHtmlSeq of oHTMLSequenceFunctions strTableLayout (&strTableBegin) (&strTableRow) (&strTableEnd)
+                
+                While (FindSection(oHTMLSequenceFunctions,Self,&strTableBegin))
+                Loop
+                
+                Send AddTestTableData strTableRow
+                
+                While (FindSection(oHTMLSequenceFunctions,Self,&strTableEnd))
+                Loop
+
+                Send AddElement "a" "Click me!"
+                Send AddOnClickAttributes "open" "order"
+            End_Procedure
+            
+            Procedure OnClick String sId String sParam
+                If (sID = "open" and sParam = "order") Begin
+                    Send UpdateHtml "<a>Order 1823478</a>"
+//                    Send Show of oOrderView
+                End
+            End_Procedure
+            
+            Set psHtml to (InnerHtml(Self))
+
+        End_Object
+
+End_Object

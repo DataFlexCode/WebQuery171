@@ -1,0 +1,85 @@
+Use Windows.pkg
+Use UserAccess\cUserAccessControl.pkg
+
+Object oUaLogSettingsPanel is a ModalPanel
+    Set Location to 7 13
+    Set Size to 125 211
+    Set Label to "Log settings for current session"
+    Set Locate_Mode to CENTER_ON_PANEL
+    On_Key kCancel Send Close_Panel
+    On_Key kEnter Send close_panel_ok
+    
+    Property Boolean pbOk
+    
+    Object oLogSessionsCheckBox is a CheckBox
+        Set Size to 10 50
+        Set Location to 20 67
+        Set Label to 'Log sessions'
+    End_Object
+    Object oLogErrorsCheckBox is a CheckBox
+        Set Size to 10 50
+        Set Location to 35 67
+        Set Label to 'Log errors'
+    End_Object
+    Object oLogTransactionsCheckBox is a CheckBox
+        Set Size to 10 50
+        Set Location to 50 67
+        Set Label to 'Log transactions'
+        Set Enabled_State to False
+    End_Object
+    Object oLogViewAccessCheckBox is a CheckBox
+        Set Size to 10 50
+        Set Location to 65 67
+        Set Label to 'Log view access'
+    End_Object
+    Object oLogTableAccessCheckBox is a CheckBox
+        Set Size to 10 50
+        Set Location to 80 67
+        Set Label to 'Log table access'
+    End_Object
+    
+    Procedure Close_Panel_Ok
+        Set pbOK to True
+        Send Close_Panel
+    End_Procedure
+            
+    Object oOkBtn is a Button
+        Set Label    to "OK"
+        Set Location to 108 102
+        Procedure OnClick
+            Send Close_Panel_Ok
+        End_Procedure
+    End_Object
+
+    Object oCancelBtn is a Button
+        Set Label    to "Cancel"
+        Set Location to 108 157
+        On_Key kEnter Send close_panel
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+    End_Object
+    
+    Procedure Popup
+        Set pbOk to False
+        Set Checked_State of oLogSessionsCheckBox to (pbLogSessions(ghoUserAccessObject))
+        Set Checked_State of oLogErrorsCheckBox to (pbLogErrors(ghoUserAccessObject))
+        Set Checked_State of oLogTransactionsCheckBox to False
+        Set Checked_State of oLogViewAccessCheckBox to (pbLogViewAccess(ghoUserAccessObject))
+        Set Checked_State of oLogTableAccessCheckBox to (pbLogTableAccess(ghoUserAccessObject))
+        Forward Send Popup
+        If (pbOK(Self)) Begin
+            Set pbLogErrors       of ghoUserAccessObject to (Checked_State(oLogErrorsCheckBox))
+            Set pbLogSessions     of ghoUserAccessObject to (Checked_State(oLogSessionsCheckBox))
+//            Set pbLogTransactions of ghoUserAccessObject to (Checked_State(oLogTransactionsCheckBox))
+            Set pbLogViewAccess   of ghoUserAccessObject to (Checked_State(oLogViewAccessCheckBox))
+            Set pbLogTableAccess  of ghoUserAccessObject to (Checked_State(oLogTableAccessCheckBox))
+            Send Log of ghoUserAccessObject "SES" ("New log settings: "+LogSettingsAsString(ghoUserAccessObject))
+        End
+    End_Procedure
+End_Object
+
+
+
+
+

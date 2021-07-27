@@ -1,0 +1,238 @@
+Use Windows.pkg
+Use Win\GridFunctions.pkg
+Use FileFunctions.pkg
+
+Class cFileDataGrid is a GridSture
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Size to 108 500
+        Set peResizeColumn to rcSelectedColumn
+        Set piResizeColumn to 1
+        Set GridLine_Mode to Grid_Visible_None
+        Set peAnchors to anAll
+        On_Key kEnter Send DoAction
+
+        Send AddColumn of oGridFunctions ""         (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,2,0))   12
+        Send AddColumn of oGridFunctions "Name"     (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,40,0)) 150
+        Send AddColumn of oGridFunctions "Type"     (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,4,0))   40
+        Send AddColumn of oGridFunctions "Size"     (BasicFieldType(DatabaseDescriptionObj,BFT_NUMBER,12,0))  55
+        Send AddColumn of oGridFunctions "Created"  (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,17,0))  80
+        Send AddColumn of oGridFunctions "Accessed" (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,17,0))  80
+        Send AddColumn of oGridFunctions "Changed"  (BasicFieldType(DatabaseDescriptionObj,BFT_STRING,17,0))  80
+        Send ApplyToGrid of oGridFunctions Self True
+        
+        Property Boolean pbDocumentLaunch False
+        
+
+        Property Integer _piSourceMode 0 // 0: Data from local disk
+                                         // 1: Data from variable
+                                                
+        Property String      _psFolder
+        Property tFileData[] _paFileData
+        Property String      _psCurrentFolder
+    End_Procedure
+
+    // Create and augment procedures and functions
+                Function _CurrentFileDataArray Returns tFileData[]
+                    String sFolder
+                    tFileData[] aFiles
+                    Get _psCurrentFolder to sFolder
+                    Send ReadFolder of oFileFunctions sFolder "" (&aFiles) 0
+                    Function_Return aFiles
+                End_Function
+
+                Procedure Header_Mouse_Click Integer iColumn
+                    tFileData[] aFiles
+                    Get _CurrentFileDataArray to aFiles
+                    If (iColumn=1) Send SortFileDataArray of oFileFunctions (&aFiles) SB_NAME
+                    If (iColumn=3) Send SortFileDataArray of oFileFunctions (&aFiles) SB_SIZE
+                    If (iColumn=4) Send SortFileDataArray of oFileFunctions (&aFiles) SB_CREATED
+                    If (iColumn=5) Send SortFileDataArray of oFileFunctions (&aFiles) SB_ACCESSED
+                    If (iColumn=6) Send SortFileDataArray of oFileFunctions (&aFiles) SB_CHANGED
+                    Send _DoFillGridFromArray aFiles
+                End_Procedure
+
+                Function NewFolder String sNewFolder Returns String
+                    String sCurrentFolder
+//                    Get _psCurrentFolder to sCurrentFolder
+                    Get _psFolder to sCurrentFolder
+                    If (sNewFolder="..") Get PathToFolder of oFileFunctions sCurrentFolder to sCurrentFolder
+                    Else If (sNewFolder<>".") Get AppendPath of oFileFunctions sCurrentFolder sNewFolder to sCurrentFolder
+                    Function_Return sCurrentFolder
+                End_Function
+                
+                Procedure OnLaunch String sPath
+                    Send ShellExecuteDocument of oFileFunctions sPath
+                End_Procedure
+                
+                Procedure DoAction
+                    Boolean bSuccess
+                    Integer iBase
+                    String sFolder sFileName sOrgFolder
+                    String sCurrentFolder
+                    If (Item_Count(Self)) Begin // If there are any items at all
+                        If (_piSourceMode(Self)=1) Begin // Local disk folder
+                            Get BaseItem of oGridFunctions Self to iBase // Get item number of first column of current row
+                            If (Aux_Value(Self,iBase)<>0) Begin // If folder
+                                Get NewFolder (value(Self,iBase+1)) to sFolder
+                                Set _psFolder to sFolder
+                                Get _FillGrid to bSuccess
+                            End
+                            Else Begin // If file
+                                If (pbDocumentLaunch(Self)) Begin
+                                    Get value (iBase+1) to sFileName
+                                    Get _psFolder to sCurrentFolder
+                                    Send OnLaunch (AppendPath(oFileFunctions,sCurrentFolder,sFileName))
+                                End
+                            End
+                        End
+                        Else Begin // Data from tFileData array
+                            Get BaseItem of oGridFunctions Self to iBase // Get item number of first column of current row
+                            If (Aux_Value(Self,iBase)<>0) Begin // If folder...
+                                Get _psFolder to sOrgFolder
+                                Get NewFolder (value(Self,iBase+1)) to sFolder
+                                Set _psFolder to sFolder
+                                Get _FillGrid to bSuccess
+                                If (not(bSuccess)) Begin // We only need to handle the lack of success on this call of function _FillGrid because it's only when we're dealing with array based data that data can be insufficient
+                                    Set _psFolder to sOrgFolder
+                                End
+                            End
+                            // Else: If file we do nothing
+                        End
+                    End
+                End_Procedure
+
+                Procedure Mouse_Click Integer iWindowNumber Integer iPosition // Sent on mouse double click.
+                    Send DoAction
+                End_Procedure
+                
+                Procedure OnFolderDisplay String sFolder
+                End_Procedure
+            
+                Procedure _DoFillGridFromArray tFileData[] aFiles
+                    Integer iMax iIndex iBase
+                    Boolean bFolder
+                    String sValue
+                    
+                    Set Dynamic_Update_State to False
+                    Send delete_data
+                    Move (SizeOfArray(aFiles)-1) to iMax
+                    For iIndex from 0 to iMax
+                        
+                        Move (aFiles[iIndex].dwFileAttributes iand C_FILE_ATTRIBUTE_DIRECTORY) to bFolder
+
+                        Get Item_Count to iBase
+                        Send Add_Item MSG_NONE ""
+                        Set Aux_Value iBase to bFolder
+                        If (bFolder) Set Form_Bitmap iBase to "closfold.bmp"
+                        
+                        Send Add_Item MSG_NONE aFiles[iIndex].sFileName
+                        Send Add_Item MSG_NONE (PathToType(oFileFunctions,aFiles[iIndex].sFileName))
+                        
+                        If (bFolder) Begin
+                            Move "" to sValue
+                        End
+                        Else Begin
+                            Move aFiles[iIndex].nFileSize to sValue
+                        End
+                        Send Add_Item MSG_NONE sValue
+                        
+                        Send Add_Item MSG_NONE aFiles[iIndex].dtCreation
+                        Send Add_Item MSG_NONE aFiles[iIndex].dtLastAccess
+                        Send Add_Item MSG_NONE aFiles[iIndex].dtLastWrite
+                    Loop
+                    Send SetEntryState of oGridFunctions Self False
+                    Set Dynamic_Update_State to True
+                End_Procedure
+                
+//                Procedure DoFillGrid String sFolder
+//                    Integer iMax iIndex iBase
+//                    Boolean bFolder
+//                    tFileData[] aFiles
+//                    
+//                    Set _psCurrentFolder to sFolder
+//
+//                    Send Cursor_Wait of Cursor_Control
+//                    
+//                    Send ReadFolder of oFileFunctions sFolder "" (&aFiles) 0
+//                    Send _DoFillGridFromArray aFiles
+//                    
+//                    Send OnFolderDisplay sFolder
+//                    
+//                    Send Cursor_Ready of Cursor_Control
+//                End_Procedure // DoFillGrid
+                
+                Procedure RefreshGrid
+                    Boolean bSuccess
+                    String sFolder
+                    
+                    If (_piSourceMode(Self)=1) Begin // Disk folder based
+                        Get _psFolder to sFolder // When we are folder based, _psFolder is an absolute pointer to the disk system.
+                        Get _FillGrid to bSuccess
+                    End
+                End_Procedure
+                
+                // ------------- New ---------------
+               
+                Function _FillGrid Returns Boolean
+                    Boolean bSuccess
+                    Integer[] aCursor
+                    String sFolder
+                    tFileData stCurrentFolder
+                    tFileData[] aFileData
+                    Get _psFolder to sFolder
+                    Send Cursor_Wait of Cursor_Control
+                    Move False to bSuccess
+                    If (_piSourceMode(Self)=0) Begin // Array based
+                        If (sFolder="") Begin
+                            Send _DoFillGridFromArray (_paFileData(Self))
+                            Send OnFolderDisplay sFolder
+                        End
+                        Else Begin
+                            If (FileDataPathToCursor(oFileFunctions,_paFileData(Self),sFolder,&aCursor)) Begin
+                                If (FileDataAtCursor(oFileFunctions,_paFileData(Self),aCursor,&stCurrentFolder)) Begin
+                                    If (SizeOfArray(stCurrentFolder.aFolderContent)<>0) Begin
+                                        Send _DoFillGridFromArray stCurrentFolder.aFolderContent
+                                        Send OnFolderDisplay sFolder
+                                        Move True to bSuccess
+                                    End
+                                    Else Begin
+                                        Send Info_Box "Insufficient data. Cannot display folder content" "Data limitation"
+                                    End
+                                End
+                                Else Begin
+                                    Send Info_Box "Could not map cursor into a folder" "I give up"
+                                End
+                            End
+                            Else Begin
+                                Send Info_Box "Could not translate path into a cursor" "I give up"
+                            End
+                        End
+                    End
+                    Else Begin // Disk folder based
+                        Send ReadFolder of oFileFunctions sFolder "" (&aFileData) 0
+                        Send _DoFillGridFromArray aFileData
+                        Send OnFolderDisplay sFolder
+                        Move True to bSuccess
+                    End
+                    Send Cursor_Ready of Cursor_Control
+                    Function_Return bSuccess
+                End_Function
+                
+    Procedure FillGridFromArray tFileData[] aFiles
+        Boolean bSuccess
+        Set _piSourceMode to 0 // Based on variable
+        Set _psFolder to "" // When we are array based, _psFolder is a pointer within the aFiles variable
+        Set _paFileData to aFiles
+        Get _FillGrid to bSuccess
+    End_Procedure
+    
+    Procedure FillGridFromFolder String sFolder
+        Boolean bSuccess
+        Set _piSourceMode to 1 // Based on diskfolder
+        Set _psFolder to sFolder // When we are folder based, _psFolder is an absolute pointer to the disk system.
+        Get _FillGrid to bSuccess
+    End_Procedure
+                
+End_Class

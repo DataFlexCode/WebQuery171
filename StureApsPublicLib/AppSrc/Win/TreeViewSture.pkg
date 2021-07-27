@@ -1,0 +1,230 @@
+Use Dftreevw.pkg
+Use cCJCommandBarSystem.pkg
+
+Class TreeViewContextMenuItemSture is a cCJMenuItem
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer phMessage
+        Property Integer piAuxValue
+    End_Procedure 
+    Procedure OnExecute Variant vCommandBarControl
+        Integer hMsg iAuxValue
+        Handle hItemClicked
+        Get phMessage to hMsg
+        Get phItemClicked to hItemClicked
+        Get piAuxValue to iAuxValue 
+        Send hMsg hItemClicked iAuxValue
+    End_Procedure 
+End_Class // cCJMenuItemSture
+
+Class TreeViewContextMenuSture is a cCJContextMenu
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer[] _paMenuItems
+        Property Handle phItemClicked
+    End_Procedure
+    
+    Procedure Delete_Data
+        Integer iIndex iMax hObj
+        Integer[] aMenuItems
+        Get _paMenuItems to aMenuItems
+        Move (SizeOfArray(aMenuItems)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aMenuItems[iIndex] to hObj
+            Send Destroy of hObj
+        Loop
+        Set _paMenuItems to (ResizeArray(aMenuItems,0))
+    End_Procedure
+    
+    Procedure Add_Item Integer hMessage String sLabel Integer iAuxValue
+        Integer[] aMenuItems
+        Integer hItem
+        Get Create (RefClass(TreeViewContextMenuItemSture)) to hItem
+        Set phMessage of hItem to hMessage
+        Set psCaption of hItem to sLabel
+        Set piAuxValue of hItem to iAuxValue
+        Get _paMenuItems to aMenuItems
+        Move hItem to aMenuItems[SizeOfArray(aMenuItems)]
+        Set _paMenuItems to aMenuItems
+    End_Procedure
+End_Class // 
+
+Struct tTreeItemDataSture
+    Integer iTable
+    RowID riRowID
+    Integer iAuxValue 
+End_Struct
+
+Class TreeViewSture is a TreeView
+    
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property tTreeItemDataSture[] _paItemData
+        Property Handle _phItemRightClicked        
+        Object oContextMenu is a TreeViewContextMenuSture
+        End_Object
+    End_Procedure
+    
+    Procedure OnDeleteItem Handle hItem
+        If (hItem=RootItem(Self)) Begin
+            Set _paItemData to (ResizeArray(_paItemData(Self),0))
+        End
+        Forward Send OnDeleteItem hItem
+    End_Procedure
+    
+    Procedure AddContextMenuItem Integer hMsg String sLabel Integer iAuxValue
+        Send Add_Item of oContextMenu hMsg sLabel iAuxValue
+    End_Procedure
+
+    Function ItemDataSture Handle hItem Returns tTreeItemDataSture
+        Integer iIndex
+        tTreeItemDataSture strEmpty
+        tTreeItemDataSture[] aItemData
+        
+        Get ItemData hItem to iIndex
+        Get _paItemData to aItemData
+        If (iIndex>=0 and iIndex<SizeOfArray(aItemData)) Begin
+            Function_Return aItemData[iIndex]
+        End
+
+        Function_Return strEmpty
+    End_Function
+
+    Function AddTreeItemSture String sValue Handle hParent Integer iTable Integer iAuxValue Integer iImage Integer iSelImage Returns Handle
+        Integer iItemData
+        Handle hItem
+        tTreeItemDataSture strItemData
+        tTreeItemDataSture[] aItemData
+        
+        Get _paItemData to aItemData
+        Move (SizeOfArray(aItemData)) to iItemData
+        Move iTable to strItemData.iTable
+        If (iTable>0) Begin
+            Move (GetRowID(iTable)) to strItemData.riRowID
+        End
+        Else Begin
+            Move (NullRowID()) to strItemData.riRowID
+        End
+        Move iAuxValue to strItemData.iAuxValue
+        Move strItemData to aItemData[iItemData]
+        Set _paItemData to aItemData
+        Get AddTreeItem sValue hParent iItemData iImage iSelImage to hItem
+        Function_Return hItem
+    End_Function
+
+    Procedure FindItemRecord Handle hItem
+        Boolean bFound
+        tTreeItemDataSture strItemData
+        Get ItemDataSture hItem to strItemData
+        If (strItemData.iTable>0) Begin
+            Clear strItemData.iTable
+            Move (FindByRowID(strItemData.iTable,strItemData.riRowID)) to bFound
+        End
+    End_Procedure
+    
+    Procedure OnFillContextMenu Handle hItem tTreeItemDataSture strItemData
+    End_Procedure
+
+    Procedure OnItemRClick Handle hItem
+        tTreeItemDataSture strItemData
+        If (hItem>0) Begin
+            Set _phItemRightClicked to hItem
+            Send FindItemRecord hItem
+            Get ItemDataSture hItem to strItemData
+            Send Delete_Data of oContextMenu
+            Set phItemClicked of oContextMenu to hItem
+            
+            Send OnFillContextMenu hItem strItemData
+            
+            If (SizeOfArray(_paItemData(oContextMenu))>0) Begin
+                Send Popup of oContextMenu
+            End
+        End
+    End_Procedure
+    
+    Function ChildItems Handle hItem Returns Handle[]
+        Handle[] aChildItems
+        Move (WindowsMessage(TVM_GETNEXTITEM, TVGN_CHILD, hItem)) to hItem
+        While (hItem<>0) 
+            Move hItem to aChildItems[SizeOfArray(aChildItems)]
+            Move (WindowsMessage(TVM_GETNEXTITEM, TVGN_NEXT, hItem)) to hItem
+        Loop
+        Function_Return aChildItems
+    End_Function
+    
+    Procedure DoDeleteChildItems Handle hItem
+        Integer iIndex iMax
+        Handle[] aChildItems
+        String sTemp
+        Get ChildItems hItem to aChildItems 
+        Move (SizeOfArray(aChildItems)-1) to iMax
+        For iIndex from 0 to iMax
+            Send DoDeleteItem aChildItems[iIndex]
+        Loop
+    End_Procedure
+        
+    //> Returns the 'first' item it finds that has ItemData set to iItemData. The meaning of 'first' is not defined. 
+    //> So If more than one item can have the same ItemData, this function is most likely not what you need. 
+    //>
+    //> To search entire tree for item:
+    //> Get FindItemData 23 (RootItem(Self)) to hItem
+    Function FindItemData Handle hSearchRootItem Integer iItemData Returns Handle
+        Handle hItem hTemp
+        
+        If (hSearchRootItem=0) Begin
+            Get RootItem to hSearchRootItem
+        End
+        If (iItemData=ItemData(Self,hSearchRootItem)) Begin
+            Function_Return hSearchRootItem
+        End
+        Else Begin
+            Get ChildItem hSearchRootItem to hItem
+            While (hItem<>0)
+                Get FindItemData hItem iItemData to hTemp
+                If (hTemp<>0) Begin
+                    Function_Return hTemp
+                End
+                Get NextSiblingItem hItem to hItem
+            End
+        End
+
+        Function_Return 0 // not found!
+    End_Function
+    
+    Function FindItemDataSture Handle hSearchRootItem tTreeItemDataSture strItemData Returns Handle
+        // Note that it is not good enough to just locate strItemData in the _paItemData array
+        // and then look the index up using FindItemData. This is because that array may hold
+        // values that have been deleted
+        Handle hItem hTemp
+        tTreeItemDataSture strTemp
+        Boolean b1 b2 b3
+        
+        If (hSearchRootItem=0) Begin
+            Get RootItem to hSearchRootItem
+        End
+        
+        Get ItemDataSture hSearchRootItem to strTemp
+//        Showln strTemp.iTable " " (SerializeRowID(strTemp.riRowID)) " " strTemp.iAuxValue
+        
+        Move (strItemData.iTable=strTemp.iTable) to b1
+        Move (IsSameRowID(strItemData.riRowID,strTemp.riRowID)) to b2
+        Move (strItemData.iAuxValue=strTemp.iAuxValue) to b3
+        
+//        If (strItemData.iTable=strTemp.iTable and IsSameRowID(strItemData.riRowID,strTemp.riRowID) and strItemData.iAuxValue=strTemp.iAuxValue) Begin
+        If (b1 and b2 and b3) Begin
+            Function_Return hSearchRootItem
+        End
+        Else Begin
+            Get ChildItem hSearchRootItem to hItem
+            While (hItem<>0)
+                Get FindItemDataSture hItem strItemData to hTemp
+                If (hTemp<>0) Begin
+                    Function_Return hTemp
+                End
+                Get NextSiblingItem hItem to hItem
+            End
+        End
+
+        Function_Return 0 // not found!
+    End_Function
+End_Class

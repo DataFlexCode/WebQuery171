@@ -1,0 +1,475 @@
+Use AllWebAppClasses.pkg
+Use cWebMenuItemLoadView.pkg
+Use cWqWebApp.pkg
+
+Register_Function PublicPath   Returns String
+Register_Function piUserRights Returns Integer
+
+Object oApplication is a cApplication
+End_Object
+
+Object oWebApp is a cWqWebApp
+    Set psTheme to "Df_Web_Creme"
+    Set peLoginMode to lmLoginSupported
+    Set psDateFormat to "dd/mm/yyyy"
+    
+    Object oCommandbar is a cWebCommandBar                
+        Object oMenuBar is a cWebMenuBar
+            Object oFileMenu is a cWebMenuItem
+                Set psCaption to C_$File
+                
+                Object oClearMenuItem is a cWebMenuClear
+                End_Object  
+                             
+                Object oClearAllMenuItem is a cWebMenuClearAll
+                End_Object  
+                
+                Object oPromptMenuItem is a cWebMenuPrompt
+                    Set pbBeginGroup to True
+                End_Object  
+                               
+                Object oFindMenuItem is a cWebMenuFind
+                End_Object  
+
+                Object oNextMenuItem is a cWebMenuFindNext
+                End_Object  
+
+                Object oPreviousMenuItem is a cWebMenuFindPrevious
+                End_Object  
+                
+                Object oLastMenuItem is a cWebMenuFindLast
+                End_Object                
+                                
+                Object oFirstMenuItem is a cWebMenuFindFirst
+                End_Object  
+                
+                Object oSaveMenuItem is a cWebMenuSave
+                    Set pbBeginGroup to True
+                End_Object  
+                
+                Object oDeleteMenuItem is a cWebMenuDelete
+                End_Object  
+                
+                Object oLoginMenuItem is a cWebMenuItem
+                    Set psCaption to C_$LogIn
+                    Set pbBeginGroup to True
+                    Set psCSSClass to "WebLoginMenuItem"
+
+                    Procedure OnClick
+                        Send RequestLogin to ghoWebSessionManager
+                    End_Procedure
+                    
+                    Procedure OnLoad
+                        Integer eLoginMode
+                        Handle hoLogin
+                        Get phoLoginView to hoLogin
+                        Get peLoginMode to eLoginMode
+                        WebSet pbRender to  (hoLogin and eLoginMode<>lmLoginNone)
+                    End_Procedure  // OnLoad
+                    
+                End_Object  
+
+                Object oLogoutMenuItem is a cWebMenuItem
+                    Set psCaption to C_$LogOut
+                    Set psCSSClass to "WebLogoutMenuItem"
+
+                    Procedure OnClick
+                        Send RequestLogOut of ghoWebSessionManager
+                    End_Procedure
+
+                    Procedure OnLoad
+                        Integer eLoginMode
+                        Handle hoLogin
+                        Get phoLoginView to hoLogin
+                        Get peLoginMode to eLoginMode
+                        WebSet pbRender to  (hoLogin and eLoginMode<>lmLoginNone)
+                    End_Procedure
+                End_Object  
+            End_Object  
+    
+            Object oViewMenu is a cWebMenuItem
+                Set psCaption to C_$View
+
+                Object oIntroviewMenuItem1 is a cWebMenuItemLoadView
+                    Set psCaption to "Introduction"
+                    Set psLoadViewOnClick to "oIntroduction"
+                    Set psImage to "Images/Information.png"
+                End_Object
+                
+                Object oWebQueryDefinitionMenuItem1 is a cWebMenuItemLoadView
+                    Set psCaption to "WebQuery Definition"
+                    Set psLoadViewOnClick to "oWebQuery"
+                    Set psImage to "Custom/report.png"
+                    
+                    Procedure OnChangeRights
+                        WebSet pbEnabled to (IsLoggedIn(ghoWebSessionManager))
+                    End_Procedure
+                    
+                End_Object
+
+            End_Object  
+            
+            Object oReportMenu is a cWebMenuItem
+                Set psCaption to "Reports"
+                
+                Object oUsersListReport is a cWebMenuItem
+                    Set psCaption to "Users List (new tab)"
+                    Set psImage to "Custom/report.png"
+                    
+                    Procedure OnClick
+                        Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Users List.wqr")
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oCustomerListReport is a cWebMenuItem
+                    Set psCaption to "Customer List (download)"
+                    Set psImage to "Custom/report.png"
+                    
+                    Procedure OnClick
+                        Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Customer List.wqr")
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oSalesPListReport is a cWebMenuItem
+                    Set psCaption to "Sales Person List (popup)"
+                    Set psImage to "Custom/report.png"
+                    
+                    Procedure OnClick
+                        Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Sales People.wqr")
+                    End_Procedure
+                    
+                    Procedure OnChangeRights
+                        WebSet pbRender to (IsLoggedIn(ghoWebSessionManager) and ;
+                                            (piUserRights(ghoWebSessionManager) > 1))
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oSalesPPictures is a cWebMenuItem
+                    Set psCaption to "Sales Person Pictures"
+                    Set psImage to "Custom/report.png"
+                    
+                    Procedure OnClick
+                        Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Sales People Pictures.wqr")
+                    End_Procedure
+                    
+                    Procedure OnChangeRights
+                        WebSet pbRender to (IsLoggedIn(ghoWebSessionManager))
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oOrderDetsRep is a cWebMenuItem
+                    Set psCaption to "Order Details 2012 (slow)"
+                    Set psImage to "Custom/report.png"
+                    
+                    Procedure OnClick
+                        Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Order Details Report (2012).wqr")
+                    End_Procedure
+                    
+                    Procedure OnChangeRights
+                        WebSet pbRender to (IsLoggedIn(ghoWebSessionManager) and ;
+                                            (piUserRights(ghoWebSessionManager) > 2))
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oVendorList is a cWebMenuItem
+                    Set psCaption  to "Vendor list with image"
+                    Set psImage to "Custom/report.png"
+                    
+                    
+                    Procedure OnClick
+                        Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Vendor List with Image.wqr")
+                    End_Procedure
+                    
+                    Procedure OnChangeRights
+                        WebSet pbRender to (IsLoggedIn(ghoWebSessionManager))
+                    End_Procedure
+                    
+                End_Object
+                
+                Object oSalesReports is a cWebMenuItem
+                    Set pbBeginGroup to True
+                    Set psCaption to "Sales Reports"
+
+                    Procedure OnChangeRights
+                        WebSet pbRender to (IsLoggedIn(ghoWebSessionManager) and ;
+                                            (piUserRights(ghoWebSessionManager) > 2))
+                    End_Procedure
+                    
+                    Object oSalesTotals is a cWebMenuItem
+                        Set psCaption to "Sales Totals"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Sales Totals.wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                    Object oSales2012 is a cWebMenuItem
+                        Set psCaption to "Sales in 2012"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Sales in 2012.wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                End_Object
+                
+                Object oStockReports is a cWebMenuItem
+                    Set psCaption to "Stock Reports"
+                    
+                    Procedure OnChangeRights
+                        WebSet pbRender to (IsLoggedIn(ghoWebSessionManager))
+                    End_Procedure
+                    
+                    Object oStockList is a cWebMenuItem
+                        Set psCaption to "Stock List (text)"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Stock List.wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                    Object oReorderListV is a cWebMenuItem
+                        Set psCaption to "Reorder List (view)"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Reorder List (view).wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                    Object oReorderListT is a cWebMenuItem
+                        Set psCaption to "Reorder List (text)"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Reorder List (text).wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                    Object oReorderListX is a cWebMenuItem
+                        Set psCaption to "Reorder List (XML)"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Reorder List (XML).wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                End_Object
+                
+                Object oAccoutReports is a cWebMenuItem
+                    Set psCaption to "Account Reports"
+
+                    Procedure OnChangeRights
+                        WebSet pbRender to (IsLoggedIn(ghoWebSessionManager) and ;
+                                            (piUserRights(ghoWebSessionManager) > 3))
+                    End_Procedure
+                    
+                    Object oLargeBalances is a cWebMenuItem
+                        Set psCaption to "Large Balances"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Large Balances.wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                    Object oOverCredit is a cWebMenuItem
+                        Set psCaption to "Over Credit Limit (hidden!)"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\..\Over Credit Limit.wqr")
+                        End_Procedure
+                        
+                        Procedure OnChangeRights
+                            WebSet pbRender to (IsLoggedIn(ghoWebSessionManager) and ;
+                                                (piUserRights(ghoWebSessionManager) > 4))
+                        End_Procedure
+                    
+                    End_Object
+                    
+                    Object oBestCustomers is a cWebMenuItem
+                        Set psCaption to "Best Customers (new tab)"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Best Customers.wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                    Object oBalancesCSV is a cWebMenuItem
+                        Set psCaption to "Balances CSV Download"
+                        Set psImage to "Custom/report.png"
+                        
+                        Procedure OnClick
+                            Send LoadAndRun of oWebQuery (PublicPath(oWebQuery(Self)) + "\Balances CSV Download.wqr")
+                        End_Procedure
+                        
+                    End_Object
+                    
+                End_Object
+                
+            End_Object            
+            
+            Object oThemesMenu is a cWebMenuItem
+                Set psCaption to "Themes"
+
+                Object oModernSky is a cWebMenuItem
+                    Set psCaption to "Modern Sky"
+                    
+                    Procedure OnClick 
+                        //  Change the theme at runtime
+                        WebSet psTheme of oWebApp to "Df_Modern_Sky"
+                        
+                        //  Update menu
+                        Send UpdateSelectedTheme
+                    End_Procedure
+                End_Object
+                                    
+                Object oWindowsLike is a cWebMenuItem
+                    Set psCaption to "Windows Like"
+                    
+                    Procedure OnClick 
+                        //  Change the theme at runtime
+                        WebSet psTheme of oWebApp to "Df_Windows_Like"
+                        
+                        //  Update menu
+                        Send UpdateSelectedTheme
+                    End_Procedure
+                End_Object
+                                                
+                Object oHighContrast is a cWebMenuItem
+                    Set psCaption to "High Contrast"
+                    
+                    Procedure OnClick 
+                        //  Change the theme at runtime
+                        WebSet psTheme of oWebApp to "Df_High_Contrast"
+                        
+                        //  Update menu
+                        Send UpdateSelectedTheme
+                    End_Procedure
+                End_Object
+                
+                Object oWebCremeItem is a cWebMenuItem
+                    Set psCaption to "Web Creme"
+                    Set pbEnabled to False
+                    
+                    Procedure OnClick
+                        //   Change the theme at runtime
+                        WebSet psTheme of oWebApp to "Df_Web_Creme"
+                        
+                        //  Update menu
+                        Send UpdateSelectedTheme
+                    End_Procedure
+                End_Object
+                
+                Procedure UpdateSelectedTheme
+                    String sTheme
+                    
+                    //  Determine theme
+                    WebGet psTheme of oWebApp to sTheme
+
+                    //  Set enabled state
+                    WebSet pbEnabled of (oModernSky)    to (sTheme <> "Df_Modern_Sky")
+                    WebSet pbEnabled of (oWindowsLike)  to (sTheme <> "Df_Windows_Like")
+                    WebSet pbEnabled of (oHighContrast) to (sTheme <> "Df_High_Contrast")
+                    WebSet pbEnabled of (oWebCremeItem) to (sTheme <> "Df_Web_Creme")
+                End_Procedure
+                
+                Procedure OnLoad
+                    Send UpdateSelectedTheme
+                End_Procedure
+                
+            End_Object
+            
+        End_Object  
+        
+        Object oFindToolBar is a cWebToolBar
+            Object oFirstMenuItem is a cWebMenuFindFirst
+            End_Object  
+    
+            Object oPreviousMenuItem is a cWebMenuFindPrevious
+            End_Object  
+
+            Object oFindMenuItem is a cWebMenuFind
+            End_Object  
+
+            Object oNextMenuItem is a cWebMenuFindNext
+            End_Object  
+            
+            Object oLastMenuItem is a cWebMenuFindLast
+            End_Object
+                           
+            Object oPromptMenuItem is a cWebMenuPrompt
+            End_Object 
+        End_Object
+        
+        Object oFileToolBar is a cWebToolBar
+            Set pbShowCaption to True
+            
+            Object oClearMenuItem is a cWebMenuClear
+            End_Object              
+             
+            Object oClearAllMenuItem is a cWebMenuClearAll
+            End_Object   
+                        
+            Object oSaveMenuItem is a cWebMenuSave
+            End_Object  
+            
+            Object oDeleteMenuItem is a cWebMenuDelete
+            End_Object 
+        End_Object
+    End_Object
+
+    Use SessionManager.wo
+    Use LoginDialog.wo
+    Use WebResourceManager.wo
+    Use Introduction.wo
+    Use WebQuery.wo
+
+    // This allows raw HTML output in reports, which permits interesting
+    // effects... but you may not want that.  It is false by default.
+    Set pbAllowRawOutput of oWebQuery to True
+    
+    // Fields (columns) can be excluded thus:
+    Send ExcludeField of ghoWebQry File_Field WebAppUser.Password
+    // Obviously we can't have the users seeing all the passwords!    
+    // The tables must be opened before such use, but WebAppUser will be
+    // opened by the WebApp itself.
+
+    // Tables can also be excluded (although this will break any relational
+    // chains which pass through them). Tables must be opened before these
+    // exclusions on them or their columns, otherwise errors will result.
+ 
+    // The WebAppSession will automatically be open:
+    Send ExcludeTable of ghoWebQry WebAppSession.File_Number
+    // It is a VERY good idea to exclude this table since reading from it
+    // will cause a session timeout error!
+
+    // The OrderHea table needs to be opened before we can exclude it:
+    // Open OrderHea
+    // Send ExcludeTable of ghoWebQry OrderHea.File_Number
+    
+    // Setting pbUseSqlDefault will determine whether the "Use SQL" checkbox
+    // on the Output tab is checked by default.
+    // Set pbUseSqlDefault of oWebQuery to True
+End_Object
+
+Send StartWebApp of oWebApp

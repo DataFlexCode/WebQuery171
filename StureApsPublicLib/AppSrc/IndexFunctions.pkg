@@ -1,0 +1,567 @@
+Use VdfBase.pkg
+
+Use StringFunctions.pkg // Define oStringFunctions object
+Use DateFunctions.pkg // Define oDateFunctions object
+Use _OverlapColumnFunctions.pkg
+Use DataDictionaryFunctions.pkg
+Use VdfRuntime.pkg
+
+Global_Variable Integer oIndexFunctions
+Object _oIndexFunctions is a cObject
+    Move Self to oIndexFunctions
+    
+    Property Integer _DeadlySecretSwitch False
+    Property Integer _piPrimKeyTable
+    
+    Procedure FlushReadCache
+        Send Reset of oOverlapColumnFunctions
+    End_Procedure
+    
+    Function IsIndexUnique Integer iTable Integer iIndex Returns Boolean
+        Boolean bIsUnique
+        Integer iMax
+        tocIndex strIndex
+        Get IndexDefinition of oOverlapColumnFunctions iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iMax
+        If (iMax>=0) Begin
+            Move (strIndex.aSegments[iMax].iColumn<>0) to bIsUnique
+        End
+        Else Begin
+            Move False to bIsUnique
+        End
+        Function_Return bIsUnique 
+    End_Function
+    
+    Function IndexDefinition Integer iTable Integer iIndex Returns tOCIndex
+        Function_Return (IndexDefinition(oOverlapColumnFunctions,iTable,iIndex))
+    End_Function
+    
+    Function IndexDefinitionColumnNumbers Integer iTable Integer iIndex Returns Integer[]
+        Function_Return (IndexDefinitionColumnNumbers(oOverlapColumnFunctions,iTable,iIndex))
+    End_Function
+    
+    Function IsIndexOnline Integer iTable Integer iIndex Returns Boolean
+        tocIndex strIndex
+        Get IndexDefinition of oOverlapColumnFunctions iTable iIndex to strIndex
+        Function_Return strIndex.bOnline
+    End_Function
+
+    //> iSelectCode: 0=All 1:Unique 2:Off-line 3:On-line
+    Function IndexSet Integer iTable Integer iSelectCode Returns Integer[]
+        Boolean bOnline
+        Integer iIndex 
+        Integer[] aIndices
+        tocIndex strIndex
+        For iIndex from 1 to 15
+            Get IndexDefinition iTable iIndex to strIndex
+            If (SizeOfArray(strIndex.aSegments)>0) Begin
+                If (iSelectCode=0) Begin // All
+                    Move iIndex to aIndices[SizeOfArray(aIndices)]
+                End
+                If (iSelectCode=1) Begin // Unique
+                    If (IsIndexUnique(Self,iTable,iIndex)) Begin
+                        Move iIndex to aIndices[SizeOfArray(aIndices)]
+                    End
+                End
+                If (iSelectCode=2) Begin // Off-line
+                    Get IsIndexOnline iTable iIndex to bOnline
+                    If (not(bOnline)) Begin
+                        Move iIndex to aIndices[SizeOfArray(aIndices)]
+                    End
+                End
+                If (iSelectCode=3) Begin // On-line
+                    Get IsIndexOnline iTable iIndex to bOnline
+                    If (bOnline) Begin
+                        Move iIndex to aIndices[SizeOfArray(aIndices)]
+                    End
+                End
+            End
+        Loop
+        Function_Return aIndices
+    End_Function
+    
+    Function FirstUniqueIndex Integer iTable Returns Integer
+        Integer iIndex iRecnumTable
+        tocIndex strIndex
+        For iIndex from 1 to 15
+            Get IndexDefinition iTable iIndex to strIndex
+            If (SizeOfArray(strIndex.aSegments)>0) Begin
+                If (IsIndexUnique(Self,iTable,iIndex)) Begin
+                    Function_Return iIndex
+                End
+            End
+        Loop
+        Get_Attribute DF_FILE_RECNUM_TABLE of iTable to iRecnumTable
+        If (iRecnumTable<>0) Begin
+            Function_Return 0 // Use Recnum for gods sake.
+        End
+        Function_Return -1 // Sorry, no luck
+    End_Function
+    
+    Function ShortestUniqueIndex Integer iTable Returns Integer
+        tocTable strTable
+        Get TableDefinition of _oOverlapColumnFunctions iTable to strTable
+        Function_Return strTable.iShortestUniqueIndex
+    End_Function
+
+    Function KeyStateColumns Integer iTable Returns Integer[]
+        Integer hDDO iColumn
+        String sKeyStates
+        Integer[] aColumns
+        Get DDO_Object of oDataDictionaryFunctions iTable to hDDO
+        If (hDDO>0) Begin
+            Get Key_Fields of hDDO to sKeyStates
+            Repeat
+                Move (Pos("X",sKeyStates)) to iColumn
+                If (iColumn>0) Begin
+                    Move iColumn to aColumns[SizeOfArray(aColumns)]
+                    Move (Overstrike(" ", sKeyStates, iColumn)) to sKeyStates
+                End
+            Until (iColumn=0)
+
+        End
+        Function_Return aColumns
+    End_Function
+    
+    // Calling this function only has meaning if all iTable members of
+    // aSegments AND aFields are identical. The function just assumes
+    // this is the case, but does not check for it.
+//  Function IndexSegmentsMatch tTableField[] aSegments tTableField[] aFields Returns Integer
+    Function _IndexSegmentMatchLength Integer iTable Integer iIndex Integer[] aColumns Returns Integer // returns the number of most-significant index-segments that may be seeded if we have aColumns at our disposal.
+        Integer iSegmentIndex iSegmentMax
+        Integer iColumnIndex iColumnMax
+        Integer iMatchLength
+        Integer[] aSegments
+        
+        Get IndexDefinitionColumnNumbers iTable iIndex to aSegments
+        Move (SizeOfArray(aSegments)-1) to iSegmentMax
+        Move (SizeOfArray(aColumns)-1) to iColumnMax
+
+        For iSegmentIndex from 0 to iSegmentMax
+            For iColumnIndex from 0 to iColumnMax
+                If (aSegments[iSegmentIndex]=aColumns[iColumnIndex]) Begin
+                    Move -1 to aSegments[iSegmentIndex] // Mark as matched
+                    Move iColumnMax to iColumnIndex // Break the loop.
+                End
+            Loop
+        Loop
+
+        Move 0 to iMatchLength
+
+        For iSegmentIndex from 0 to iSegmentMax
+            If (aSegments[iSegmentIndex]>-1) Begin
+                Function_Return iMatchLength
+            End
+            Increment iMatchLength
+        Loop
+
+        Function_Return iMatchLength // All segments matched
+    End_Function
+    
+    Function IndexFullySpecified Integer iTable Integer iIndex Integer[] aColumns Returns Boolean
+        Integer iMatchLength
+        Integer[] aSegments
+        Get IndexDefinitionColumnNumbers iTable iIndex to aSegments
+        Get _IndexSegmentMatchLength iTable iIndex aColumns to iMatchLength
+        Function_Return (SizeOfArray(aSegments)=iMatchLength)
+    End_Function
+    
+//    Function IndexSegmentMatchLengthX Integer iTable Integer iIndex tocIndexSegment[] aAvailableSegments Returns Integer 
+//        Integer iItem iItemMax
+//        tocIndexSegment[] aIndexSegments
+//        Get IndexDefinition iTable iIndex to aIndexSegments
+//        Move (SizeOfArray(aIndexSegments)-1) to iItemMax
+//        For iItem from 0 to iItemMax
+//        Loop
+//    End_Function
+
+    Function _CompareIndicesByLength Integer iIndex1 Integer iIndex2 Returns Integer
+        Integer iTable iLen1 iLen2
+        Get _piPrimKeyTable to iTable
+        Get_Attribute DF_INDEX_KEY_LENGTH of iTable iIndex1 to iLen1
+        Get_Attribute DF_INDEX_KEY_LENGTH of iTable iIndex2 to iLen2
+        If (iLen1<iLen2) Function_Return (LT)
+        If (iLen1>iLen2) Function_Return (GT)
+        // If two indices have the length, we prefer the one with the lowest number
+        If (iIndex1<iIndex2) Function_Return (LT)
+        If (iIndex1>iIndex2) Function_Return (GT)
+        Function_Return (EQ)
+    End_Function
+    
+    Function PrimaryKey Integer iTable Returns Integer
+        Integer iIndex hDDO iMatchLength iItem iMax
+        Integer[] aKeyColumns aUniqueIndices aIndexCandidates
+        Get_Attribute DF_FILE_PRIMARY_INDEX of iTable to iIndex
+        If (iIndex<=0) Begin // If DF_FILE_PRIMARY_INDEX wasn't set we'll try to see what can be deduced from Key_Field_State settings
+            // OK Primary key wasn't set. Therefore we see if we can get hold of a DD object.
+            Get KeyStateColumns iTable to aKeyColumns
+            Get IndexSet iTable 1 to aUniqueIndices
+            Move (SizeOfArray(aUniqueIndices)-1) to iMax
+            For iItem from 0 to iMax
+                If (IndexFullySpecified(Self,iTable,aUniqueIndices[iItem],aKeyColumns)) Begin
+                    Function_Return aUniqueIndices[iItem]
+                End
+            Loop
+            // If we still haven't found an index we'll just use the unique index with whe shortest key:
+            If (iMax>=0) Begin
+                Set _piPrimKeyTable to iTable
+                Move (SortArray(aUniqueIndices,Self,GET__CompareIndicesByLength)) to aUniqueIndices
+                Function_Return aUniqueIndices[0]
+            End
+        End
+        Function_Return iIndex
+    End_Function
+    
+    //> Given that I have the value of the columns listed in aColumns, give me an index
+    //> to find EQ by in table iTable.
+    Function FindEQIndex Integer iTable Integer[] aColumns Returns Integer
+        Integer iIndex
+        Integer iIndexItem iIndexMax
+        Integer[] aIndices
+        Get IndexSet iTable 1 to aIndices
+        Move (SizeOfArray(aIndices)-1) to iIndexMax
+        For iIndexItem from 0 to iIndexMax
+            Move aIndices[iIndexItem] to iIndex
+            If (IndexFullySpecified(Self,iTable,iIndex,aColumns)) Begin
+                Function_Return iIndex
+            End
+        Loop
+        Function_Return -1 // No index found
+    End_Function
+    
+    //> iTable must be open.
+    Function RecordIdentifierColumns Integer iTable Returns Integer[]
+        Integer iColumn iIndex
+        Integer[] aColumns
+
+        // First check if table has a DF_FILE_RECORD_IDENTITY column set for it.
+        Get_Attribute DF_FILE_RECORD_IDENTITY of iTable to iColumn
+        If (iColumn<>0) Begin // If it does, we'll go with that
+            Move iColumn to aColumns[0]
+        End
+        Else Begin
+            // Then see if the table has a primary index.
+            Get_Attribute DF_FILE_PRIMARY_INDEX of iTable to iIndex
+            If (iIndex<>0) Begin // If it does, we'll go with that
+                Get IndexDefinitionColumnNumbers iTable iIndex to aColumns
+            End
+            Else Begin
+                // Finally see if we can find an index ourselves.
+                Get ShortestUniqueIndex iTable to iIndex
+                If (iIndex>=0) Begin
+                    Get IndexDefinitionColumnNumbers iTable iIndex to aColumns
+                End
+            End
+        End
+        Function_Return aColumns
+    End_Function
+    
+    Function ColumnSortValueFormat Integer iTable Integer iColumn String sValue Returns String
+        Integer iType iLen iPrecision 
+        Number nValue
+        Date dValue
+        Get_Attribute DF_FIELD_TYPE of iTable iColumn to iType
+        If (iType=DF_DATE) Begin
+            Move sValue to dValue
+            If (Integer(dValue)<>0) Begin
+                Get DateToString of oDateFunctions dValue DF_DATE_MILITARY True "" to sValue
+            End
+            Else Begin
+                If (_DeadlySecretSwitch(Self)) Begin // Switched is used by 5-levels-out function IndexSortValueFileNameFormat. Makes sense?
+                    Move "00000000" to sValue // Null date
+                End
+            End
+        End 
+        Else If (iType=DF_BCD) Begin
+            Get_Attribute DF_FIELD_LENGTH of iTable iColumn to iLen
+            Get_Attribute DF_FIELD_PRECISION of iTable iColumn to iPrecision
+            Move sValue to nValue
+            If (iPrecision<>0) Begin
+                Increment iLen // Make room for comma
+            End
+            get NumberToStringR of oStringFunctions nValue iPrecision iLen to sValue
+            Move (Replaces(" ",sValue,"0")) to sValue // Zerofill
+        End
+        Else If (iType=DF_DATETIME) Begin
+            // This will bite someday, it should be converted to millitary format (or maybe it is?)
+        End
+        Else Begin
+            If (_DeadlySecretSwitch(Self)) Begin // Switched is used by 5-levels-out function IndexSortValueFileNameFormat. Makes sense?
+                Get StringToHex of oStringFunctions sValue to sValue
+            End
+        End
+        Function_Return sValue
+    End_Function
+    
+    //> The function returns a column value formattet according to its definition (i.e. a 8.4
+    //> numeric field is returned right aligned in a string 13 characters long while the value
+    //> of an ASCII field is returned as is.
+    Function ColumnSortValue Integer iTable Integer iColumn Returns String
+        String sValue
+        Get_Field_Value iTable iColumn to sValue
+        Function_Return (ColumnSortValueFormat(Self,iTable,iColumn,sValue))
+    End_Function
+    
+    //> The function returns the 
+    Function IndexSegmentSortValue Integer iTable tocIndexSegment stSegment Returns String 
+        String sValue
+        Get ColumnSortValue iTable stSegment.iColumn to sValue
+        If (stSegment.bUppercase) Begin
+            Move (Uppercase(sValue)) to sValue
+        End
+        If (stSegment.bDescending) Begin
+            Get NegateString of oStringFunctions sValue to sValue
+        End
+        Function_Return sValue
+    End_Function
+    
+    Function IndexSortValue Integer iTable Integer iIndex Returns String
+        Integer iSegment iSegments
+        String sValue
+        tocIndex strIndex
+        Get IndexDefinition iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegments
+        For iSegment from 0 to iSegments
+            Move (sValue+IndexSegmentSortValue(Self,iTable,strIndex.aSegments[iSegment])) to sValue
+        Loop
+        Function_Return sValue
+    End_Function
+
+    //> This functions performs the same as function IndexSortValue above, except that the
+    //> return value will be accepted by the OS as a valid component of a file name.
+    Function IndexSortValueFileNameFormat Integer iTable Integer iIndex Returns String
+        String sValue
+        Set _DeadlySecretSwitch to True
+        Get IndexSortValue iTable iIndex to sValue
+        Set _DeadlySecretSwitch to False
+        Function_Return sValue
+    End_Function
+    
+    
+    Function IndexValue Integer iTable Integer iIndex String sSep Returns String
+        Integer iSegment iSegments
+        String sValue sSegmentValue
+        tocIndex strIndex
+        Get IndexDefinition iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegments
+        For iSegment from 0 to iSegments
+            Get ColumnSortValue iTable strIndex.aSegments[iSegment].iColumn to sSegmentValue
+            If (iSegment<>0) Begin
+                Move (sValue+sSep) to sValue
+            End
+            Move (sValue+sSegmentValue) to sValue
+        Loop
+        Function_Return sValue
+    End_Function
+    
+    Function IndexSegmentValueArray Integer iTable Integer iIndex Returns String[]
+        Integer iSegment iSegments
+        String sSegmentValue sValue
+        String[] aValues
+        tocIndex strIndex
+        Get IndexDefinition iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegments
+        For iSegment from 0 to iSegments
+            Get_Field_Value iTable strIndex.aSegments[iSegment].iColumn to sValue
+            Move sValue to aValues[SizeOfArray(aValues)]
+        Loop
+        Function_Return aValues
+    End_Function
+    
+    Function FindRecordByValueArray Integer iTable Integer iIndex String[] aValues Returns Boolean
+        Integer iSegment iSegments
+        String sSegmentValue sValue
+        tocIndex strIndex
+        Clear iTable
+        Get IndexDefinition iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegments
+        For iSegment from 0 to iSegments
+            Set_Field_Value iTable strIndex.aSegments[iSegment].iColumn to aValues[iSegment]
+        Loop
+        Vfind iTable iIndex EQ
+        Function_Return (Found)
+    End_Function
+    
+    // This function does the same as function IndexSortValue above, except that it gets it's
+    // column value from the array passed instead of the record buffer.
+    Function IndexSortValueFromArray Integer iTable Integer iIndex String[] aColumnValues Returns String
+        Integer iSegment iSegments iColumn
+        String sValue sSegmentValue
+        tocIndex strIndex
+        Get IndexDefinition iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegments
+        For iSegment from 0 to iSegments
+            Move strIndex.aSegments[iSegment].iColumn to iColumn
+            Move aColumnValues[iColumn] to sSegmentValue
+            Get ColumnSortValueFormat iTable iColumn sSegmentValue to sSegmentValue
+            Move (sValue+sSegmentValue) to sValue
+        Loop
+        Function_Return sValue
+    End_Function
+    
+    Function IndexValueFromArray Integer iTable Integer iIndex String sSep String[] aColumnValues Returns String
+        Integer iSegment iSegments iColumn
+        String sValue sSegmentValue
+        tocIndex strIndex
+        Get IndexDefinition iTable iIndex to strIndex
+        Move (SizeOfArray(strIndex.aSegments)-1) to iSegments
+        For iSegment from 0 to iSegments
+            Move strIndex.aSegments[iSegment].iColumn to iColumn
+            Move aColumnValues[iColumn] to sSegmentValue
+            Get ColumnSortValueFormat iTable iColumn sSegmentValue to sSegmentValue
+            Move (sValue+sSegmentValue) to sValue
+            If (iSegment<>0) Begin
+                Move (sValue+sSep) to sValue
+            End
+        Loop
+        Function_Return sValue
+    End_Function
+    
+    Function RecordIDAsHumanReadableString Integer iTable Returns String
+        Integer iMax iItem
+        Integer[] aColumns
+        String sReturnValue sName sValue
+        Get RecordIdentifierColumns iTable to aColumns
+        Move (SizeOfArray(aColumns)-1) to iMax
+        For iItem from 0 to iMax
+            Get_Attribute DF_FIELD_NAME of iTable aColumns[iItem] to sName
+            Get_Field_Value iTable aColumns[iItem] to sValue
+            Move (sReturnValue+sName+": "+Trim(sValue)) to sReturnValue
+            If (iItem<>iMax) Begin
+                Move (sReturnValue+";") to sReturnValue
+            End
+        Loop
+        Function_Return sReturnValue
+    End_Function
+    
+    Function SwitchIndicesOffline Integer iTable String sOpenAsName Returns Integer[]
+        Integer iItem iMax iIndex iOrgTableHandle
+        Integer[] aIndices
+        String sDriver
+        
+        Get_Attribute DF_FILE_DRIVER of iTable to sDriver
+
+        If (sDriver="DATAFLEX") Begin
+            Get IndexSet iTable 3 to aIndices // 3 means on-line indices
+            Move (SizeOfArray(aIndices)-1) to iMax
+            If (iMax>=0) Begin
+                Move iTable to iOrgTableHandle
+                Structure_Start iTable
+                    For iItem from 0 to iMax
+                        Move aIndices[iItem] to iIndex
+                        Set_Attribute DF_INDEX_TYPE of iTable iIndex to DF_INDEX_TYPE_BATCH
+                    Loop
+                Structure_End iTable DF_STRUCTEND_OPT_NONE "."
+                Move iOrgTableHandle to iTable
+                Close iTable // Close and re-open
+                If (sOpenAsName<>"") Begin
+                    Open sOpenAsName as iTable
+                End
+                Else Begin
+                    Open iTable
+                End
+            End
+        End
+        Function_Return aIndices
+    End_Function
+    
+    Procedure SwitchIndicesOnLine Integer iTable String sOpenAsName Integer[] aIndices
+        Integer iItem iMax iIndex iOrgTableHandle
+        String sDriver
+        
+        Get_Attribute DF_FILE_DRIVER of iTable to sDriver
+
+        If (sDriver="DATAFLEX") Begin
+            Move (SizeOfArray(aIndices)-1) to iMax
+            If (iMax>=0) Begin
+                Move iTable to iOrgTableHandle
+                Structure_Start iTable
+                    For iItem from 0 to iMax
+                        Move aIndices[iItem] to iIndex
+                        Set_Attribute DF_INDEX_TYPE of iTable iIndex to DF_INDEX_TYPE_ONLINE
+                    Loop
+                Structure_End iTable DF_STRUCTEND_OPT_NONE "." // This forces a re-index
+                Move iOrgTableHandle to iTable
+                Close iTable // Close and re-open
+                If (sOpenAsName<>"") Begin
+                    Open sOpenAsName as iTable
+                End
+                Else Begin
+                    Open iTable
+                End
+            End
+        End
+    End_Procedure
+    
+    Procedure SeedMinValue Integer iTable Integer iColumn Boolean bMax
+        Integer iType iLength iDecimals iCount
+        Number nValueInt nValueFrac
+        String sChar
+        Time tiNull
+        DateTime dtValue
+        
+        Get_Attribute DF_FIELD_TYPE of iTable iColumn to iType
+        If (iType=DF_BCD) Begin
+            Get_Attribute DF_FIELD_LENGTH of iTable iColumn to iLength
+            Get_Attribute DF_FIELD_PRECISION of iTable iColumn to iDecimals
+            // Calculate fraction part
+            Move 0 to nValueFrac
+            For iCount from 1 to iDecimals 
+                Move (nValueFrac/10+0.9) to nValueFrac 
+            Loop
+            // Calculate integer part
+            Move (iLength-iDecimals) to iLength 
+            Move 0 to nValueInt
+            If (bMax) Begin
+                For iCount from 1 to iLength
+                    Move (nValueInt*10+9) to nValueInt
+                Loop
+            End
+            Else Begin
+                For iCount from 2 to iLength
+                    Move (nValueInt*10+9) to nValueInt
+                Loop
+                Move (-nValueInt) to nValueInt
+            End
+            Set_Field_Value iTable iColumn to (nValueInt+nValueFrac)
+        End
+        If (iType=DF_DATE) Begin
+            If (bMax) Begin
+                Set_Field_Value iTable iColumn to LargestPossibleDate
+            End
+            Else Begin
+                Set_Field_Value iTable iColumn to 0
+            End
+        End
+        If (iType=DF_DATETIME) Begin
+            If (bMax) Begin
+                Get ComposeDateTime of oDateFunctions LargestPossibleDate tiNull to dtValue
+            End
+            Else Begin
+                Get ComposeDateTime of oDateFunctions (Date(0)) tiNull to dtValue
+            End
+            Set_Field_Value iTable iColumn to dtValue
+        End
+        If (iType=DF_ASCII) Begin
+            Get_Attribute DF_FIELD_LENGTH of iTable iColumn to iLength
+            If (bMax) Begin
+                Get MaximumCollateCharacter of oVdfRuntimeFunctions to sChar
+            End
+            Else Begin
+                Get MinimumCollateCharacter of oVdfRuntimeFunctions to sChar
+            End
+            Set_Field_Value iTable iColumn to (Repeat(sChar,iLength))
+        End
+        
+    End_Procedure
+    
+    Function MinimalIncrement Integer iTable Integer iColumn Boolean bDecrement Returns Boolean
+        Integer iType
+        Get_Attribute DF_FIELD_TYPE of iTable iColumn to iType
+        Send Info_Box "nao implementado" "Scusi"
+        If (iType=DF_BCD) Begin
+            
+        End
+    End_Function
+
+End_Object

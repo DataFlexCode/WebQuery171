@@ -1,0 +1,1594 @@
+// This package provides a number of methods for manipulating and handling
+// the "old" grid classes (db)Grid and to an extent (db)List. Since VDF 16.0
+// new grid classes have been provided that are not covered by this package.
+
+
+Use VdfBase.pkg // DAW package. Provides low level support expected of all VDF applications (windows and webapp)
+#IF (FMAC_VERSION*10+FMAC_REVISION>120) // Compile only if VDF version newer than 12.0
+Use cCJCommandBarSystem.pkg
+#ENDIF
+
+Use DatabaseDescriptionObj.pkg //
+Use StringFunctions.pkg
+Use FileFunctions.pkg
+Use DateFunctions.pkg
+Use RgbFunctions.pkg
+
+Struct tBasicGridColumn
+    String sColumnLabel
+    tBasicFieldType sBFT
+    String[] aComboLabels
+    String[] aComboValues
+    Integer iWidth
+End_Struct
+
+Struct _tGridUserMenuItem
+    String sCaption
+    String sToolTip
+    String sShortCut
+    Integer hMsg
+End_Struct
+                 
+#IF (FMAC_VERSION*10+FMAC_REVISION>120) // Compile only if VDF version newer than 12.0
+    Class _cfreeGridcCJMenuItem is a cCJMenuItem
+        Procedure Construct_Object
+            Forward Send Construct_Object
+            Property Integer phMsg
+        End_Procedure
+            Procedure OnExecute Variant vCommandBarControl
+                Integer hGrid
+                Get _phCallingGrid to hGrid
+                Send OnItemPicked hGrid
+            End_Procedure
+            Procedure OnItemPicked Integer hGrid
+                Integer hMsg
+                Get phMsg to hMsg
+                Send hMsg of hGrid
+            End_Procedure
+    End_Class
+#ENDIF
+
+Global_Variable Integer oGridFunctions
+
+Object _oGridFunctions is a cObject
+    
+    Register_Function _pbSelectToggle1stColumn Returns Boolean
+    Register_Function pbNoSortState Returns Boolean
+    Register_Function pbFirstColumnSelect Returns Boolean
+    Register_Function UserItemEnabled Integer iGridItem Integer hMsg Returns Boolean
+    Register_Function UserItemVisible Integer iGridItem Integer hMsg Returns Boolean
+    
+#IF (FMAC_VERSION*10+FMAC_REVISION>120) // Compile only if VDF version newer than 12.0
+    Object oGridContextMenu is a cCJContextMenu
+        
+        Property Integer _phCallingGrid
+        
+        Procedure Popup
+            Integer hGrid
+            Move (Focus(Desktop)) to hGrid
+            Set _phCallingGrid to hGrid
+
+            Set pbEnabled of oSelectAllMenuItem to (not(pbFirstColumnSelect(hGrid)))
+            Set pbEnabled of oSelectNoneMenuItem to (not(pbFirstColumnSelect(hGrid)))
+            Set pbEnabled of oSelectInvertMenuItem to (not(pbFirstColumnSelect(hGrid)))
+            Set pbEnabled of oSortByColumnMenuItem to (pbNoSortState(hGrid))
+            Forward Send Popup
+        End_Procedure
+        
+        Object oUserMenuItem00 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+
+        Object oUserMenuItem01 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+
+        Object oUserMenuItem02 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+        
+        Object oUserMenuItem03 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+        
+        Object oUserMenuItem04 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+
+        Object oUserMenuItem05 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+
+        Object oUserMenuItem06 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+        
+        Object oUserMenuItem07 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+
+        Object oUserMenuItem08 is a _cfreeGridcCJMenuItem
+            Function IsEnabled Returns Boolean
+                Integer hGrid iGridItem
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                Function_Return (UserItemEnabled(hGrid,iGridItem,phMsg(Self)))
+            End_Function
+        End_Object
+
+        Object oWriteFileMenuItem is a _cfreeGridcCJMenuItem
+            Set pbControlBeginGroup to True
+            Set psCaption to "Write to Notepad"
+            Set psTooltip to "Write to Notepad file"
+            
+            Procedure OnItemPicked Integer hGrid
+                Send WriteToNodepad of hGrid
+            End_Procedure
+        End_Object
+        
+//        Object oPrintReportMenuItem is a _cfreeGridcCJMenuItem
+//            Set psCaption to "Print to report"
+//            Set psTooltip to "Print to report previewer"
+//            Procedure OnItemPicked Integer hGrid
+//                Send WriteToNodepad of hGrid
+//            End_Procedure
+//        End_Object
+//        
+        Object oSelectAllMenuItem is a _cfreeGridcCJMenuItem
+            Set pbControlBeginGroup to True
+            Set psCaption to "Select all"
+            Set psTooltip to "Select all"
+            Set psShortcut to "Ctrl+A"
+
+            Procedure OnItemPicked Integer hGrid
+                Send SelectAll of hGrid
+            End_Procedure
+            
+            Function IsEnabled Returns Boolean
+                Function_Return (pbFirstColumnSelect(_phCallingGrid(Self)))
+            End_Function
+        End_Object
+
+        Object oSelectNoneMenuItem is a _cfreeGridcCJMenuItem
+            Set psCaption to "Select none"
+            Set psTooltip to "Select none"
+            Set psShortcut to "Ctrl+N"
+            Procedure OnItemPicked Integer hGrid
+                Send SelectNone of hGrid
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Function_Return (pbFirstColumnSelect(_phCallingGrid(Self)))
+            End_Function
+        End_Object
+
+        Object oSelectInvertMenuItem is a _cfreeGridcCJMenuItem
+            Set psCaption to "Invert selection"
+            Set psTooltip to "Invert selection"
+            Set psShortcut to "Ctrl+I"
+            Procedure OnItemPicked Integer hGrid
+                Send SelectInvert of hGrid
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Function_Return (pbFirstColumnSelect(_phCallingGrid(Self)))
+            End_Function
+        End_Object
+
+        Object oSortByColumnMenuItem is a _cfreeGridcCJMenuItem
+            Set pbControlBeginGroup to True
+            Set psCaption to "Sort by column"
+            Set psTooltip to "Sort by column"
+            Set psShortcut to "Ctrl+S"
+
+            Procedure OnItemPicked Integer hGrid
+                Send AutoSort of hGrid
+            End_Procedure
+
+            Function IsEnabled Returns Boolean
+                Function_Return (not(pbNoSortState(_phCallingGrid(Self))))
+            End_Function
+        End_Object
+        
+            Procedure _SetupExtraMenuItem Integer hMenu _tGridUserMenuItem stData
+                Integer iGridItem hGrid
+                Boolean bVisible
+                Move (stData.sCaption<>"") to bVisible
+                Get _phCallingGrid to hGrid
+                Get Current_Item of hGrid to iGridItem
+                If (bVisible) Begin
+                    Get UserItemVisible of hGrid iGridItem stData.hMsg to bVisible
+                End
+                Set ComVisible of hMenu to bVisible
+                If (bVisible) Begin
+                    Set psCaption  of hMenu to stData.sCaption
+                    Set psTooltip  of hMenu to stData.sToolTip
+                    Set psShortcut of hMenu to stData.sShortCut
+                    Set phMsg      of hMenu to stData.hMsg
+                End
+            End_Procedure
+
+        Procedure OnPopupInit Variant vCommandBarControl Handle hoCommandBarControls
+            _tGridUserMenuItem[] aExtraMenuItems
+            Get _paExtraMenuItems of (_phCallingGrid(Self)) to aExtraMenuItems
+            Move (ResizeArray(aExtraMenuItems,9)) to aExtraMenuItems
+
+            Send _SetupExtraMenuItem oUserMenuItem00 aExtraMenuItems[0]
+            Send _SetupExtraMenuItem oUserMenuItem01 aExtraMenuItems[1]
+            Send _SetupExtraMenuItem oUserMenuItem02 aExtraMenuItems[2]
+            Send _SetupExtraMenuItem oUserMenuItem03 aExtraMenuItems[3]
+            Send _SetupExtraMenuItem oUserMenuItem04 aExtraMenuItems[4]
+            Send _SetupExtraMenuItem oUserMenuItem05 aExtraMenuItems[5]
+            Send _SetupExtraMenuItem oUserMenuItem06 aExtraMenuItems[6]
+            Send _SetupExtraMenuItem oUserMenuItem07 aExtraMenuItems[7]
+            Send _SetupExtraMenuItem oUserMenuItem08 aExtraMenuItems[8]
+        End_Procedure
+
+//        Object oCutMenuItem is a cCJCutMenuItem
+//            Set pbControlBeginGroup to True
+//        End_Object
+//        
+//        Object oCopyMenuItem is a cCJCopyMenuItem
+//        End_Object
+//    
+//        Object oPasteMenuItem is a cCJPasteMenuItem
+//        End_Object
+//
+//        Object oDeleteItem is a cCJDeleteEditMenuItem
+//        End_Object
+//    
+//        Object oSelectAllMenuItem is a cCJSelectAllMenuItem
+//            Set pbControlBeginGroup to True
+//        End_Object
+    End_Object
+#ENDIF
+
+    Move Self to oGridFunctions
+
+    Object _oGridColumnsPrepare is a cObject // Private
+        Property tBasicGridColumn[] paColumns
+
+        Procedure add_column String sLabel tBasicFieldType sBFT Integer iWidth
+            Integer iSize
+            tBasicGridColumn[] aColumns
+            Get paColumns to aColumns
+            Move (SizeOfArray(aColumns)) to iSize
+            Move sLabel to aColumns[iSize].sColumnLabel
+            Move sBFT to aColumns[iSize].sBFT
+            Move iWidth to aColumns[iSize].iWidth
+            Set paColumns to aColumns
+        End_Procedure
+
+        Procedure add_column_file_field String sLabel Integer iFile Integer iField Integer iWidth
+            tBasicFieldType sBFT
+            Get BasicFieldTypeField of DatabaseDescriptionObj iFile iField to sBFT
+            Send add_column sLabel sBFT iWidth
+        End_Procedure
+        
+        Procedure add_column_combo_value String sLabel String sValue
+            Integer iCurrentColumn iNextComboValue
+            tBasicGridColumn[] aColumns
+            Get paColumns to aColumns
+            Move (SizeOfArray(aColumns)-1) to iCurrentColumn
+            Move (SizeOfArray(aColumns[iCurrentColumn].aComboLabels)) to iNextComboValue
+            Move sLabel to aColumns[iCurrentColumn].aComboLabels[iNextComboValue]
+            Move sValue to aColumns[iCurrentColumn].aComboValues[iNextComboValue]
+            Set paColumns to aColumns
+        End_Procedure
+
+        Procedure reset
+            tBasicGridColumn[] aColumns
+            Set paColumns to aColumns
+        End_Procedure
+
+            Procedure _apply_combo_values Integer hGrid Integer iColumn tBasicGridColumn stColumn
+                Integer iComboIndex iComboMax
+                Move (SizeOfArray(stColumn.aComboLabels)-1) to iComboMax
+                If (iComboMax>=0) Begin
+                    Set Column_Combo_State of hGrid iColumn to True
+                    Set Column_Combo_Entry_State of hGrid iColumn to False
+
+                    For iComboIndex from 0 to iComboMax
+                        Send Column_Combo_Add_Item of hGrid iColumn stColumn.aComboLabels[iComboIndex] stColumn.aComboValues[iComboIndex]
+                    Loop
+                End
+            End_Procedure
+            
+
+        Procedure apply_settings Integer hGrid Boolean bDoColors
+            Integer iSize iColumn iType hSelf iWidth iAccumulatedWidth iGridHeight
+            tBasicGridColumn[] aColumns
+            Get paColumns to aColumns
+            Move (SizeOfArray(aColumns)) to iSize
+            Set Line_Width of hGrid to iSize 0
+            Decrement iSize
+            Move 0 to iAccumulatedWidth
+
+            Move (hi(size(hGrid))) to iGridHeight    // Get height of grid
+
+            For iColumn from 0 to iSize
+                Set Header_Label of hGrid iColumn to aColumns[iColumn].sColumnLabel
+                Move aColumns[iColumn].iWidth to iWidth
+                Move aColumns[iColumn].sBFT.iType to iType
+                If (iType=BFT_BOOLEAN) Begin
+                    Set Form_Margin of hGrid iColumn to 3
+                    Set Form_Datatype of hGrid iColumn to Ascii_Window
+                End
+                Else Begin
+                    Set Form_Margin of hGrid iColumn to aColumns[iColumn].sBFT.iLen
+                    If (iType=BFT_STRING) Set Form_Datatype of hGrid iColumn to Ascii_Window
+                    If (iType=BFT_NUMBER) Set Form_Datatype of hGrid iColumn to aColumns[iColumn].sBFT.iDecs
+                    If (iType=BFT_DATE) Set Form_Datatype of hGrid iColumn to Date_Window
+                    Send _apply_combo_values hGrid iColumn aColumns[iColumn]
+                End
+                If (iType=BFT_TEXT or iType=BFT_BINARY or iType=BFT_OVERLAP) Begin
+                    Error 618 "Illegal BFT in grid definition"
+                End
+                Set Form_Width of hGrid iColumn to iWidth
+                Move (iAccumulatedWidth+iWidth) to iAccumulatedWidth
+            Loop
+
+            Set size of hGrid to iGridHeight (iAccumulatedWidth+5+4)
+
+            Set Select_Mode of hGrid to No_Select
+
+            If (bDoColors) begin
+                Send SetHighlightRowState hGrid
+            End
+
+            Move Self to hSelf
+            Move hGrid to Self
+            On_Key KNEXT_ITEM Send Switch
+            On_Key KPREVIOUS_ITEM Send Switch_Back
+            Move hSelf to Self
+
+            Send reset
+        End_Procedure
+    End_Object
+
+    Procedure SetHighlightRowState integer hGrid
+        Set Highlight_Row_State of hGrid to True
+        Set CurrentCellColor     of hGrid to clHighlight
+        Set CurrentCellTextColor of hGrid to clHighlightText
+        Set CurrentRowColor      of hGrid to clHighlight
+        Set CurrentRowTextColor  of hGrid to clHighlightText
+    End_Procedure
+
+    Procedure AddColumn String sLabel tBasicFieldType sBFT Integer iWidth
+        Send add_column of _oGridColumnsPrepare sLabel sBFT iWidth
+    End_Procedure
+
+    Procedure AddColumnFileField String sLabel Integer iFile Integer iField Integer iWidth
+        Send add_column_file_field of _oGridColumnsPrepare sLabel iFile iField iWidth
+    End_Procedure
+
+    Procedure AddColumnComboValue String sLabel String sValue
+        Send add_column_combo_value of _oGridColumnsPrepare sLabel sValue
+    End_Procedure
+
+    Procedure ApplyToGrid Integer hGrid Boolean bDoColors
+        Send apply_settings of _oGridColumnsPrepare hGrid bDoColors
+    End_Procedure
+
+    Procedure SetColumnFormat Integer hGrid Integer iColumn Integer iType Integer iLength Integer iDecimals
+        If (iType=DF_ASCII) Begin
+            Set Form_Datatype of hGrid iColumn to Ascii_Window
+            Set Form_Margin of hGrid iColumn to iLength
+        End
+        Else If (iType=DF_BCD) Begin
+            Set Form_Datatype of hGrid iColumn to iDecimals
+            Set Form_Margin of hGrid iColumn to (iLength+If(iDecimals<>0,1,0)+iDecimals)
+        End
+        Else If (iType=DF_DATE) Begin
+            Set Form_Datatype of hGrid iColumn to Date_Window
+//                    Set Form_Margin of hGrid iColumn to 10
+        End
+        Else Begin
+            Error 232 "Only DF_ASCII, DF_BCD or DF_DATE are allowed as column types"
+        End
+    End_Procedure
+
+
+    //> Set Entry_State for all items in a Grid (that are not checkboxes)
+    Procedure SetEntryState Integer hGrid Boolean bState
+        Integer iItem iMax iColumn
+        Get Item_Count of hGrid to iMax
+        For iItem from 0 to (iMax-1)
+            Get ItemColumn hGrid iItem to iColumn
+            If (not(Checkbox_Item_State(hGrid,iItem)) and not(Column_Combo_State(hGrid,iColumn))) Begin
+                Set Entry_State of hGrid iItem to bState
+            End
+        Loop
+    End_Procedure
+    
+    Procedure SetAlternatingRowColorsExplicit Integer hGrid Integer iColor1 Integer iColor2
+        Integer iMax iRow
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            If (Mod(iRow,2)<>0) Begin
+               Send SetRowColor hGrid iRow iColor1
+            End
+            Else Begin
+               Send SetRowColor hGrid iRow iColor2
+            End
+        Loop
+    End_Procedure
+    
+    Procedure SetAlternatingRowColors Integer hGrid Integer iColor
+        Send SetAlternatingRowColorsExplicit hGrid (Brighten(oRgbFunctions,iColor,90)) (Brighten(oRgbFunctions,iColor,95))
+        Set Color of hGrid to (Brighten(oRgbFunctions,iColor,95))
+    End_Procedure
+
+    //> Function Grid_Columns takes the object ID of a Grid or List
+    //> object and returns the number of columns in that object.
+    Function Columns Integer hGrid Returns Integer
+        Integer iVal
+        Get line_size of hGrid to iVal
+        Function_Return iVal
+    End_Function
+
+    Function CurrentColumn Integer hGrid Returns Integer
+        Integer iColumns iCurrentItem iBase
+        Get Columns hGrid to iColumns
+        Get Current_Item of hGrid to iCurrentItem
+        Move ((iCurrentItem/iColumns)*iColumns) to iBase
+        Function_Return (iCurrentItem-iBase)
+    End_Function
+
+    Function BaseItem Integer hGrid Returns Integer
+        Integer iColumns iCurrentItem
+        Get Columns hGrid to iColumns
+        Get Current_Item of hGrid to iCurrentItem
+        Function_Return ((iCurrentItem/iColumns)*iColumns)
+    End_Function
+
+    Function ItemColumn Integer hGrid Integer iItem Returns Integer
+        Integer iColumns
+        Get Columns hGrid to iColumns
+        If iItem eq -99 Get Current_Item of hGrid to iItem
+        Function_Return (mod(iItem,iColumns))
+    End_Function
+
+    Function ItemRow Integer hGrid Integer iItem Returns Integer
+        Integer iColumns
+        Get Columns hGrid to iColumns
+        If iItem eq -99 Get Current_Item of hGrid to iItem
+        Function_Return (iItem/iColumns)
+    End_Function
+
+    Function ItemBaseItem Integer hGrid Integer iItem Returns Integer
+        Integer iColumns
+        If iItem eq -99 Get Current_Item of hGrid to iItem
+        Get Columns hGrid to iColumns
+        Function_Return ((iItem/iColumns)*iColumns)
+    End_Function
+
+    //> What is the number of the base item of row iRow
+    Function RowBaseItem Integer hGrid Integer iRow Returns Integer
+        Integer iColumns
+        Get Columns hGrid to iColumns
+        Function_Return (iRow*iColumns)
+    End_Function
+
+    //> Return the number of the row that includes the Current_Item
+    Function CurrentRow Integer hGrid Returns Integer
+        Integer iCurrentItem
+        Get Current_Item of hGrid to iCurrentItem
+        Function_Return (iCurrentItem/Columns(Self,hGrid))
+    End_Function
+    
+    Procedure Set CurrentRow Integer hGrid Integer iRow
+        Integer iBase
+        Get RowBaseItem hGrid iRow to iBase
+        Set Current_Item of hGrid to iBase
+    End_Procedure
+
+    //> Return the number of rows currently in the Grid
+    Function RowCount Integer hGrid Returns Integer
+        Integer iColumns
+        Get Columns hGrid to iColumns
+        Function_Return (item_count(hGrid)/iColumns)
+    End_Function
+    
+    Function CurrentAuxValue Integer hGrid Integer iColumn Returns Integer
+        Integer iBase
+        If (Item_Count(hGrid)) Begin
+            Get BaseItem hGrid to iBase
+            Function_Return (Aux_Value(hGrid,iBase+iColumn))
+        End
+        Function_Return -1 // 
+    End_Function
+    
+    //> Find row that contains iSearchValue as a aux_value in column iColumn and start the search
+    //> in row iStartRow. If no such row is found, return -1.
+    Function FindAuxValueRow Integer hGrid Integer iSearchValue Integer iColumn Integer iStartRow Returns Integer
+        Integer iMax iRow iAux iBase iItem
+        Move (RowCount(Self,hGrid)-1) to iMax
+        For iRow from iStartRow to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Move (iBase+iColumn) to iItem
+            Get Aux_Value of hGrid iItem to iAux
+            If (iAux=iSearchValue) Begin
+                Function_Return iRow
+            End
+        Loop
+        Function_Return -1 // not Found
+    End_Function
+    
+    //> Find row that contains sSearchValue as a value in column iColumn and start the search
+    //> in row iStartRow. If no such row is found, return -1.
+    Function FindValueRow Integer hGrid String sSearchValue Integer iColumn Integer iStartRow Returns Integer
+        Integer iMax iRow iBase iItem
+        String sValue
+        Move (RowCount(Self,hGrid)-1) to iMax
+        For iRow from iStartRow to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Move (iBase+iColumn) to iItem
+            Get Value of hGrid iItem to sValue
+            If (sValue=sSearchValue) Begin
+                Function_Return iRow
+            End
+        Loop
+        Function_Return -1 // not Found
+    End_Function
+
+    Procedure SwapRows Integer hGrid Integer iRow1 Integer iRow2
+        Integer iBase1 iBase2 iItem iMax
+        String sValue
+        Get RowBaseItem hGrid iRow1 to iBase1
+        Get RowBaseItem hGrid iRow2 to iBase2
+        Get Columns hGrid to iMax
+        For iItem from 0 to (iMax-1)
+            // value
+            Get Value of hGrid (iBase1+iItem) to sValue
+            Set Value of hGrid (iBase1+iItem) to (Value(hGrid,iBase2+iItem))
+            Set Value of hGrid (iBase2+iItem) to sValue
+            // entry_state
+            Get Entry_State of hGrid (iBase1+iItem) to sValue
+            Set Entry_State of hGrid (iBase1+iItem) to (Entry_State(hGrid,iBase2+iItem))
+            Set Entry_State of hGrid (iBase2+iItem) to sValue
+              // color
+            Get ItemColor of hGrid (iBase1+iItem) to sValue
+            Set ItemColor of hGrid (iBase1+iItem) to (ItemColor(hGrid,iBase2+iItem))
+            Set ItemColor of hGrid (iBase2+iItem) to sValue
+            // checkbox_item_state
+            Get Checkbox_Item_State of hGrid (iBase1+iItem) to sValue
+            Set Checkbox_Item_State of hGrid (iBase1+iItem) to (Checkbox_Item_State(hGrid,iBase2+iItem))
+            Set Checkbox_Item_State of hGrid (iBase2+iItem) to sValue
+            // aux_value
+            Get Aux_Value of hGrid (iBase1+iItem) to sValue
+            Set Aux_Value of hGrid (iBase1+iItem) to (Aux_Value(hGrid,iBase2+iItem))
+            Set Aux_Value of hGrid (iBase2+iItem) to sValue
+            // select_state
+            Get Select_State of hGrid (iBase1+iItem) to sValue
+            Set Select_State of hGrid (iBase1+iItem) to (Select_State(hGrid,iBase2+iItem))
+            Set Select_State of hGrid (iBase2+iItem) to sValue
+            // What about shadow_state (and item_shadow_state)?
+        Loop
+    End_Procedure
+    
+    Function AppendRow Integer hGrid Returns Integer
+        Integer iCount iMax iRow
+        Set Dynamic_Update_State of hGrid to False
+        Get RowCount hGrid to iRow
+        Get Columns hGrid to iMax
+        Decrement iMax
+        For iCount from 0 to iMax
+            Send Add_Item of hGrid MSG_NONE ""
+        Loop
+        Set Dynamic_Update_State of hGrid to True
+        Function_Return iRow
+    End_Function
+    
+    Function InsertRow Integer hGrid Integer iRow Returns Integer
+        Integer iCount iMax iItem
+        If (Item_Count(hGrid)=0) Begin
+            Get AppendRow hGrid to iRow
+        End
+        Else Begin
+            Get RowBaseItem hGrid iRow to iItem
+            Set Dynamic_Update_State of hGrid to False
+            Get Columns hGrid to iMax
+            Decrement iMax
+            For iCount from 0 to iMax
+                Send Insert_Item of hGrid MSG_NONE "" iItem
+            Loop
+            Set Dynamic_Update_State of hGrid to True
+        End
+        Function_Return iRow
+    End_Function
+    
+    Function InsertCurrentRow Integer hGrid Returns Integer
+        Integer iRow
+        Get InsertRow hGrid (CurrentRow(Self,hGrid)) to iRow
+        Function_Return iRow
+    End_Function
+    
+    Procedure DeleteRow Integer hGrid Integer iRow
+        Integer iBase iCount iMax
+        If (item_count(hGrid)) Begin
+            Set Dynamic_Update_State of hGrid to False
+            Get RowBaseItem hGrid iRow to iBase
+            Get Columns hGrid to iMax
+            Decrement iMax
+            For iCount from 0 to iMax
+                Send Delete_Item of hGrid iBase
+            Loop
+            Set Dynamic_Update_State of hGrid to True
+        End
+    End_Procedure
+
+    Procedure DeleteCurrentRow Integer hGrid
+        Send DeleteRow hGrid (CurrentRow(Self,hGrid))
+    End_Procedure
+    
+    Procedure SwapCurrentRowUp Integer hGrid
+        Integer iCurrentRow iCurrentItem
+        Get CurrentRow hGrid to iCurrentRow
+        If iCurrentRow gt 0 Begin
+            Get Current_Item of hGrid to iCurrentItem
+            Send SwapRows hGrid iCurrentRow (iCurrentRow-1)
+            Set Current_Item of hGrid to (iCurrentItem-Columns(Self,hGrid))
+        End
+    End_Procedure
+    
+    Procedure SwapCurrentRowTop Integer hGrid
+        Integer iCurrentRow iCurrentItem
+        Repeat
+            Get CurrentRow hGrid to iCurrentRow
+            If iCurrentRow gt 0 Send SwapCurrentRowUp hGrid
+        Until (iCurrentRow=0)
+    End_Procedure
+    
+    Procedure SwapCurrentRowDown Integer hGrid
+        Integer iCurrentRow iCurrentItem
+        Get CurrentRow hGrid to iCurrentRow
+        If iCurrentRow lt (RowCount(Self,hGrid)-1) Begin
+            Get Current_Item of hGrid to iCurrentItem
+            Send SwapRows hGrid iCurrentRow (iCurrentRow+1)
+            Set Current_Item of hGrid to (iCurrentItem+Columns(Self,hGrid))
+        End
+    End_Procedure
+    
+    Procedure SwapCurrentRowBottom Integer hGrid
+        Integer iCurrentRow iCurrentItem
+        Repeat
+            Get CurrentRow hGrid to iCurrentRow
+            If iCurrentRow lt (RowCount(Self,hGrid)-1) Send SwapCurrentRowDown hGrid
+        Until (iCurrentRow=(RowCount(Self,hGrid)-1))
+    End_Procedure
+    
+    Procedure AddCheckBoxItem Integer hGrid Boolean bState
+        Integer iItm
+        Get Item_Count of hGrid to iItm
+        Send Add_Item of hGrid msg_none ""
+        Set Checkbox_Item_State of hGrid iItm to True
+        Set Select_State of hGrid iItm to bState
+    End_Procedure
+    
+    Function RowSelectState Integer hGrid Integer iRow Returns Boolean
+        Boolean bState
+        Integer iBase
+        Get RowBaseItem hGrid iRow to iBase
+        If (Checkbox_Item_State(hGrid,iBase)<>0) Begin
+            Get Select_State of hGrid iBase to bState
+        End
+        Else Begin
+            Move False to bState
+        End
+        Function_Return bState
+    End_Function
+    
+    Procedure Set RowSelectState Integer hGrid Integer iRow Boolean bState
+        Integer iBase
+        Get RowBaseItem hGrid iRow to iBase
+        If (Checkbox_Item_State(hGrid,iBase)<>0) Begin
+            Set Select_State of hGrid iBase to bState
+        End
+    End_Procedure
+
+    Procedure RowSelectAll Integer hGrid
+       Integer iRow iMax iBase
+       Get RowCount hGrid to iMax
+       Decrement iMax
+       For iRow from 0 to iMax
+           Get RowBaseItem hGrid iRow to iBase
+           If (Item_Shadow_State(hGrid,iBase)=0 and Checkbox_Item_State(hGrid,iBase)<>0) Set Select_State of hGrid iBase to True
+       Loop
+    End_Procedure
+
+    Procedure RowDeselectAll Integer hGrid
+        Integer iRow iMax iBase
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            If (Item_Shadow_State(hGrid,iBase)=0 and Checkbox_Item_State(hGrid,iBase)<>0) Set Select_State of hGrid iBase to False
+        Loop
+    End_Procedure
+    
+    Procedure RowSelectInvert Integer hGrid
+        Integer iRow iMax iBase
+        Boolean bSelect
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Get select_state of hGrid iBase to bSelect
+            If (Item_Shadow_State(hGrid,iBase)=0 and Checkbox_Item_State(hGrid,iBase)<>0) Set Select_State of hGrid iBase to (not(bSelect))
+        Loop
+    End_Procedure
+    
+    Procedure RowSelectCostum Integer hGrid Integer iGet
+        Integer iRow iMax iBase
+        Boolean bSelect
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Get iGet of hGrid iRow iBase to bSelect
+            Set Select_State of hGrid iBase to bSelect
+        Loop
+    End_Procedure
+    
+    Procedure RowCallBackSelected Integer hGrid Integer hMsg Integer hObj
+        Integer iRow iMax iBase hTmpObj
+        Boolean bSelect
+        If (num_arguments>2) Move hObj to hTmpObj
+        Else Move hGrid to hTmpObj
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Get Select_State of hGrid iBase to bSelect
+            If bSelect Send hMsg of hTmpObj iRow iBase
+        Loop
+    End_Procedure
+
+    Procedure RowCallBackAll Integer hGrid Integer hMsg Integer hObj
+        Integer iRow iMax iBase hTmpObj
+        If (num_arguments>2) Move hObj to hTmpObj
+        Else Move hGrid to hTmpObj
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Send hMsg of hTmpObj iRow iBase
+        Loop
+    End_Procedure
+
+    //> Returns number of selected rows
+    Function SelectedRows Integer hGrid Returns Integer
+        Integer iRow iMax iBase iRval
+        Boolean bSelect
+        Move 0 to iRval
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Get Select_State of hGrid iBase to bSelect
+            If bSelect Increment iRval
+        Loop
+        Function_Return iRval
+    End_Function
+    
+    Function IntegerArrayToStringArray Integer[] aiValues Returns String[] 
+        Integer iMax iIndex
+        String[] asValues
+        Move (SizeOfArray(aiValues)-1) to iMax
+        For iIndex from 0 to iMax
+            Move aiValues[iIndex] to asValues[iIndex
+        Loop
+        Function_Return asValues
+    End_Function
+    
+    //> Returns an array of aux_value's (of first column) of all rows.
+    Function AllRowsAuxValues Integer hGrid Returns Integer[]
+        Integer iRow iMax iBase iIndex
+        Integer[] aValues
+        Move 0 to iIndex
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Move (Aux_Value(hGrid,iBase)) to aValues[iIndex]
+            Increment iIndex
+        Loop
+        Function_Return aValues
+    End_Function
+
+
+    //> Returns an array of aux_value's (of first column) of selected rows.
+    Function SelectedRowsAuxValues Integer hGrid Returns Integer[]
+        Boolean bSelect
+        Integer iRow iMax iBase iIndex
+        Integer[] aValues
+        Move 0 to iIndex
+        Get RowCount hGrid to iMax
+        Decrement iMax
+        For iRow from 0 to iMax
+            Get RowBaseItem hGrid iRow to iBase
+            Get Select_State of hGrid iBase to bSelect
+            If (bSelect) Begin
+                Move (Aux_Value(hGrid,iBase)) to aValues[iIndex]
+                Increment iIndex
+            End
+        Loop
+        Function_Return aValues
+    End_Function
+
+    Procedure SetCurrentRow Integer hGrid Integer iRow
+        Integer iBase iRows
+        Get RowCount hGrid to iRows
+        Decrement iRows
+        If (iRow>iRows) Begin
+            Move iRows to iRow
+        End
+        If (iRow<0) Begin
+            Move 0 to iRow
+        End
+        Get RowBaseItem hGrid iRow to iBase
+        Set Current_Item of hGrid to iBase
+    End_Procedure
+    
+    Procedure SetCurrentColumn Integer hGrid Integer iColumn
+        Integer iBase
+        Get BaseItem hGrid to iBase
+        Set Current_Item of hGrid to (iBase+iColumn)
+    End_Procedure
+    
+    Procedure SetRowColor Integer hGrid Integer iRow Integer iColor
+        Integer iBase iMax iItem
+        Get RowBaseItem hGrid iRow to iBase
+        Get Columns hGrid to iMax
+        For iItem from 0 to (iMax-1)
+            Set ItemColor of hGrid (iBase+iItem) to iColor
+        Loop
+    End_Procedure
+
+    Procedure SetRowColorLastRow Integer hGrid Integer iColor
+        Integer iRow
+        Get RowCount hGrid to iRow
+        Send SetRowColor hGrid (iRow-1) iColor
+    End_Procedure
+
+    Procedure AddRowToGrid Integer hGrid Integer iRow Integer hTargetGrid
+        Integer iBase iMax iItem iTargetBase
+        String sValue
+        Get RowBaseItem hGrid iRow to iBase
+        Get Columns hGrid to iMax
+        Get Item_Count of hTargetGrid to iTargetBase
+        For iItem from 0 to (iMax-1)
+            Get Value of hGrid (iBase+iItem) to sValue
+            Send Add_Item of hTargetGrid MSG_NONE sValue
+            Set Entry_State         of hTargetGrid (iTargetBase+iItem) to (Entry_State(hGrid,iBase+iItem))
+            Set Checkbox_Item_State of hTargetGrid (iTargetBase+iItem) to (Checkbox_Item_State(hGrid,iBase+iItem))
+            Set Aux_Value           of hTargetGrid (iTargetBase+iItem) to (Aux_Value(hGrid,iBase+iItem))
+            Set Select_State        of hTargetGrid (iTargetBase+iItem) to (Select_State(hGrid,iBase+iItem))
+            Set ItemColor           of hTargetGrid (iTargetBase+iItem) to (ItemColor(hGrid,iBase+iItem))
+        Loop
+    End_Procedure
+    
+    Procedure CloneColumSetup Integer hGrid Integer hSourceGrid Boolean bDoWidth
+        Integer iColumns iColumn iSize
+        If (bDoWidth) Begin
+            Get Size of hGrid to iSize
+            Set Size of hGrid to (Hi(iSize)) (Low(Size(hSourceGrid)))
+        End
+        Get Item_Limit of hSourceGrid to iColumns
+        Set Line_Width of hGrid to iColumns 0
+        For iColumn from 0 to (iColumns-1)
+            Set Form_Datatype of hGrid iColumn to (Form_Datatype(hSourceGrid,iColumn))
+            Set Form_Margin of hGrid iColumn to (Form_Margin(hSourceGrid,iColumn))
+            Set Header_Label of hGrid iColumn to (Header_Label(hSourceGrid,iColumn))
+            Set Form_Width  of hGrid iColumn to (Form_Width(hSourceGrid,iColumn))
+        Loop
+        If (bDoWidth) Begin
+            Set peResizeColumn of hGrid to (peResizeColumn(hSourceGrid))
+            Set piResizeColumn of hGrid to (piResizeColumn(hSourceGrid))
+        End
+    End_Procedure
+
+    // Precondition: grids are defined identically
+    Procedure CloneData Integer hSourceGrid Integer hTargetGrid
+        Integer iItem iMax
+        Set Dynamic_Update_State of hTargetGrid to False
+        Send Delete_Data of hTargetGrid
+        Get Item_Count of hSourceGrid to iMax
+        Decrement iMax
+        For iItem from 0 to iMax
+            Send Add_Item of hTargetGrid MSG_NONE (Value(hSourceGrid,iItem))
+            Set Entry_State         of hTargetGrid iItem to (Entry_State(hSourceGrid,iItem))
+            Set Checkbox_Item_State of hTargetGrid iItem to (Checkbox_Item_State(hSourceGrid,iItem))
+            Set Aux_Value           of hTargetGrid iItem to (Aux_Value(hSourceGrid,iItem))
+            Set Select_State        of hTargetGrid iItem to (Select_State(hSourceGrid,iItem))
+            Set ItemColor           of hTargetGrid iItem to (ItemColor(hSourceGrid,iItem))
+        Loop
+        Set Dynamic_Update_State of hTargetGrid to True
+    End_Procedure
+// *** Sorting grids **************************************************************************************
+    Struct tGridItemData
+        String sValue
+        Integer iAuxValue
+        Boolean bEntryState
+        Boolean bCheckboxItemState
+        Boolean bSelectState
+        Integer iItemColor
+        // Todo: If the grids that we sort contains comboforms or spinbuttons data regarding these have to be considered too. Not handled at the moment.
+    End_Struct
+    Struct tGridColumnFormat
+        Integer iFormMargin // Number of characters that may be typed in the cells of that column
+        Integer iFormDataType // ASCII_WINDOW, DATE_WINDOW or number of decimal points
+    End_Struct
+
+    Object oGridSorter is a cObject // Private
+        Property Integer  piCurrentRow
+        Property Integer  piCurrentColumn
+        Property tGridItemData[] paItemData
+        Property String[] paSortedRowValues
+
+        Function _ColumnFormats integer hGrid Returns tGridColumnFormat[]
+            Integer iColumn iMax
+            tGridColumnFormat[] aColumns
+            Get Columns of oGridFunctions hGrid to iMax
+            Decrement iMax
+            For iColumn from 0 to iMax
+                Get Form_Margin of hGrid iColumn to aColumns[iColumn].iFormMargin
+                Get Form_Datatype of hGrid iColumn to aColumns[iColumn].iFormDataType
+            Loop
+            Function_Return aColumns
+        End_Function
+
+        Procedure read_grid_items Integer hGrid // Private
+            Integer iItem iMax iColumns iCurrentItem
+            tGridItemData[] aItemData
+
+            Get Item_Count of hGrid to iMax
+            Decrement iMax
+            For iItem from 0 to iMax
+                Get Value of hGrid iItem to aItemData[iItem].sValue
+                Get Aux_Value of hGrid iItem to aItemData[iItem].iAuxValue
+                Get Entry_State of hGrid iItem to aItemData[iItem].bEntryState
+                Get Select_State of hGrid iItem to aItemData[iItem].bSelectState
+                Get Checkbox_Item_State of hGrid iItem to aItemData[iItem].bCheckboxItemState
+                Get ItemColor of hGrid iItem to aItemData[iItem].iItemColor
+            Loop
+            Get Current_Item of hGrid to iCurrentItem
+            Get Columns hGrid to iColumns
+            Set paItemData to aItemData
+            Set piCurrentRow    to (iCurrentItem/iColumns)
+            Set piCurrentColumn to (iCurrentItem-(iColumns*piCurrentRow(Self)))
+        End_Procedure
+
+        Register_Function SpecialSortValueOnColumn Integer iColumn Returns Boolean
+        Register_Function ItemSortValue Integer iColumn Integer iItem Returns String
+        Procedure sort_grid_rows Integer hGrid Integer iColumn Boolean bBackwards // Private
+            Integer hSortArr iRow iMax iColumns iItem iDelMode bCustom iFormDataType
+            Number nValue
+            String sValue
+            String[] aValues
+            tGridColumnFormat[] aColumns
+
+            Get _ColumnFormats hGrid to aColumns
+            Move aColumns[iColumn].iFormDataType to iFormDataType
+
+            Get Columns hGrid to iColumns
+            Get Delegation_Mode of hGrid to iDelMode
+            Set Delegation_Mode of hGrid to NO_DELEGATE_OR_ERROR
+            Get SpecialSortValueOnColumn of hGrid iColumn to bCustom
+            Set Delegation_Mode of hGrid to iDelMode
+            Get RowCount hGrid to iMax
+            Decrement iMax
+            For iRow from 0 to iMax
+                Move (iRow*iColumns+iColumn) to iItem
+                If (bCustom) begin
+                    Get ItemSortValue of hGrid iColumn iItem to sValue
+                End
+                Else Begin
+                    Get Value of hGrid iItem to sValue
+                    If (iFormDataType=Date_Window) Begin
+                        Get DateToString of oDateFunctions (Date(sValue)) DF_DATE_MILITARY True "" to sValue
+                    End
+                    Else If (iFormDataType>=0 and iFormDataType<12) Begin
+                        Move (Number(sValue)) to nValue
+                        Move (nValue+9999999999999.9999) to nValue
+                        Get NumberToStringR of oStringFunctions nValue iFormDataType 24 to sValue // 24 is the length of 14.8
+                    End
+                End
+                Move (sValue+NumberToStringR(oStringFunctions,iRow,0,6)) to aValues[iRow]
+            Loop
+            Move (SortArray(aValues)) to aValues
+            If (bBackwards) Move (ReverseArray(aValues)) to aValues
+            Set paSortedRowValues to aValues
+        End_Procedure
+        
+        Procedure write_back_grid_items Integer hGrid // Private
+            Integer iRows iRow iOldGridRow iOldCurrentRow iColumns
+            Integer iMinItem iMaxItem iItem iNewGridItem
+            String[] aValues
+            tGridItemData[] aItemData
+
+            Get paItemData to aItemData
+            Get paSortedRowValues to aValues
+
+            Get piCurrentRow to iOldCurrentRow
+            Get Columns hGrid to iColumns
+
+            Move 0 to iNewGridItem
+
+            Send Delete_Data of hGrid
+            Move (SizeOfArray(aValues)) to iRows
+            Decrement iRows
+            For iRow from 0 to iRows
+                Move (Integer(right(aValues[iRow],6))) to iOldGridRow
+                If (iOldGridRow=iOldCurrentRow) Set piCurrentRow to iRow
+                Move (iOldGridRow*iColumns) to iMinItem
+                Move (iMinItem+iColumns-1) to iMaxItem
+                For iItem from iMinItem to iMaxItem
+                    Send Add_Item of hGrid msg_none aItemData[iItem].sValue
+                    Set Checkbox_Item_State of hGrid iNewGridItem to aItemData[iItem].bCheckboxItemState
+                    Set Select_State        of hGrid iNewGridItem to aItemData[iItem].bSelectState
+                    Set Aux_Value           of hGrid iNewGridItem to aItemData[iItem].iAuxValue
+                    Set Entry_State         of hGrid iNewGridItem to aItemData[iItem].bEntryState
+                    Set ItemColor           of hGrid iNewGridItem to aItemData[iItem].iItemColor
+                    Increment iNewGridItem
+                Loop
+            Loop
+        End_Procedure
+    End_Object
+    
+    Property Integer _phMostRecentlySortedGrid 0
+    Property Integer _piMostRecentlySortedColumn 0
+    Property Boolean _pbMostRecentlySortedBackwards 0
+    
+    Procedure SortGrid Integer hGrid Integer iColumn Boolean bBackwards
+        Integer iCurrentRow iCurrentColumn iColumns
+        Send Cursor_Wait of (Cursor_Control(Self))
+        Set Dynamic_Update_State of hGrid to False
+        Send read_grid_items of oGridSorter hGrid
+        Send sort_grid_rows of oGridSorter hGrid iColumn bBackwards
+        Send write_back_grid_items of oGridSorter hGrid
+        Set Dynamic_Update_State of hGrid to True
+        Get piCurrentRow of oGridSorter to iCurrentRow
+        Get piCurrentColumn of oGridSorter to iCurrentColumn
+        Get Columns hGrid to iColumns
+        Set Current_Item of hGrid to (iColumns*iCurrentRow+iCurrentColumn)
+        Send Cursor_Ready of (Cursor_Control(Self))
+        Set _phMostRecentlySortedGrid to hGrid
+        Set _piMostRecentlySortedColumn to iColumn
+        Set _pbMostRecentlySortedBackwards to bBackwards
+    End_Procedure
+    
+    Procedure AutoSortGrid // This procedure may *only* be called when focus is with a Grid object. Not Lists and not dbGrid.
+        Integer hGrid iColumn
+        Boolean bBackwards bNoSortState
+        Get Focus of Desktop to hGrid
+        Get pbNoSortState of hGrid to bNoSortState
+        If (not(bNoSortState)) Begin
+            Get CurrentColumn hGrid to iColumn
+            If (hGrid=_phMostRecentlySortedGrid(Self) and iColumn=_piMostRecentlySortedColumn(Self)) Begin
+                Get _pbMostRecentlySortedBackwards to bBackwards
+                Move (not(bBackwards)) to bBackwards
+            End
+            Else begin
+                Move False to bBackwards
+            End
+            Send SortGrid hGrid iColumn bBackwards
+        End
+    End_Procedure
+
+// *** Writing grid data to sequential file ***************************************************************
+
+    Enum_List
+        Define GDF_FORMAT
+        Define GDF_COMMA
+        Define GDF_TAB
+    End_Enum_List
+
+        Function WriteGridToChannel_Help Integer iFormat String sValue Integer iWidth Boolean bRightAlign Returns String // Private
+            If (iFormat=GDF_FORMAT) Begin
+                If (length(sValue)>iWidth) Move (Left(sValue,iWidth)) to sValue
+                If bRightAlign Move (RightAdjust(oStringFunctions,sValue,iWidth)) to sValue
+                Else Move (pad(sValue,iWidth)) to sValue
+            End
+            If (iFormat=GDF_COMMA) Begin
+                If "," in sValue Begin
+                    Move (replaces('"',sValue,"'")) to sValue
+                    Move ('"'+sValue+'"') to sValue
+                End
+            End
+            Function_Return sValue
+        End_Function
+
+        Struct tGrdColFormat
+            Integer iWidth
+            Boolean bRightAlign
+        End_Struct
+
+        Procedure WriteGridReadColumnSizes Integer hGrid tGrdColFormat[] ByRef aColumns
+            Integer iRows iColumns iRow iColumn iWidth iDecSep
+            String sValue sSep
+            Get_Attribute DF_DECIMAL_SEPARATOR to iDecSep
+            Move (Character(iDecSep)) to sSep
+            Get Columns hGrid to iColumns
+            Get RowCount hGrid to iRows
+            For iColumn from 0 to (iColumns-1)
+                Move True to aColumns[iColumn].bRightAlign
+            Loop
+            For iRow from 0 to (iRows-1)
+                For iColumn from 0 to (iColumns-1)
+                    If (Checkbox_Item_State(hGrid,iRow*iColumns+iColumn)) Begin
+                        Move "XXX" to sValue
+                    End
+                    Else Begin
+                        Get Value of hGrid (iRow*iColumns+iColumn) to sValue
+                    End
+                    Move (Rtrim(sValue)) to sValue
+                    Move (Length(sValue)) to iWidth
+                    If (iWidth>aColumns[iColumn].iWidth) Begin
+                        Move iWidth to aColumns[iColumn].iWidth // Set piWidth.i iColumn to iWidth
+                    End
+                    If (not(IsNumber(oStringFunctions,sValue,sSep))) Begin
+                        Move False to aColumns[iColumn].bRightAlign
+                    End
+                Loop
+            Loop
+            // Take headers into account:
+            For iColumn from 0 to (iColumns-1)
+                Get Header_Label of hGrid iColumn to sValue
+                Move (Rtrim(sValue)) to sValue
+                Move (Length(sValue)) to iWidth
+                If (iWidth>aColumns[iColumn].iWidth) Begin
+                    Move iWidth to aColumns[iColumn].iWidth // Set piWidth.i iColumn to iWidth
+                End
+            Loop
+        End_Procedure
+
+    Procedure WriteGridToChannel Integer hGrid Integer iChannel Integer iFormat
+        Integer iMaxRow iMaxColumn iRow iColumn iWidth 
+        Boolean bRightAlign
+        String sValue
+        tGrdColFormat[] aColumns
+        Get Columns hGrid to iMaxColumn
+        Get RowCount hGrid to iMaxRow
+        Send WriteGridReadColumnSizes hGrid (&aColumns)
+        For iColumn from 0 to (iMaxColumn-1)
+            Get Header_Label of hGrid iColumn to sValue
+            Move aColumns[iColumn].iWidth to iWidth
+            Move aColumns[iColumn].bRightAlign to bRightAlign
+            Get WriteGridToChannel_Help iFormat sValue iWidth bRightAlign to sValue
+            If (iColumn=(iMaxColumn-1)) Move (Rtrim(sValue)) to sValue
+
+            Write channel iChannel (ToAnsi(sValue))
+            If (iColumn<>(iMaxColumn-1)) Begin
+                If (iFormat=GDF_FORMAT) Write " "
+                If (iFormat=GDF_COMMA ) Write ","
+                If (iFormat=GDF_TAB   ) Write (character(8))
+            End
+        Loop
+        Writeln channel iChannel ""
+        For iRow from 0 to (iMaxRow-1)
+            For iColumn from 0 to (iMaxColumn-1)
+                If (Checkbox_Item_State(hGrid,iRow*iMaxColumn+iColumn)) Get Select_State of hGrid (iRow*iMaxColumn+iColumn) to sValue
+                Else Get Value of hGrid (iRow*iMaxColumn+iColumn) to sValue
+
+                Move aColumns[iColumn].iWidth to iWidth
+                Move aColumns[iColumn].bRightAlign to bRightAlign
+
+                Get WriteGridToChannel_Help iFormat sValue iWidth bRightAlign to sValue
+                If (iColumn=(iMaxColumn-1)) Move (Rtrim(sValue)) to sValue
+                Write channel iChannel (ToAnsi(sValue))
+                If (iColumn<>(iMaxColumn-1)) Begin
+                    If (iFormat=GDF_FORMAT) Write " "
+                    If (iFormat=GDF_COMMA ) Write ","
+                    If (iFormat=GDF_TAB   ) Write (character(8))
+                End
+            Loop
+            Writeln channel iChannel ""
+        Loop
+    End_Procedure
+
+    Procedure WriteGridToNotepad Integer hGrid Integer iFormat
+        Integer iChannel
+        String sFile
+        Get AppendPath of oFileFunctions (UserTempFolder(oFileFunctions)) "griddata.txt" to sFile
+        Get DirectOutput of oFileFunctions sFile to iChannel
+        If (iChannel>=0) Begin
+            Send WriteGridToChannel hGrid iChannel iFormat
+            Send CloseOutput of oFileFunctions iChannel
+            Runprogram BACKGROUND ("notepad "+sFile)
+        End
+    End_Procedure
+
+// *** Other **********************************************************************************************
+
+    // The StateValue function was developed in order to be able to check if a Grid (not a dbGrid) has
+    // been changed by the user (by comparing different StateValues)
+
+    Function StateValue Integer hGrid Returns String
+        Integer iColumns iRows iColumn iRow
+        String sState sValue
+        Get Columns hGrid to iColumns
+        Get RowCount hGrid to iRows
+        For iRow from 0 to (iRows-1)
+            For iColumn from 0 to (iColumns-1)
+                If (Checkbox_Item_State(hGrid,iRow*iColumns+iColumn)) Begin
+                    Get Select_State of hGrid (iRow*iColumns+iColumn) to sValue
+                End
+                Else Begin
+                    Get Value of hGrid (iRow*iColumns+iColumn) to sValue
+                End
+                Move (sState+"|"+sValue) to sState
+            Loop
+        Loop
+        Function_Return sState
+    End_Function
+
+        Procedure _NavigateNextEntryItem Integer hGrid Integer iStartItem
+            Integer iMax iItm
+            Boolean bFin
+            Get Item_Count of hGrid to iMax
+            Move (iStartItem+1) to iItm
+            While (iItm<iMax)
+                If (Entry_State(hGrid,iItm)) Begin
+                    Set Current_Item of hGrid to iItm
+                    Procedure_Return
+                End
+                Increment iItm
+            End
+            
+            Send Switch of hGrid
+        End_Procedure
+        
+    Procedure NavigateNextEntryItem Integer hGrid
+        Send _NavigateNextEntryItem hGrid (Current_Item(hGrid))
+    End_Procedure
+
+        Procedure _NavigatePrevEntryItem Integer hGrid Integer iStartItem
+            Integer iItm
+            Boolean bFin
+            Move (iStartItem-1) to iItm
+            While (iItm>=0)
+                If (Entry_State(hGrid,iItm)) Begin
+                    Set Current_Item of hGrid to iItm
+                    Procedure_Return
+                End
+                Decrement iItm
+            End
+            
+            Send Switch_Back of hGrid
+        End_Procedure
+        
+    Procedure NavigatePrevEntryItem Integer hGrid
+        Send _NavigatePrevEntryItem hGrid (Current_Item(hGrid))
+    End_Procedure
+End_Object
+
+Class ListSture is a List
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        On_Key Key_Ctrl+Key_W Send WriteToNodepad
+    End_Procedure
+        
+    Procedure WriteToNodepad
+        Integer iChannel iMax iItem
+        String sFile
+        Get AppendPath of oFileFunctions (UserTempFolder(oFileFunctions)) "listdata.txt" to sFile
+        Get DirectOutput of oFileFunctions sFile to iChannel
+        If (iChannel>=0) Begin
+            Get Item_Count to iMax
+            Decrement iMax
+            for iItem from 0 to iMax
+                Writeln channel iChannel (Value(Self,iItem))
+            Loop
+            Send CloseOutput of oFileFunctions iChannel
+            Runprogram BACKGROUND ("notepad "+sFile)
+        End
+    End_Procedure
+End_Class
+
+Class GridSture is a Grid
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        On_Key Key_Ctrl+Key_W Send WriteToNodepad
+        On_Key Key_Ctrl+Key_S Send SortGrid //  AutoSortGrid of oGridFunctions
+        
+        On_Key Key_Ctrl+Key_A Send SelectAll
+        On_Key Key_Ctrl+Key_N Send SelectNone
+        On_Key Key_Ctrl+Key_I Send SelectInvert
+        
+        On_Key Key_Ctrl+Key_Up_Arrow Send SwapCurrentRowUp
+        On_Key Key_Ctrl+Key_Down_Arrow Send SwapCurrentRowDown
+        On_Key Key_Ctrl+Key_Home Send SwapCurrentRowTop
+        On_Key Key_Ctrl+Key_End Send SwapCurrentRowBottom
+        
+        Property Boolean pbNoSortState False
+        Property Boolean pbFirstColumnSelect False
+        Property Boolean pbAllowRowSwap False
+        Property Boolean pbSwitchOnNext False
+        
+        // Private:
+        Property Boolean _pbSelectToggle1stColumn False
+        Property Integer _piCurrentCellColor
+        Property String  _psCurrentValue
+        Property _tGridUserMenuItem[] _paExtraMenuItems
+        Property Boolean _pbSorting False
+        
+#IF (FMAC_VERSION*10+FMAC_REVISION>120) // Compile only if VDF version newer than 12.0
+        Set Floating_Menu_Object to (oGridContextMenu(oGridFunctions))
+#ENDIF        
+    End_Procedure
+    
+    Procedure Next
+        If (pbSwitchOnNext(Self)) Begin
+            Send Switch
+        End
+        Else Begin
+            Forward Send Next
+        End
+    End_Procedure
+
+    Procedure Previous
+        If (pbSwitchOnNext(Self)) Begin
+            Send Switch_Back
+        End
+        Else Begin
+            Forward Send Previous
+        End
+    End_Procedure
+
+    Function UserItemEnabled Integer iGridItem Integer hMsg Returns Boolean
+        Function_Return True
+    End_Function
+
+    Function UserItemVisible Integer iGridItem Integer hMsg Returns Boolean
+        Function_Return True
+    End_Function
+    
+    Procedure OnSorted
+    End_Procedure
+    
+    Procedure SortGrid
+        Send AutoSortGrid of oGridFunctions
+        Send OnSorted
+    End_Procedure
+    
+    Procedure OnSwap
+    End_Procedure
+
+    Procedure SwapCurrentRowUp
+        If (pbAllowRowSwap(Self)) Begin
+            Send SwapCurrentRowUp of oGridFunctions Self
+            Send OnSwap
+        End
+    End_Procedure
+    
+    Procedure SwapCurrentRowTop
+        If (pbAllowRowSwap(Self)) Begin
+            Send SwapCurrentRowTop of oGridFunctions Self
+            Send OnSwap
+        End
+    End_Procedure
+    
+    Procedure SwapCurrentRowDown
+        If (pbAllowRowSwap(Self)) Begin
+            Send SwapCurrentRowDown of oGridFunctions Self
+            Send OnSwap
+        End
+    End_Procedure
+    
+    Procedure SwapCurrentRowBottom 
+        If (pbAllowRowSwap(Self)) Begin
+            Send SwapCurrentRowBottom of oGridFunctions Self
+            Send OnSwap
+        End
+    End_Procedure
+
+    
+    Procedure AddRightClickMenuItem String sCaption String sToolTip String sShortCut Integer hMsg
+        Integer iIndex
+        _tGridUserMenuItem[] aExtraMenuItems
+        Get _paExtraMenuItems to aExtraMenuItems
+        Move (SizeOfArray(aExtraMenuItems)) to iIndex
+        If (iIndex>=9) Begin
+            Error 343 "Class can't handle more than 9 extra right-click-items"
+        End
+        Else Begin
+            Move sCaption to aExtraMenuItems[iIndex].sCaption
+            Move sToolTip to aExtraMenuItems[iIndex].sToolTip
+            Move sShortCut to aExtraMenuItems[iIndex].sShortCut
+            Move hMsg to aExtraMenuItems[iIndex].hMsg
+            Set _paExtraMenuItems to aExtraMenuItems
+        End
+    End_Procedure
+    
+    Procedure Set pbSelectToggle1stColumn Boolean bState
+        Set _pbSelectToggle1stColumn to bState
+        Set pbFirstColumnSelect to bState
+        Set Select_Mode to Multi_Select
+    End_Procedure
+    
+    Function pbSelectToggle1stColumn Returns Boolean
+        Function_Return (_pbSelectToggle1stColumn(Self))
+    End_Function
+    
+    Procedure MarkCurrentValueAsUnchanged
+        Set _psCurrentValue to (StateValue(oGridFunctions,Self))
+    End_Procedure
+    
+    Function HasChanged Returns Boolean
+        String sNow sThen
+        Get StateValue of oGridFunctions Self to sNow
+        Get _psCurrentValue to sThen
+        Function_Return (sNow<>sThen)
+    End_Function
+    
+    Procedure _OnUserMenuItem Integer iIndex
+    End_Procedure
+    
+    Procedure SelectAll   
+        If (pbFirstColumnSelect(Self)) Begin
+            Send RowSelectAll of oGridFunctions Self
+            Send OnChangeSelectCount
+        End
+    End_Procedure
+    
+    Procedure SelectNone
+        If (pbFirstColumnSelect(Self)) Begin
+            Send RowDeselectAll of oGridFunctions Self
+            Send OnChangeSelectCount
+        End
+    End_Procedure
+    
+    Procedure SelectInvert
+        If (pbFirstColumnSelect(Self)) Begin
+            Send RowSelectInvert of oGridFunctions Self
+            Send OnChangeSelectCount
+        End
+    End_Procedure
+    
+    Procedure WriteToNodepad
+        Send WriteGridToNotepad of oGridFunctions Self GDF_FORMAT
+    End_Procedure
+
+    Procedure Header_Mouse_Click Integer iItem
+        Forward Send Header_Mouse_Click iItem
+        Send SortGrid
+    End_Procedure
+    
+    Procedure AutoSort
+        If (not(_pbSorting(Self))) Begin
+            Set _pbSorting to True
+            Send SortGrid //  was: Send AutoSortGrid of oGridFunctions
+            Set _pbSorting to False
+        End
+    End_Procedure
+    
+    Procedure OnRowChange Integer iRowFrom Integer iRowTo
+    End_Procedure
+    
+    Procedure OnColumnChange Integer iColumnFrom Integer iColumnTo
+    End_Procedure
+    
+    Procedure Item_Change Integer iFromItem Integer iToItem Returns Integer
+        Integer iRval iColumns
+        Get Columns of oGridFunctions Self to iColumns
+        Forward Get msg_Item_Change iFromItem iToItem to iRval
+        If (not(_pbSorting(Self))) Begin
+            If ((iFromItem/iColumns)<>(iToItem/iColumns)) Begin
+                Send OnRowChange (iFromItem/iColumns) (iToItem/iColumns)
+            End
+            If (Mod(iFromItem,iColumns)<>Mod(iToItem,iColumns)) Begin
+                Send OnColumnChange (Mod(iFromItem,iColumns)) (Mod(iToItem,iColumns))
+            End
+        End
+        Procedure_Return iRval
+    End_Procedure
+
+    Procedure OnChangeSelectState Integer iItem
+    End_Procedure
+
+    Procedure OnChangeSelectCount
+    End_Procedure
+
+    Function AllowToggle Integer iColumn Integer iItem Returns Boolean
+        Function_Return True
+    End_Function
+
+    Procedure Select_Toggling Integer iItem Integer bState
+        Integer iCurrentItem iColumns iColumn
+        Boolean bCbState
+
+        If (_pbSelectToggle1stColumn(Self)) Begin
+            Get Columns of oGridFunctions Self to iColumns
+            Get Current_Item to iCurrentItem
+            Move ((iCurrentItem/iColumns)*iColumns) to iCurrentItem // Redirect to first column
+
+            Get Checkbox_Item_State iCurrentItem to bCbState
+
+            If (bCbState) Begin
+                Forward Send Select_Toggling iCurrentItem bState
+                Send OnChangeSelectState iCurrentItem
+                Send OnChangeSelectCount
+            End
+        End
+        Else Begin
+            Get Checkbox_Item_State iItem to bCbState
+            If (bCbState) Begin
+                Get ItemColumn of oGridFunctions Self iItem to iColumn
+                If (AllowToggle(Self,iColumn,iItem)) Begin
+                    Forward Send Select_Toggling iItem bState
+                    Send OnChangeSelectState iItem
+                    Send OnChangeSelectCount
+                End
+            End
+        End
+
+    End_Procedure
+
+    Procedure OnDropDown Integer iItem
+        Integer liColor
+        Get CurrentCellColor to liColor
+        Set _piCurrentCellColor to liColor
+        Set CurrentCellColor to clWhite
+        Set CurrentCellTextColor to clBlack
+    End_Procedure
+        
+        //Doc/ Type=Event Interface=Public
+    Procedure OnCloseUp Integer iItem
+        Set CurrentCellColor to (_piCurrentCellColor(Self))
+    End_Procedure
+    
+    Procedure OnMouseClick Integer iItem
+    End_Procedure
+    
+    Procedure OnMouseDoubleClick Integer iItem
+    End_Procedure
+    
+    Procedure Mouse_Click Integer iWindowNumber Integer iPosition // Sent on mouse double click.
+        If (Item_Count(Self)) Begin
+            Send OnMouseDoubleClick (Current_Item(Self))
+        End
+    End_Procedure    
+End_Class
+
+

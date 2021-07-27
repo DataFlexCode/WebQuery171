@@ -1,0 +1,89 @@
+Use cWebModalDialog
+Use cWebPanel.pkg
+Use cWebButton.pkg
+Use cWebForm.pkg
+Use cWebQueryFunctions.pkg
+
+Object oWqSelectionValues is a cWebModalDialog
+    Set psCaption to "Selection Value"
+    Set piMinWidth to 400
+    Set piMinHeight to 60
+    Set pbServerOnSubmit to True
+    
+    { WebProperty=True }
+    Property Integer wpiType
+    
+    Object oMainPanel is a cWebPanel
+        Set piColumnCount to 10
+
+        Object oSelectionValue is a cWebForm
+            Set piColumnSpan to 0
+            Set psLabel to ":"
+            Set peLabelAlign to alignRight
+            Set piLabelOffset to 160
+        End_Object
+        
+    End_Object 
+    
+    Object oBottomPanel is a cWebPanel
+        Set piColumnCount to 6
+        Set peRegion to prBottom
+
+        Object oOkButton is a cWebButton
+            Set psCaption to C_$OK
+            Set piColumnSpan to 1
+            Set piColumnIndex to 4
+
+            Procedure OnClick
+                Send Ok
+            End_Procedure
+            
+        End_Object 
+
+        Object oCancelButton is a cWebButton
+            Set psCaption to C_$Cancel
+            Set piColumnSpan to 1
+            Set piColumnIndex to 5
+
+            Procedure OnClick
+                Send Cancel
+            End_Procedure
+            
+        End_Object
+        
+    End_Object
+
+    Procedure OnSubmit
+        Send Ok
+    End_Procedure
+    
+    Procedure Ok
+        Forward Send Ok
+    End_Procedure
+
+    Procedure Cancel
+        Forward Send Cancel
+    End_Procedure
+    
+    Procedure PopupGetValue Handle hoRetObj String sField String sOp String sCurVal Integer iType
+        WebSet psLabel    of oSelectionValue to (sField * "(" + sOp + "):")
+        If (iType = typeASCII) Move (StrDelQuotes(ghoWQF, sCurVal)) to sCurVal
+        If (iType = typeDate)  Move (Date2MilDate(ghoWQF, sCurVal)) to sCurVal
+        WebSet psValue    of oSelectionValue to sCurVal
+        WebSet peDataType of oSelectionValue to iType
+        
+        Send Popup hoRetObj
+    End_Procedure
+    
+    Function ValueSelected Returns String
+        String  sVal
+        Integer iType
+        
+        WebGet peDataType of oSelectionValue to iType
+        WebGet psValue    of oSelectionValue to sVal
+        If (iType = typeASCII) Move (StrAddQuotes(ghoWQF, sVal)) to sVal
+        If (iType = typeDate)  Move (MilDate2Date(ghoWQF, sVal)) to sVal
+        Function_Return sVal
+    End_Function
+    
+End_Object

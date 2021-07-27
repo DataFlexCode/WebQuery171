@@ -1,0 +1,93 @@
+Use VdfBase.pkg
+
+Use TestProjects\alpha\cWSTicketLockV1.pkg
+Use WebServiceClientFunctions.pkg
+Use WebAppGlobalObjectHandles.pkg
+
+Struct tDFT_WebApplicationState
+    DateTime dtWebAppExe
+    String   sActiveView
+End_Struct
+
+Struct tTicketLock_New_Req
+    String sOwnerUUID
+    String sOwnerAccessCode
+    String sApplicationUUID
+    String sApplicationAccessCode
+    String sModuleUUID
+    String sModuleAccessCode
+    String sApplicationUserUUID
+    String sApplicationUserAccessCode
+    tDFT_WebApplicationState strApplicationState
+End_Struct
+
+Struct tTicketLock_New_Resp
+    String sUUID
+    Boolean bSuccess
+    String sStatusText
+End_Struct
+
+Global_Variable Integer ghoDFTicketLink
+
+Class cDFTicketLink is a cObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Move Self to ghoDFTicketLink
+        Property String psServiceURL // ticketlockv1.wso
+        Property String psOwnerUUID
+        Property String psOwnerAccessCode
+        Property String psApplicationUUID
+        Property String psApplicationAccessCode
+        Property String psModuleUUID
+        Property String psModuleAccessCode
+        Property String psApplicationUserUUID
+        Property String psApplicationUserAccessCode
+        Object oTicketService is a cWSTicketLockV1
+        End_Object
+    End_Procedure
+    
+    Function OnGetApplicationState Returns tWStDFT_WebApplicationState
+        Integer hFocus
+        tWStDFT_WebApplicationState strApplicationState 
+        Get FocusObject of ghoWebApp to hFocus
+        Move (Name(hFocus)) to strApplicationState.sActiveView
+        
+        Function_Return strApplicationState
+    End_Function
+    
+    Function PrepareNewTicket Returns tTicketLock_New_Resp
+        tWStTicketLock_New_Req strReq
+        tWStTicketLock_New_Resp strResp
+        Get psOwnerUUID                 to strReq.sOwnerUUID
+        Get psOwnerAccessCode           to strReq.sOwnerAccessCode
+        Get psApplicationUUID           to strReq.sApplicationUUID
+        Get psApplicationAccessCode     to strReq.sApplicationAccessCode
+        Get psModuleUUID                to strReq.sModuleUUID
+        Get psModuleAccessCode          to strReq.sModuleAccessCode
+        Get psApplicationUserUUID       to strReq.sApplicationUserUUID
+        Get psApplicationUserAccessCode to strReq.sApplicationUserAccessCode
+        Get OnGetApplicationState       to strReq.strApplicationState
+        
+        Set ServiceApplicationURL of oWebServiceClientFunctions oTicketService to (psServiceURL(Self))
+        
+        Get wsNewTicket of oTicketService strReq to strResp
+        Function_Return strResp
+    End_Function
+    
+    Procedure RequestNewTicketPanel
+        String sExternalLink
+        tWStTicketLock_New_Resp strResp
+        
+        Get PrepareNewTicket to strResp
+        If (strResp.bSuccess) Begin
+            Get psServiceURL to sExternalLink
+            
+            Move (sExternalLink+"?ticketlock="+strResp.sUUID) to sExternalLink
+            Send NavigateNewWindow of ghoWebApp sExternalLink 800 600
+        End
+        Else Begin
+            Error DFERR_PROGRAM ("Link to DataFlexTicket could not be established ("+sExternalLink+")")
+        End
+    End_Procedure
+End_Class
+

@@ -1,0 +1,7 @@
+[WebService]
+Application=StureApsPublicLib171
+Object=oWebServiceDispatcher
+ServicePageGenerator=DefaultWebServiceHomePage.xslt
+TestPageGenerator=DefaultWebServiceMethodPage.xslt
+WSDLGenerator=DefaultWebServiceDescription.xslt
+SoapBodyStyle=document

@@ -1,0 +1,204 @@
+Use VdfBase.pkg
+
+Class cItemCompare is a Array
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Delegation_Mode to Delegate_To_Parent
+
+        //> A note on compare strategies:
+        
+        //> Running an unordered compare perform the comparison assuming no particular 
+        //> ordering sequence of the items to be compared. Could be used for creating 
+        //> any kind of map for matching for example Field names in a table with column 
+        //> names in a CSV file.
+        
+        //> On the other hand, running an ordered compare will assume that the items
+        //> occurs in identical order on the two sides. It could be used for comparing
+        //> two text files (if loaded into arrays).
+
+        Property Integer _piSyncLimit 0 // 0 means no limit. Otherwise it's the maximum number of steps it will use to attempt a "resynch" when running "ordered"
+
+        Property Integer _piItemStart1 0 // Lowest index on the primary side.
+        Property Integer _piItemStop1  0 // Highest index on the primary side.
+        Property Integer _piItemStart2 0 // Lowest index on the secondary side.
+        Property Integer _piItemStop2  0 // Highest index on the secondary side.
+    End_Procedure
+
+    //> Return TRUE if the items match. Must be augmented.
+    Function CompareItems Integer iItem1 Integer iItem2 Returns Boolean
+    End_Function
+
+    //> This is sent when items are found to be identical. Should be augmented.
+    Procedure OnItemsMatched Integer iItem1 Integer iItem2
+    End_Procedure
+
+    //> This is sent when an item cannot be matched.
+    //> Means iItem on the left side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the right side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched1 Integer iItem Integer iInfo
+    End_Procedure
+
+    //> This is sent when an item cannot be matched
+    //> Means iItem on the right side couldn't be matched. The info parameter
+    //> gives a little extra information.
+    //>    -2: The item is missing in the end of the sequence
+    //>    -1: Sync limit exceeded. Missing somewhere in the middle of things.
+    //>   >=0: Missing from the left side at position iInfo
+    //> Should be augmented.
+    Procedure OnItemNotMatched2 Integer iItem Integer iInfo
+    End_Procedure
+    
+    Procedure OnBeforeMatchOrNot
+    End_Procedure
+
+    // This algorithm will not be able to detect if entries have been switched. It could be used
+    // for comparing two text files.
+    Procedure RunOrdered
+        Integer iCurrent1 iCurrent2
+        Integer iStop1 iStop2
+        Integer iTempOffset iSyncLimit iItem
+        Boolean bFin
+        Get _piItemStart1 to iCurrent1  // Give us where to start and where to
+        Get _piItemStart2 to iCurrent2  // stop on left and right side.
+        Get _piItemStop1 to iStop1      //
+        Get _piItemStop2 to iStop2      //
+        Get _piSyncLimit to iSyncLimit  // Is there a limit
+        Repeat
+            If (not(iCurrent1>iStop1 or iCurrent2>iStop2)) Begin // There are still items to compare
+                If (CompareItems(Self,iCurrent1,iCurrent2)) Begin // And the next ones in line do match
+                    Send OnBeforeMatchOrNot
+                    Send OnItemsMatched iCurrent1 iCurrent2
+                    Increment iCurrent1
+                    Increment iCurrent2
+                End
+                Else Begin // Didn't match
+                    Move 1 to iTempOffset
+                    Move False to bFin
+                    Repeat
+                        If ((iCurrent2+iTempOffset<=iStop2) and CompareItems(Self,iCurrent1,iCurrent2+iTempOffset)) Begin
+                            For iItem from iCurrent2 to (iCurrent2+iTempOffset-1)
+                                Send OnBeforeMatchOrNot
+                                Send OnItemNotMatched2 iItem iCurrent1
+                            Loop
+                            Send OnBeforeMatchOrNot
+                            Send OnItemsMatched iCurrent1 (iCurrent2+iTempOffset)
+                            Increment iCurrent1
+                            Move (iCurrent2+iTempOffset+1) to iCurrent2
+                            Move True to bFin
+                        End
+                        Else Begin
+                            If ((iCurrent1+iTempOffset<=iStop1) and CompareItems(Self,iCurrent1+iTempOffset,iCurrent2)) Begin
+                                For iItem from iCurrent1 to (iCurrent1+iTempOffset-1)
+                                    Send OnBeforeMatchOrNot
+                                    Send OnItemNotMatched1 iItem iCurrent2
+                                Loop
+                                Send OnBeforeMatchOrNot
+                                Send OnItemsMatched (iCurrent1+iTempOffset) iCurrent2
+                                Move (iCurrent1+iTempOffset+1) to iCurrent1
+                                Increment iCurrent2
+                                Move True to bFin
+                            End
+                        End
+                        If (not(bFin)) Begin
+                            Increment iTempOffset
+                            // Should we give up?
+                            If ((iSyncLimit and (iTempOffset>iSyncLimit)) or (((iCurrent1+iTempOffset)>iStop1) and ((iCurrent2+iTempOffset)>iStop2))) Begin
+                                // Either sync-limit has been broken, or incrementing the
+                                // iTempOffset variable means that we are about to break the
+                                // the stop item limit on one of the sides.
+                                // NOTE! It is very important that the two next messages are sent
+                                // in this order (first 2 then 1):
+                                Send OnBeforeMatchOrNot
+                                Send OnItemNotMatched2 iCurrent2 -1 // means: missing in the middle
+                                Send OnBeforeMatchOrNot
+                                Send OnItemNotMatched1 iCurrent1 -1 // means: missing in the middle
+                                Increment iCurrent1
+                                Increment iCurrent2
+                                Move True to bFin
+                            End
+                        End
+                    Until bFin
+                End
+            End
+        Until (iCurrent1>iStop1 or iCurrent2>iStop2)
+        For iItem from iCurrent1 to iStop1
+            Send OnBeforeMatchOrNot
+            Send OnItemNotMatched1 iItem -2 // means: missing in the end
+        Loop
+        For iItem from iCurrent2 to iStop2
+            Send OnBeforeMatchOrNot
+            Send OnItemNotMatched2 iItem -2 // means: missing in the end
+        Loop
+    End_Procedure
+
+            Procedure _RegisterMatched Integer iItem
+                Set Value iItem to 1
+            End_Procedure
+            Function _IsMatched Integer iItem Returns Integer
+                Function_Return (Value(Self,iItem))
+            End_Function
+
+    // This one assumes no particular sequence of items in either of the objects
+    // to be compared. Could be used for creating any kind of map for matching
+    // for example field names in a table with column names in a CSV file.
+    Procedure RunUnordered
+        Integer iCurrent1 iCurrent2
+        Integer iStart1 iStart2
+        Integer iStop1 iStop2
+        Boolean bMatched
+        Get _piItemStart1 to iStart1
+        Get _piItemStart2 to iStart2
+        Get _piItemStop1 to iStop1
+        Get _piItemStop2 to iStop2
+        Send delete_data
+        For iCurrent1 from iStart1 to iStop1
+            Move iStart2 to iCurrent2
+            Move False to bMatched
+            Repeat
+                If (not(_IsMatched(Self,iCurrent2)) and CompareItems(Self,iCurrent1,iCurrent2)) Begin
+                    Send _RegisterMatched iCurrent2
+                    Send OnBeforeMatchOrNot
+                    Send OnItemsMatched iCurrent1 iCurrent2
+                    Move True to bMatched
+                End
+                Else Begin 
+                    Increment iCurrent2
+                End
+            Until (bMatched or iCurrent2>iStop2)
+            If (not(bMatched)) Begin
+                Send OnBeforeMatchOrNot
+                Send OnItemNotMatched1 iCurrent1
+            End
+        Loop
+        For iCurrent2 from iStart2 to iStop2
+            If (not(_IsMatched(Self,iCurrent2))) Begin
+                 Send OnBeforeMatchOrNot
+                 Send OnItemNotMatched2 iCurrent2
+            End
+        Loop
+    End_Procedure
+    // bOrdered=False: the items are not in any particular order
+    // bOrdered=True: the items
+    Procedure RunCompare Integer iItemStart1 ; //> Lowest index on the primary side.                                                             
+                         Integer iItemStop1 ;  //> Highest index on the primary side.                                                            
+                         Integer iItemStart2 ; //> Lowest index on the secondary side.                                                           
+                         Integer iItemStop2 ;  //> Highest index on the secondary side.                                                          
+                         Integer iSyncLimit ;  //> Only relevant if bOrdered is true. It sets a limit to now far it will look for a missing match
+                         Boolean bOrdered
+        Set _piItemStart1 to iItemStart1
+        Set _piItemStop1  to iItemStop1
+        Set _piItemStart2 to iItemStart2
+        Set _piItemStop2  to iItemStop2
+        Set _piSyncLimit  to iSyncLimit
+        If (bOrdered) Begin
+            Send RunOrdered
+        End
+        Else Begin
+            Send RunUnordered
+        End
+    End_Procedure
+End_Class

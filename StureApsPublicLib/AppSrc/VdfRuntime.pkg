@@ -1,0 +1,568 @@
+Use VdfBase.pkg
+// VDFRuntime
+Use Winkern.pkg
+Use RegistryFunctions.pkg
+Use FileFunctions.pkg // Define oFileFunctions object
+
+Struct tVdfRuntime
+    String  sRegistryKey
+    String  sVdfVersion
+    String  sRootFolder
+    String  sDfPath
+    String  sCollateLanguage
+    Boolean WAS_bEnableSlaveNode
+    Integer WAS_iGracefulTerminate
+    Integer WAS_iListen
+    Integer WAS_iMaxSessions
+    Integer WAS_iMessageTimeout
+    String  WAS_sProductClass
+    Integer WAS_iRefreshInterval
+    String  WAS_sRegCode
+    String  WAS_sRegName
+    String  WAS_sRegNumber
+    String  WAS_sUsers
+    Integer WAS_iTransactionTimeout
+End_Struct
+
+Struct tVdfWebApplication
+    String  sVdfVersion // Pointer to runtime array
+    String  sName
+    Integer iRuntimeIndex // Obsoleted by sVdfVersion
+    String  sRegistryKey
+    Boolean bDisable
+    Boolean bLogAccess
+    String  sLogFile
+    Integer iMaxLogEntries
+    Integer iMinPool
+    Integer iMaxPool
+    String  sOperationMode
+    String  sProgramParameters
+    String  sProgramPath
+    Integer iPurgePoolInterval
+    Boolean bUseConnectorPool
+    String  sDataPath
+End_Struct
+
+Global_Variable tVdfRuntime[] gaRuntimes // Filled in automatically at program start
+Global_Variable tVdfWebApplication[] gaWebApplications // This too
+
+Global_Variable Integer oVdfRuntimeFunctions
+
+
+Struct tCollateLanguage
+    String sName
+    String sCollateString
+End_Struct
+
+Global_Variable tCollateLanguage[] gaCollateStrings
+
+//External_Function VDFR_IsDebuggerPresent "IsDebuggerPresent" Kernel32.dll Returns Integer
+
+Object _oVdfRuntimeFunctions is a cObject
+    Move Self to oVdfRuntimeFunctions
+
+    Property String _psCurrentCollateString ""
+
+    Function CurrentCollateString Returns String
+        Integer iChar iItem iMax hArr
+        String sValue
+        If (_psCurrentCollateString(Self)="") Begin
+            Get Create U_Array to hArr
+            Send Delete_Data of hArr
+            For iChar from 32 to 255
+                Set Value of hArr (iChar-32) to (Character(iChar))
+            Loop
+            Send Sort_Items of hArr Ascending // This reveals the true sorting of the current runtime.
+            Get Item_Count of hArr to iMax
+            Decrement iMax
+            Move "" to sValue
+            For iItem from 0 to iMax
+                Move (sValue+Value(hArr,iItem)) to sValue
+            Loop
+            Set _psCurrentCollateString to sValue
+            Send Destroy of hArr
+        End
+        Function_Return (_psCurrentCollateString(Self))
+    End_Function
+    
+    Function MinimumCollateCharacter Returns String
+        String sCurrentCollateString 
+//        Get _psCurrentCollateString to sCurrentCollateString
+        Get CurrentCollateString to sCurrentCollateString
+        Function_Return (Left(sCurrentCollateString,1))
+    End_Function
+    
+    Function MaximumCollateCharacter Returns String
+        String sCurrentCollateString 
+//        Get _psCurrentCollateString to sCurrentCollateString
+        Get CurrentCollateString to sCurrentCollateString
+        Function_Return (Right(sCurrentCollateString,1))
+    End_Function
+
+             Function _MakeString String sValue Returns String
+                Integer iMax iIndex iChar
+                String sRval
+                String[] aValues
+
+                Move "" to sRval
+                Send SplitString of oStringFunctions sValue " " True False (&aValues)
+                Move (SizeOfArray(aValues)-1) to iMax
+                For iIndex from 0 to iMax
+                    Move aValues[iIndex] to iChar
+                    Move (sRval+Character(iChar)) to sRval
+                Loop
+                Function_Return sRval
+             End_Function
+
+            Function _DanishCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 95 127 48 49 50 51 52 53 54 55 56 57 65 97 66 98 67 99 68 100 69 64 144 158 201 101 96 130 174 233 172 70 102 71 103 72 104 73 105 74 106" to sValue
+                Move (sValue+" 75 107 76 108 77 109 78 110 79 111 80 112 81 113 82 114 83 115 84 116 85 117 86 118 87 119 88 120 89 121 94 154 220 219 160 126 129 232 252 161 90 122 91 123 92 124 93 125 146 152 198 211 162 145 168 230 215") to sValue
+                Move (sValue+" 163 157 191 216 210 155 207 248 214 143 150 197 208 134 166 167 170 229 212 171 128 131 132 133 135 136 137 138 139 140 141 142 147 148 149 151 153 156 159 164 165 169 173 175 176 177 178 179 180 181 182 183") to sValue
+                Move (sValue+" 184 185 186 187 188 189 190 192 193 194 195 196 199 200 202 203 204 205 206 209 213 217 218 221 222 223 224 225 226 227 228 231 234 235 236 237 238 239 240 241 242 243 244 245 246 247 249 250 251 253 254 255") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _SwedishCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 95 127 48 49 50 51 52 53 54 55 56 57 65 97 66 98 67 99 68 100 69 64 144 158 201 168 101 96 130 174 233 169 70 102 71 103 72 104 73 105 74" to sValue
+                Move (sValue+" 106 75 107 76 108 77 109 78 110 79 111 80 112 81 113 82 114 83 115 84 116 85 117 86 118 87 119 88 120 89 121 94 154 216 220 219 126 129 232 252 207 167 90 122 93 125 91 123 92 124 143 150 197 208 161 134 166") to sValue
+                Move (sValue+" 229 212 142 147 196 132 164 162 165 163 228 153 188 214 148 204 218 246 206 128 131 133 135 136 137 138 139 140 141 145 146 149 151 152 155 156 157 159 160 170 171 172 173 175 176 177 178 179 180 181 182 183") to sValue
+                Move (sValue+" 184 185 186 187 189 190 191 192 193 194 195 198 199 200 202 203 205 209 210 211 213 215 217 221 222 223 224 225 226 227 230 231 234 235 236 237 238 239 240 241 242 243 244 245 247 248 249 250 251 253 254 255") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _NorwegianCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 95 127 48 49 50 51 52 53 54 55 56 57 65 97 66 98 67 99 68 100 69 64 144 158 201 101 96 130 174 233 172 70 102 71 103 72 104 73 105 74 106" to sValue
+                Move (sValue+" 75 107 76 108 77 109 78 110 79 111 80 112 81 113 82 114 83 115 84 116 85 117 86 118 87 119 88 120 89 121 94 154 220 219 160 126 129 232 252 161 90 122 91 123 92 124 93 125 146 152 198 211 162 145 168 230 215") to sValue
+                Move (sValue+" 163 157 191 216 210 155 207 248 214 143 150 197 208 134 166 167 170 229 212 171 128 131 132 133 135 136 137 138 139 140 141 142 147 148 149 151 153 156 159 164 165 169 173 175 176 177 178 179 180 181 182 183") to sValue
+                Move (sValue+" 184 185 186 187 188 189 190 192 193 194 195 196 199 200 202 203 204 205 206 209 213 217 218 221 222 223 224 225 226 227 228 231 234 235 236 237 238 239 240 241 242 243 244 245 246 247 249 250 251 253 254 255") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _GermanCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 64 94 95 96 127 48 49 50 51 52 53 54 55 56 57 65 91 142 147 196 97 123 132 163 228 66 98 67 99 68 100 69 101 70 102 71 103 72 104 73 105" to sValue
+                Move (sValue+" 74 106 75 107 76 108 77 109 78 110 79 92 153 188 218 214 111 124 148 204 206 246 80 112 81 113 82 114 83 115 126 225 238 222 223 84 116 85 93 154 216 219 220 117 125 129 232 207 252 86 118 87 119 88 120 89 121") to sValue
+                Move (sValue+" 90 122 128 130 131 133 134 135 136 137 138 139 140 141 143 144 145 146 149 150 151 152 155 156 157 158 159 160 161 162 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185") to sValue
+                Move (sValue+" 186 187 189 190 191 192 193 194 195 197 198 199 200 201 202 203 205 208 209 210 211 212 213 215 217 221 224 226 227 229 230 231 233 234 235 236 237 239 240 241 242 243 244 245 247 248 249 250 251 253 254 255") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _SpanishCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 91 92 93 94 95 96 123 124 125 126 127 128 131 132 133 134 135 136 137 138 139 140 141 142 143 145 146 147 148 149 150 151 152 153 155 156" to sValue
+                Move (sValue+" 157 158 159 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207 208 209 210 211 212 213 215 216") to sValue
+                Move (sValue+" 217 218 219 220 221 222 223 225 226 227 228 229 230 231 232 234 235 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 48 49 50 51 52 53 54 55 56 57 64 65 97 181 160 66 98 67 99") to sValue
+                Move (sValue+" 68 100 69 101 144 130 70 102 71 103 72 104 73 105 214 161 74 106 75 107 76 108 77 109 78 110 165 164 79 111 224 162 80 112 81 113 82 114 83 115 84 116 85 117 233 163 154 129 86 118 87 119 88 120 89 121 90 122") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _PortugueseCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 91 92 93 94 95 96 123 124 125 126 127 145 146 155 156 157 158 159 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 184" to sValue
+                Move (sValue+" 185 186 187 188 189 190 191 192 193 194 195 196 197 200 201 202 203 204 205 206 207 208 209 217 218 219 220 221 230 231 232 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 134") to sValue
+                Move (sValue+" 143 152 213 223 225 48 49 50 51 52 53 54 55 56 57 64 65 97 181 160 183 133 182 131 142 132 199 198 66 98 67 99 128 135 68 100 69 101 144 130 212 138 210 136 211 137 70 102 71 103 72 104 73 105 214 161 222 141") to sValue
+                Move (sValue+" 215 140 216 139 74 106 75 107 76 108 77 109 78 110 79 111 224 162 227 149 226 147 153 148 229 228 80 112 81 113 82 114 83 115 84 116 85 117 233 163 235 151 234 150 154 129 86 118 87 119 88 120 89 121 90 122") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _DutchCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 91 92 93 94 95 96 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152" to sValue
+                Move (sValue+" 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204") to sValue
+                Move (sValue+" 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 48") to sValue
+                Move (sValue+" 49 50 51 52 53 54 55 56 57 64 65 97 66 98 67 99 68 100 69 101 70 102 71 103 72 104 73 105 74 106 75 107 76 108 77 109 78 110 79 111 80 112 81 113 82 114 83 115 84 116 85 117 86 118 87 119 88 120 89 121 90 122") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _RussianCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 91 92 93 94 95 96 123 124 125 126 127 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200" to sValue
+                Move (sValue+" 201 202 203 204 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223 242 243 244 245 246 247 248 249 250 251 252 253 254 255 48 49 50 51 52 53 54 55 56 57 64 65 97 66 98 67 99 68 100 69") to sValue
+                Move (sValue+" 101 70 102 71 103 72 104 73 105 74 106 75 107 76 108 77 109 78 110 79 111 80 112 81 113 82 114 83 115 84 116 85 117 86 118 87 119 88 120 89 121 90 122 128 160 129 161 130 162 131 163 132 164 133 165 240 241") to sValue
+                Move (sValue+" 134 166 135 167 136 168 137 169 138 170 139 171 140 172 141 173 142 174 143 175 144 224 145 225 146 226 147 227 148 228 149 229 150 230 151 231 152 232 153 233 154 234 155 235 156 236 157 237 158 238 159 239") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _FrenchCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 91 92 93 94 95 96 123 124 125 126 127 145 146 155 156 157 158 159 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 184" to sValue
+                Move (sValue+" 185 186 187 188 189 190 191 192 193 194 195 196 197 200 201 202 203 204 205 206 207 208 209 217 218 219 220 221 230 231 232 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 134") to sValue
+                Move (sValue+" 143 152 213 223 225 48 49 50 51 52 53 54 55 56 57 64 65 97 181 160 183 133 182 131 142 132 199 198 66 98 67 99 128 135 68 100 69 101 144 130 212 138 210 136 211 137 70 102 71 103 72 104 73 105 214 161 222 141") to sValue
+                Move (sValue+" 215 140 216 139 74 106 75 107 76 108 77 109 78 110 79 111 224 162 227 149 226 147 153 148 229 228 80 112 81 113 82 114 83 115 84 116 85 117 233 163 235 151 234 150 154 129 86 118 87 119 88 120 89 121 90 122") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Function _EnglishCollateString Returns String
+                String sValue
+                Move "32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 58 59 60 61 62 63 91 92 93 94 95 96 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152" to sValue
+                Move (sValue+" 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204") to sValue
+                Move (sValue+" 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 48") to sValue
+                Move (sValue+" 49 50 51 52 53 54 55 56 57 64 65 97 66 98 67 99 68 100 69 101 70 102 71 103 72 104 73 105 74 106 75 107 76 108 77 109 78 110 79 111 80 112 81 113 82 114 83 115 84 116 85 117 86 118 87 119 88 120 89 121 90 122") to sValue
+                Function_Return (_MakeString(Self,sValue))
+            End_Function
+        
+            Procedure _AddCollate String sName String sCollateString
+                Integer iIndex
+                Move (SizeOfArray(gaCollateStrings)) to iIndex
+                Move sName to gaCollateStrings[iIndex].sName
+                Move sCollateString to gaCollateStrings[iIndex].sCollateString
+            End_Procedure
+            
+            Function _CollateLanguage String sCollate Returns String
+                Integer iMax iIndex
+                String sRval
+                If (SizeOfArray(gaCollateStrings)=0) Begin
+                    Send _AddCollate "English"    (_EnglishCollateString(Self))
+                    Send _AddCollate "Dutch"      (_DutchCollateString(Self))
+                    Send _AddCollate "Danish"     (_DanishCollateString(Self))
+                    Send _AddCollate "Norwegian"  (_NorwegianCollateString(Self))
+                    Send _AddCollate "Swedish"    (_SwedishCollateString(Self))
+                    Send _AddCollate "German"     (_GermanCollateString(Self))
+                    Send _AddCollate "Spanish"    (_SpanishCollateString(Self))
+                    Send _AddCollate "Portuguese" (_PortugueseCollateString(Self))
+                    Send _AddCollate "Russian"    (_RussianCollateString(Self))
+                    Send _AddCollate "French"     (_FrenchCollateString(Self))
+                End
+                Move "" to sRval
+                Move (SizeOfArray(gaCollateStrings)-1) to iMax
+                For iIndex from 0 to iMax
+                    If (sCollate=gaCollateStrings[iIndex].sCollateString) Begin
+                        If (sRval<>"") Move (sRval+", ") to sRval
+                        Move (sRval+gaCollateStrings[iIndex].sName) to sRval
+                    End
+                Loop
+                If (sRval="") Move "Unknown" to sRval
+                Function_Return sRval
+            End_Function
+
+    Function CurrentCollateLanguage Returns String
+        String sCurrentCollate 
+        Get CurrentCollateString to sCurrentCollate
+        Function_Return (_CollateLanguage(Self,sCurrentCollate))
+    End_Function
+    
+    Function RuntimeIndex String sVdfVer Returns Integer
+        Integer iMax iItem
+        Move (SizeOfArray(gaRuntimes)-1) to iMax
+        For iItem from 0 to iMax
+            If (sVdfVer=gaRuntimes[iItem].sVdfVersion) Begin
+                Function_Return iItem
+            End
+        Loop
+        Function_Return -1
+    End_Function
+    
+    Function RuntimeStruct String sVdfVer Returns tVdfRuntime
+        Integer iItem
+        tVdfRuntime strRuntime
+        Get RuntimeIndex sVdfVer to iItem
+        If (iItem>=0) Begin
+            Move gaRuntimes[iItem] to strRuntime
+        End
+        Function_Return strRuntime
+    End_Function
+    
+    Property String _psOriginalProgramPath
+    
+            Function _ReadFileDfCollateCfg String sPath Returns String
+                Integer iChannel iPos iRangeStart iRangeStop iChar iLen
+                Boolean bSeqEof
+                String sValue sLine sText
+                String[] aItems
+                
+                Get DirectInput of oFileFunctions sPath to iChannel
+                If (iChannel>=0) Begin
+                    Move 1 to iPos
+                    Repeat
+                        Readln channel iChannel sLine
+                        Move (SeqEof) to bSeqEof
+                        If (not(bSeqEof)) Begin
+                            Send SplitString of oStringFunctions sLine " " True False (&aItems)
+                            If (Left(sLine,5)="RANGE") Begin
+                                Move aItems[1] to iRangeStart
+                                Move aItems[2] to iRangeStop
+                                For iChar from iRangeStart to iRangeStop
+                                    Move (Overstrike(Character(iChar),sValue,iPos)) to sValue
+                                    Increment iPos
+                                Loop
+                            End
+                            If (Left(sLine,6)="SINGLE") Begin
+                                Move aItems[1] to iChar
+                                Move (Overstrike(Character(iChar),sValue,iPos)) to sValue
+                                Increment iPos                               
+                            End
+                            If (Left(sLine,4)="TEXT") Begin
+                                Move aItems[1] to sText
+                                Move (Replace('"',sText,"")) to sText
+                                Move (Length(sText)-1) to iLen
+                                Move (Left(sText,iLen)) to sText
+                                Move (Overstrike(sText,sValue,iPos)) to sValue
+                                Move (iPos+iLen) to iPos
+                            End
+                        End
+                    Until (bSeqEof)
+                    Send CloseInput of oFileFunctions iChannel
+                End
+                Function_Return (Remove(sValue,1,32))
+            End_Function
+
+            // Updates global array gaRuntimes
+            Procedure _EnumerateRuntimes
+                Boolean bContinue
+                Integer iVersionIndex iVersionMax
+                String sRoot sVdfVersion sCollate
+                tRegKeyData stVdfVersions stKeyData
+
+                Move (ResizeArray(gaRuntimes,0)) to gaRuntimes
+
+                Move "SOFTWARE\Data Access Worldwide\Visual DataFlex" to sRoot
+                Get ReadKeyData of oRegistryFunctions HKEY_LOCAL_MACHINE sRoot (&stVdfVersions) False to bContinue
+//                If (not(bContinue)) Begin
+//                    Move "SOFTWARE\Wow6432Node\Data Access Worldwide\Visual DataFlex" to sRoot
+//                    Get ReadKeyData of oRegistryFunctions HKEY_LOCAL_MACHINE sRoot (&stVdfVersions) False to bContinue
+//                End
+                If (bContinue) Begin
+                    Move (SizeOfArray(stVdfVersions.aSubKeys)-1) to iVersionMax
+                    For iVersionIndex from 0 to iVersionMax
+                        Move stVdfVersions.aSubKeys[iVersionIndex] to sVdfVersion
+                        Move sVdfVersion to gaRuntimes[iVersionIndex].sVdfVersion
+                        Move (sRoot+"\"+sVdfVersion) to gaRuntimes[iVersionIndex].sRegistryKey
+                        If (ReadKeyData(oRegistryFunctions,HKEY_LOCAL_MACHINE,sRoot+"\"+sVdfVersion+"\Defaults",&stKeyData,False)) Begin
+                            Get NamedRegValue of oRegistryFunctions stKeyData "DFPath"     to gaRuntimes[iVersionIndex].sDfPath
+                            Get NamedRegValue of oRegistryFunctions stKeyData "VDFRootDir" to gaRuntimes[iVersionIndex].sRootFolder
+                            
+                            Get _ReadFileDfCollateCfg (AppendPath(oFileFunctions,gaRuntimes[iVersionIndex].sRootFolder,"Bin\df_collate.cfg")) to sCollate
+                            Get _CollateLanguage sCollate to gaRuntimes[iVersionIndex].sCollateLanguage
+                            
+                        End
+                        If (ReadKeyData(oRegistryFunctions,HKEY_LOCAL_MACHINE,sRoot+"\"+sVdfVersion+"\WebApp Server",&stKeyData,False)) Begin
+                            Get NamedRegValue of oRegistryFunctions stKeyData "EnableSlaveNode"    to gaRuntimes[iVersionIndex].WAS_bEnableSlaveNode
+                            Get NamedRegValue of oRegistryFunctions stKeyData "GracefulTerminate"  to gaRuntimes[iVersionIndex].WAS_iGracefulTerminate
+                            Get NamedRegValue of oRegistryFunctions stKeyData "Listen"             to gaRuntimes[iVersionIndex].WAS_iListen
+                            Get NamedRegValue of oRegistryFunctions stKeyData "MaxSessions"        to gaRuntimes[iVersionIndex].WAS_iMaxSessions
+                            Get NamedRegValue of oRegistryFunctions stKeyData "MessageTimeout"     to gaRuntimes[iVersionIndex].WAS_iMessageTimeout
+                            Get NamedRegValue of oRegistryFunctions stKeyData "Product Class"      to gaRuntimes[iVersionIndex].WAS_sProductClass
+                            Get NamedRegValue of oRegistryFunctions stKeyData "RefreshInterval"    to gaRuntimes[iVersionIndex].WAS_iRefreshInterval
+                            Get NamedRegValue of oRegistryFunctions stKeyData "Registration Code"  to gaRuntimes[iVersionIndex].WAS_sRegCode
+                            Get NamedRegValue of oRegistryFunctions stKeyData "Registration Name"  to gaRuntimes[iVersionIndex].WAS_sRegName
+                            Get NamedRegValue of oRegistryFunctions stKeyData "Serial Number"      to gaRuntimes[iVersionIndex].WAS_sRegNumber
+                            Get NamedRegValue of oRegistryFunctions stKeyData "Users"              to gaRuntimes[iVersionIndex].WAS_sUsers
+                            Get NamedRegValue of oRegistryFunctions stKeyData "TransactionTimeout" to gaRuntimes[iVersionIndex].WAS_iTransactionTimeout
+                        End
+                    Loop
+                End
+            End_Procedure
+
+            // Updates index iRuntimeIndex of global array gaWebApplications with the webapplications belonging
+            // to the runtime specified in parameter stRuntime
+            Procedure _EnumerateWebApplications Integer iRuntimeIndex tVdfRuntime stRuntime
+                Integer iAppIndex iAppMax
+                String sWebAppsRootKey sWebAppRootKey sAppName sPath
+                tRegKeyData stWebAppsRootKeyData stWebAppKeyData
+                tVdfWebApplication stWebApplication
+
+                Move (stRuntime.sRegistryKey+"\WebApp Server\Web Applications") to sWebAppsRootKey
+
+                If (ReadKeyData(oRegistryFunctions,HKEY_LOCAL_MACHINE,sWebAppsRootKey,&stWebAppsRootKeyData,False)) Begin
+                    Move (SizeOfArray(stWebAppsRootKeyData.aSubKeys)-1) to iAppMax
+                    For iAppIndex from 0 to iAppMax
+                        Move stWebAppsRootKeyData.aSubKeys[iAppIndex] to sAppName
+                        Move sAppName to stWebApplication.sName
+                        Move (sWebAppsRootKey+"\"+sAppName) to sWebAppRootKey
+                        Move sWebAppRootKey to stWebApplication.sRegistryKey
+                        Move iRuntimeIndex to stWebApplication.iRuntimeIndex
+                        Move gaRuntimes[iRuntimeIndex].sVdfVersion to stWebApplication.sVdfVersion
+                        
+                        If (ReadKeyData(oRegistryFunctions,HKEY_LOCAL_MACHINE,sWebAppRootKey,&stWebAppKeyData,False)) Begin
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "Disable"            to stWebApplication.bDisable
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "LogAccess"          to stWebApplication.bLogAccess
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "LogFile"            to stWebApplication.sLogFile
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "MaxLogEntries"      to stWebApplication.iMaxLogEntries
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "MinPool"            to stWebApplication.iMinPool
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "MaxPool"            to stWebApplication.iMaxPool
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "OperationMode"      to stWebApplication.sOperationMode
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "ProgramParameters"  to stWebApplication.sProgramParameters
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "ProgramPath"        to sPath
+                            Move sPath to stWebApplication.sProgramPath
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "PurgePoolInterval"  to stWebApplication.iPurgePoolInterval
+                            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "UseConnectorPool"   to stWebApplication.bUseConnectorPool
+
+                            Get PathToFolder of oFileFunctions sPath to sPath // C:\Samples\AJAX Order Entry\Programs\webapp.exe -> C:\VDF12\Samples\AJAX Order Entry\Programs
+                            Get PathToFolder of oFileFunctions sPath to sPath // C:\Samples\AJAX Order Entry\Programs -> C:\VDF12\Samples\AJAX Order Entry
+                            Get AppendPath of oFileFunctions sPath "Data" to sPath
+                            Move sPath to stWebApplication.sDataPath
+
+                        End
+                        Move stWebApplication to gaWebApplications[SizeOfArray(gaWebApplications)]
+                    Loop
+                End
+            End_Procedure
+
+    Procedure RereadWebApplications
+        Integer iRuntimeIndex iRunTimeMax
+        String sWebAppRoot
+
+        Send _EnumerateRuntimes
+
+        Move (ResizeArray(gaWebApplications,0)) to gaWebApplications
+
+        Move (SizeOfArray(gaRuntimes)-1) to iRunTimeMax
+        For iRuntimeIndex from 0 to iRunTimeMax
+            Send _EnumerateWebApplications iRuntimeIndex gaRuntimes[iRuntimeIndex]
+        Loop
+        Move 0 to WindowIndex
+    End_Procedure
+
+    Function WebApplication Integer iWebAppIndex Returns tVdfWebApplication
+        String sWebAppRootKey sPath
+        tVdfWebApplication stWebApp
+        tRegKeyData stWebAppKeyData
+
+        Move gaWebApplications[iWebAppIndex].sRegistryKey to sWebAppRootKey
+        Move gaWebApplications[iWebAppIndex] to stWebApp
+
+        If (ReadKeyData(oRegistryFunctions,HKEY_LOCAL_MACHINE,sWebAppRootKey,&stWebAppKeyData,False)) Begin
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "Disable"            to stWebApp.bDisable
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "LogAccess"          to stWebApp.bLogAccess
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "LogFile"            to stWebApp.sLogFile
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "MaxLogEntries"      to stWebApp.iMaxLogEntries
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "MinPool"            to stWebApp.iMinPool
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "MaxPool"            to stWebApp.iMaxPool
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "OperationMode"      to stWebApp.sOperationMode
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "ProgramParameters"  to stWebApp.sProgramParameters
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "ProgramPath"        to sPath
+            Move sPath to stWebApp.sProgramPath
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "PurgePoolInterval"  to stWebApp.iPurgePoolInterval
+            Get NamedRegValue of oRegistryFunctions stWebAppKeyData "UseConnectorPool"   to stWebApp.bUseConnectorPool
+
+            Get PathToFolder of oFileFunctions sPath to sPath // C:\Samples\AJAX Order Entry\Programs\webapp.exe -> C:\VDF12\Samples\AJAX Order Entry\Programs
+            Get PathToFolder of oFileFunctions sPath to sPath // C:\Samples\AJAX Order Entry\Programs -> C:\VDF12\Samples\AJAX Order Entry
+            Get AppendPath of oFileFunctions sPath "Data" to sPath
+            Move sPath to stWebApp.sDataPath
+
+        End
+        Else Begin
+            Error 832 "Could not read WebApp registry"
+        End
+        Function_Return stWebApp
+    End_Function
+
+    Procedure RereadWebApplication Integer iWebAppIndex
+        get WebApplication iWebAppIndex to gaWebApplications[iWebAppIndex]
+    End_Procedure
+
+    Procedure Set WebAppRunState Integer iWebAppIndex Boolean bRunState
+        Integer iRuntimeIndex
+        String sRegKey
+        If (iWebAppIndex<SizeOfArray(gaWebApplications)) Begin
+            Move gaWebApplications[iWebAppIndex].iRuntimeIndex to iRuntimeIndex
+            Move gaWebApplications[iWebAppIndex].sRegistryKey to sRegKey
+            Send WriteRegValue of oRegistryFunctions HKEY_LOCAL_MACHINE sRegKey "Disable" (If(bRunState,0,1)) rdDword
+        End
+        Else Begin
+            Error 801 "Webapp index out of range"
+        End
+    End_Procedure
+    
+    Function WebAppRunState Integer iWebAppIndex Returns Boolean
+        tVdfWebApplication stWebApp
+        Get WebApplication iWebAppIndex to stWebApp
+        Function_Return (not(stWebApp.bDisable))
+    End_Function
+    
+    //> Locate a webapplication in the global array gaWebApplications by the name (incl.
+    //> the full path of the applcation (F.x. "c:\apps\wasp2\programs\webapp.exe")
+    Function WebApplicationIndex String sProgramPath Returns Integer
+        Integer iIndex iMax
+
+        Move (Lowercase(sProgramPath)) to sProgramPath
+        If (Right(sProgramPath,4)<>".exe") Begin
+            Move (sProgramPath+".exe.") to sProgramPath
+        End
+        Move (SizeOfArray(gaWebApplications)-1) to iMax
+        For iIndex from 0 to iMax
+            If (sProgramPath=Lowercase(gaWebApplications[iIndex].sProgramPath)) Begin
+                Function_Return iIndex
+            End
+        Loop
+        Function_Return -1 // not found
+    End_Function
+    
+    // Index of the webapplication that we are (if we are a webapplication)
+    Function CurrentWebApplicationIndex Returns Integer
+        String sProgramPath
+        Get _psOriginalProgramPath to sProgramPath
+        Function_Return (WebApplicationIndex(Self,sProgramPath))
+    End_Function
+    
+    Function WebApplicationNameAndVersionToIndex String sName String sVdfVer Returns Integer
+        Integer iIndex iMax
+        Move (Lowercase(Trim(sName))) to sName
+        Move (Lowercase(Trim(sVdfVer))) to sVdfVer
+        Move (SizeOfArray(gaWebApplications)-1) to iMax
+        For iIndex from 0 to iMax
+            If (sName=Lowercase(gaWebApplications[iIndex].sName) and sVdfVer=Lowercase(gaWebApplications[iIndex].sVdfVersion)) Begin
+                Function_Return iIndex
+            End
+        Loop
+        Function_Return -1
+    End_Function
+    
+    Function CurrentVdfVer Returns String
+        String sMajor sMinor
+        Move (String(FMAC_VERSION)) to sMajor
+        Move (String(FMAC_REVISION)) to sMinor
+        Function_Return (sMajor+"."+sMinor)
+    End_Function
+    
+    Function VdfVerStringToNumber String sVdfVer Returns Number
+        Integer iPos iMajor iMinor
+        Move (Pos(".",sVdfVer)) to iPos
+        Move (Left(sVdfVer,iPos-1)) to iMajor
+        Move (Right(sVdfVer,1)) to iMinor
+        Function_Return (Number(iMinor/10.0+iMajor))
+    End_Function
+    
+    Procedure _Initialize
+        String sFolder sModule sProgramPath
+        
+        Send RereadWebApplications // (and enumerate runtime)
+        Get VdfFolderPath of oFileFunctions VDF_PROGRAM to sFolder
+        Get Module_Name to sModule
+        Get AppendPath of oFileFunctions sFolder sModule to sProgramPath
+        Set _psOriginalProgramPath to sProgramPath
+    End_Procedure
+    
+    Send _Initialize
+
+// VDF License functions
+    
+    Function LicenseName Returns String
+        Integer iNumber
+        String sName
+        Registration sName iNumber
+        Function_Return sName
+    End_Function
+    Function LicenseNumber Returns Integer
+        Integer iLicenseNumber
+        String sName
+        Registration sName iLicenseNumber
+        Function_Return iLicenseNumber
+    End_Function
+    Function LicenseMaxUsers Returns Integer
+        Integer iMaxUsers
+        Get_Licensed_Max_Users to iMaxUsers
+        Function_Return iMaxUsers
+    End_Function
+    Function LicenseCurrentUsers Returns Integer
+        Integer iUserCount
+        Get_Current_User_Count to iUserCount
+        Function_Return iUserCount
+    End_Function
+    Function IsDebuggerActive Returns Boolean
+        Function_Return (IsDebuggerPresent())
+    End_Function
+End_Object // oVdfRuntimeFunctions

@@ -1,2 +1,54 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Define the workspace as a DataFlex language project:
+*.src linguist-language=DataFlex
+*.pkg linguist-language=DataFlex
+*.vw linguist-language=DataFlex
+*.dg linguist-language=DataFlex
+*.sl linguist-language=DataFlex
+*.bp linguist-language=DataFlex
+*.wo linguist-language=DataFlex
+*.inc linguist-language=DataFlex
+*.rv linguist-language=DataFlex
+*.dd linguist-language=DataFlex
+*.frm linguist-language=DataFlex
+
+
+# Exclude compiled or generated files
+*.prn linguist-generated=true
+*.dbg linguist-generated=true
+*.dsk linguist-generated=true
+*.mtd linguist-generated=true
+*.dep linguist-generated=true
+*.fld linguist-generated=true
+*.pdp linguist-generated=true
+*.pkd linguist-generated=true
+
+
+# Language-stats fixes: GitHub misdetects several DataFlex workspace files.
+# Once DataFlex lands in github-linguist (PR #7479) the DataFlex mappings
+# switch from "suppress" to "count as DataFlex" automatically.
+
+
+# Workspace config is INI-format data; without this, *.ws is detected as
+# "Witcher Script" (a game-modding language).
+*.ws linguist-language=INI
+
+
+# DataFlex compile/API headers are DataFlex source, not C/C++.
+*.h linguist-language=DataFlex
+
+
+# gitattributes globs are case-sensitive on GitHub's servers; catch
+# capitalized variants (e.g. DRLanguage.Inc) that slip past *.inc.
+*.Inc linguist-language=DataFlex
+
+
+# Help output (HelpNDoc/RTF) is documentation, not code.
+Help/** linguist-documentation=true
+*.rtf linguist-documentation=true
+
+
+# Framework payload shipped into the workspace by DataFlex Studio.
+AppHtml/Debug.asp linguist-vendored=true
+AppHtml/DfEngine/** linguist-vendored=true
+AppHtml/CssThemes/** linguist-vendored=true
+AppHtml/DataFlexReports/** linguist-vendored=true
